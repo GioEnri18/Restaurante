@@ -1,0 +1,108 @@
+name: CI - POS Restaurante Guatemala
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+
+jobs:
+  backend:
+    name: Backend (Node.js JS + Express + Sequelize)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pos_ci_user
+          POSTGRES_PASSWORD: pos_ci_password
+          POSTGRES_DB: pos_restaurante_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      API_PREFIX: /api/v1
+      CORS_ORIGIN: http://localhost:5173
+      DATABASE_URL: postgresql://pos_ci_user:pos_ci_password@localhost:5432/pos_restaurante_test
+      DATABASE_URL_TEST: postgresql://pos_ci_user:pos_ci_password@localhost:5432/pos_restaurante_test
+      JWT_SECRET: ci-test-secret-pos-restaurante-guatemala-2026-xyz123
+      DEFAULT_TIMEZONE: America/Guatemala
+      FEL_ENABLED: "false"
+      FEL_PROVIDER: NONE
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias backend
+        working-directory: backend
+        run: npm ci
+
+      - name: Verificar sintaxis JS y ESLint
+        working-directory: backend
+        run: |
+          npm run check
+          npm run lint
+
+      - name: Aplicar migraciones SQL y seed en BD de prueba
+        working-directory: backend
+        run: |
+          npm run db:migrate
+          npm run db:seed
+
+      - name: Levantar API en segundo plano y ejecutar pruebas unitarias + integración
+        working-directory: backend
+        run: |
+          node src/server.js &
+          SERVER_PID=$!
+          for i in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:4000/api/v1/health > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          npm test
+          TEST_EXIT=$?
+          kill $SERVER_PID || true
+          exit $TEST_EXIT
+
+  frontend:
+    name: Frontend (React + TypeScript + Vite)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias frontend
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck, ESLint y Build de producción
+        working-directory: frontend
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run build

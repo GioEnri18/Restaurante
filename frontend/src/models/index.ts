@@ -33,7 +33,7 @@ export interface UsuarioSesionModel {
 }
 
 export interface LoginResultModel {
-  token: string;
+  token?: string;
   usuario: UsuarioSesionModel;
 }
 
@@ -333,6 +333,9 @@ export interface CajaSesionModel {
   totalVentasTarjeta: number;
   totalIngresosExtra: number;
   totalEgresos: number;
+  totalEgresosTarjeta: number;
+  totalEgresosEfectivo: number;
+  totalTarjetaNeto: number;
   montoEsperadoEfectivo: number;
   montoContadoEfectivo: number | null;
   diferencia: number | null;

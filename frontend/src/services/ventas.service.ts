@@ -10,6 +10,7 @@ import {
 import { buildQueryString, httpClient } from './httpClient';
 
 export interface ConfirmarVentaPayload {
+  idempotencyKey?: string;
   tipoServicio: TipoServicio;
   mesaId?: number | null;
   nombreTurno?: string;
@@ -44,6 +45,10 @@ export const ventasService = {
   async confirmarVenta(payload: ConfirmarVentaPayload): Promise<TicketImprimibleModel> {
     const res = await httpClient.post<unknown>('/ventas/confirmar', payload);
     return ventasAdapter.fromConfirmarVentaJson(res.data);
+  },
+
+  async actualizarEstadoMesa(mesaId: number, estado: 'DISPONIBLE' | 'OCUPADA' | 'RESERVADA') {
+    return httpClient.patch(`/ventas/mesas/${mesaId}/estado`, { estado });
   },
 
   async listarMenusEspeciales(): Promise<MenuEspecialModel[]> {

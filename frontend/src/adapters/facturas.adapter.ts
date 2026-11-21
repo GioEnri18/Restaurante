@@ -1,83 +1,208 @@
-import { FacturaDetalleModel, FacturaResumenModel } from '../models';
+import { FacturaDetalleModel, FacturaResumenModel, MetodoPago, TipoServicio } from '../models';
+
+/** Referencia mínima de usuario en registros de factura. */
+interface RawFacturaUsuarioRefJson {
+  nombreCompleto?: string;
+}
+
+/** Referencia mínima de mesa asociada a la venta de una factura. */
+interface RawFacturaMesaRefJson {
+  numero?: string | null;
+}
+
+/** Comanda de cocina embebida dentro de la venta de una factura. */
+interface RawFacturaComandaJson {
+  numeroComanda?: string | null;
+  tipoServicio?: string;
+  mesaNumero?: string | null;
+  nombreTurno?: string | null;
+  createdAt?: string;
+}
+
+/** Detalle de platillo vendido dentro de la venta asociada a la factura. */
+interface RawFacturaVentaDetalleJson {
+  id?: number | string;
+  nombrePlatillo?: string;
+  cantidad?: number | string;
+  precioUnitario?: number | string;
+  subtotal?: number | string;
+  notas?: string | null;
+}
+
+/** Venta embebida en la respuesta JSON de una factura. */
+interface RawFacturaVentaJson {
+  id?: number | string;
+  tipoServicio?: string;
+  metodoPago?: string;
+  montoRecibido?: number | string;
+  cambio?: number | string;
+  usuario?: RawFacturaUsuarioRefJson | null;
+  mesa?: RawFacturaMesaRefJson | null;
+  comanda?: RawFacturaComandaJson | null;
+  detalles?: unknown[];
+}
+
+/** Datos de sucursal embebidos en el detalle imprimible de la factura. */
+interface RawFacturaSucursalJson {
+  nombre?: string;
+  nit?: string;
+  direccion?: string;
+  telefono?: string | null;
+}
+
+/** Respuesta JSON cruda de una factura desde /api/v1/facturas. */
+interface RawFacturaJson {
+  id?: number | string;
+  ventaId?: number | string;
+  numeroCompleto?: string;
+  serie?: string;
+  clienteNit?: string;
+  clienteNombre?: string;
+  clienteDireccion?: string;
+  subtotalSinIva?: number | string;
+  ivaMonto?: number | string;
+  total?: number | string;
+  estado?: string;
+  motivoAnulacion?: string | null;
+  anuladaEn?: string | null;
+  reimpresionesCount?: number | string;
+  felEstado?: string;
+  felUuid?: string | null;
+  createdAt?: string;
+  sucursal?: RawFacturaSucursalJson | null;
+  venta?: RawFacturaVentaJson | null;
+  anuladaPor?: RawFacturaUsuarioRefJson | null;
+}
+
+/** Estrecha un valor desconocido a un objeto plano tipado (o vacío si no es objeto). */
+function asRecord<T>(raw: unknown): T {
+  return (raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as T;
+}
+
+/** Estrecha un valor desconocido a un arreglo tipado (o vacío si no es arreglo). */
+function asArray<T>(raw: unknown): T[] {
+  return Array.isArray(raw) ? (raw as T[]) : [];
+}
+
+/** Normaliza el estado de la factura a la unión de dominio permitida. */
+function toEstadoFactura(value: unknown): 'EMITIDA' | 'ANULADA' {
+  return value === 'ANULADA' ? 'ANULADA' : 'EMITIDA';
+}
+
+/** Normaliza el tipo de servicio con valor por defecto seguro. */
+function toTipoServicio(value: unknown, fallback: TipoServicio): TipoServicio {
+  if (
+    value === 'MOSTRADOR' ||
+    value === 'LLEVAR' ||
+    value === 'MESA' ||
+    value === 'DELIVERY'
+  ) {
+    return value;
+  }
+  return fallback;
+}
+
+/** Normaliza el método de pago a la unión de dominio permitida. */
+function toMetodoPago(value: unknown): MetodoPago {
+  return value === 'TARJETA' ? 'TARJETA' : 'EFECTIVO';
+}
 
 // Adaptador de Facturas: traduce JSON de listado, detalle y reimpresión
 export const facturasAdapter = {
-  fromResumenJson(raw: any): FacturaResumenModel {
+  fromResumenJson(raw: unknown): FacturaResumenModel {
+    const data = asRecord<RawFacturaJson>(raw);
+    const venta = asRecord<RawFacturaVentaJson>(data.venta);
+    const vendedor = asRecord<RawFacturaUsuarioRefJson>(venta.usuario);
+    const mesa = asRecord<RawFacturaMesaRefJson>(venta.mesa);
+    const comanda = asRecord<RawFacturaComandaJson>(venta.comanda);
+    const anuladaPor = asRecord<RawFacturaUsuarioRefJson>(data.anuladaPor);
+
     return {
-      id: Number(raw.id),
-      numeroCompleto: String(raw.numeroCompleto ?? ''),
-      clienteNit: String(raw.clienteNit ?? 'CF'),
-      clienteNombre: String(raw.clienteNombre ?? 'Consumidor Final'),
-      subtotalSinIva: Number(raw.subtotalSinIva ?? 0),
-      ivaMonto: Number(raw.ivaMonto ?? 0),
-      total: Number(raw.total ?? 0),
-      estado: raw.estado ?? 'EMITIDA',
-      motivoAnulacion: raw.motivoAnulacion ?? null,
-      reimpresionesCount: Number(raw.reimpresionesCount ?? 0),
-      createdAt: String(raw.createdAt ?? ''),
-      tipoServicio: raw.venta?.tipoServicio ?? 'MESA',
-      metodoPago: raw.venta?.metodoPago ?? 'EFECTIVO',
-      vendedorNombre: String(raw.venta?.usuario?.nombreCompleto ?? '—'),
-      mesaNumero: raw.venta?.mesa?.numero ?? null,
-      numeroComanda: raw.venta?.comanda?.numeroComanda ?? null,
-      anuladaPorNombre: raw.anuladaPor?.nombreCompleto ?? null,
+      id: Number(data.id),
+      numeroCompleto: String(data.numeroCompleto ?? ''),
+      clienteNit: String(data.clienteNit ?? 'CF'),
+      clienteNombre: String(data.clienteNombre ?? 'Consumidor Final'),
+      subtotalSinIva: Number(data.subtotalSinIva ?? 0),
+      ivaMonto: Number(data.ivaMonto ?? 0),
+      total: Number(data.total ?? 0),
+      estado: toEstadoFactura(data.estado),
+      motivoAnulacion: data.motivoAnulacion ?? null,
+      reimpresionesCount: Number(data.reimpresionesCount ?? 0),
+      createdAt: String(data.createdAt ?? ''),
+      tipoServicio: toTipoServicio(venta.tipoServicio, 'MESA'),
+      metodoPago: toMetodoPago(venta.metodoPago),
+      vendedorNombre: String(vendedor.nombreCompleto ?? '—'),
+      mesaNumero: mesa.numero ?? null,
+      numeroComanda: comanda.numeroComanda ?? null,
+      anuladaPorNombre: anuladaPor.nombreCompleto ?? null,
     };
   },
 
-  fromDetalleJson(raw: any): FacturaDetalleModel {
-    const venta = raw.venta ?? {};
-    const comanda = venta.comanda ?? undefined;
+  fromDetalleJson(raw: unknown): FacturaDetalleModel {
+    const data = asRecord<RawFacturaJson>(raw);
+    const sucursal = asRecord<RawFacturaSucursalJson>(data.sucursal);
+    const venta = asRecord<RawFacturaVentaJson>(data.venta);
+    const cajero = asRecord<RawFacturaUsuarioRefJson>(venta.usuario);
+    const mesa = asRecord<RawFacturaMesaRefJson>(venta.mesa);
+    const anuladaPor = asRecord<RawFacturaUsuarioRefJson>(data.anuladaPor);
+    const tieneComanda =
+      venta.comanda !== null && venta.comanda !== undefined && typeof venta.comanda === 'object';
+    const comanda = tieneComanda ? asRecord<RawFacturaComandaJson>(venta.comanda) : undefined;
+
     return {
       sucursal: {
-        nombre: String(raw.sucursal?.nombre ?? ''),
-        nit: String(raw.sucursal?.nit ?? ''),
-        direccion: String(raw.sucursal?.direccion ?? ''),
-        telefono: raw.sucursal?.telefono ?? null,
+        nombre: String(sucursal.nombre ?? ''),
+        nit: String(sucursal.nit ?? ''),
+        direccion: String(sucursal.direccion ?? ''),
+        telefono: sucursal.telefono ?? null,
       },
       factura: {
-        id: Number(raw.id),
-        numeroCompleto: String(raw.numeroCompleto ?? ''),
-        serie: String(raw.serie ?? 'A'),
-        clienteNit: String(raw.clienteNit ?? 'CF'),
-        clienteNombre: String(raw.clienteNombre ?? 'Consumidor Final'),
-        clienteDireccion: String(raw.clienteDireccion ?? 'Ciudad'),
-        subtotalSinIva: Number(raw.subtotalSinIva ?? 0),
-        ivaMonto: Number(raw.ivaMonto ?? 0),
-        total: Number(raw.total ?? 0),
-        estado: raw.estado ?? 'EMITIDA',
-        reimpresionesCount: Number(raw.reimpresionesCount ?? 0),
-        felEstado: String(raw.felEstado ?? 'NO_APLICA'),
-        felUuid: raw.felUuid ?? null,
-        createdAt: String(raw.createdAt ?? ''),
+        id: Number(data.id),
+        numeroCompleto: String(data.numeroCompleto ?? ''),
+        serie: String(data.serie ?? 'A'),
+        clienteNit: String(data.clienteNit ?? 'CF'),
+        clienteNombre: String(data.clienteNombre ?? 'Consumidor Final'),
+        clienteDireccion: String(data.clienteDireccion ?? 'Ciudad'),
+        subtotalSinIva: Number(data.subtotalSinIva ?? 0),
+        ivaMonto: Number(data.ivaMonto ?? 0),
+        total: Number(data.total ?? 0),
+        estado: toEstadoFactura(data.estado),
+        reimpresionesCount: Number(data.reimpresionesCount ?? 0),
+        felEstado: String(data.felEstado ?? 'NO_APLICA'),
+        felUuid: data.felUuid ?? null,
+        createdAt: String(data.createdAt ?? ''),
       },
       comanda: comanda
         ? {
             numeroComanda: String(comanda.numeroComanda ?? ''),
-            tipoServicio: comanda.tipoServicio ?? venta.tipoServicio ?? 'MOSTRADOR',
-            mesaNumero: comanda.mesaNumero ?? venta.mesa?.numero ?? null,
+            tipoServicio: toTipoServicio(comanda.tipoServicio ?? venta.tipoServicio, 'MOSTRADOR'),
+            mesaNumero: comanda.mesaNumero ?? mesa.numero ?? null,
             nombreTurno: comanda.nombreTurno ?? null,
-            createdAt: String(comanda.createdAt ?? raw.createdAt ?? ''),
+            createdAt: String(comanda.createdAt ?? data.createdAt ?? ''),
           }
         : undefined,
       venta: {
-        id: Number(venta.id ?? raw.ventaId ?? 0),
-        tipoServicio: venta.tipoServicio ?? 'MESA',
-        metodoPago: venta.metodoPago ?? 'EFECTIVO',
-        montoRecibido: Number(venta.montoRecibido ?? raw.total ?? 0),
+        id: Number(venta.id ?? data.ventaId ?? 0),
+        tipoServicio: toTipoServicio(venta.tipoServicio, 'MESA'),
+        metodoPago: toMetodoPago(venta.metodoPago),
+        montoRecibido: Number(venta.montoRecibido ?? data.total ?? 0),
         cambio: Number(venta.cambio ?? 0),
-        cajeroNombre: String(venta.usuario?.nombreCompleto ?? '—'),
-        detalles: (venta.detalles ?? []).map((d: any) => ({
-          id: Number(d.id),
-          nombrePlatillo: String(d.nombrePlatillo ?? ''),
-          cantidad: Number(d.cantidad ?? 0),
-          precioUnitario: Number(d.precioUnitario ?? 0),
-          subtotal: Number(d.subtotal ?? 0),
-          notas: d.notas ?? null,
-        })),
+        cajeroNombre: String(cajero.nombreCompleto ?? '—'),
+        detalles: asArray<unknown>(venta.detalles).map((item) => {
+          const d = asRecord<RawFacturaVentaDetalleJson>(item);
+          return {
+            id: Number(d.id),
+            nombrePlatillo: String(d.nombrePlatillo ?? ''),
+            cantidad: Number(d.cantidad ?? 0),
+            precioUnitario: Number(d.precioUnitario ?? 0),
+            subtotal: Number(d.subtotal ?? 0),
+            notas: d.notas ?? null,
+          };
+        }),
       },
-      motivoAnulacion: raw.motivoAnulacion ?? null,
-      anuladaEn: raw.anuladaEn ?? null,
-      anuladaPorNombre: raw.anuladaPor?.nombreCompleto ?? null,
+      motivoAnulacion: data.motivoAnulacion ?? null,
+      anuladaEn: data.anuladaEn ?? null,
+      anuladaPorNombre: anuladaPor.nombreCompleto ?? null,
     };
   },
 };

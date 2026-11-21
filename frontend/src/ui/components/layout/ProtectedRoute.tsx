@@ -13,7 +13,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   permiso,
   adminOnly = false,
 }) => {
-  const { token, usuario, initialized, can, isAdmin } = useAuthStore();
+  const { usuario, initialized, can, isAdmin } = useAuthStore();
 
   if (!initialized) {
     return (
@@ -23,7 +23,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  if (!token || !usuario) {
+  if (!usuario) {
     return <Navigate to="/login" replace />;
   }
 

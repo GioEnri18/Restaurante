@@ -1,0 +1,12 @@
+const { Router } = require('express');
+const { ReportesController } = require('../controllers/reportes.controller');
+const { authenticate } = require('../middlewares/authenticate');
+const { requirePermission } = require('../middlewares/authorize');
+const router = Router();
+router.use(authenticate);
+router.get('/resumen', requirePermission('reportes:ver'), ReportesController.resumen);
+router.get('/ventas-periodo', requirePermission('reportes:ver'), ReportesController.ventasPeriodo);
+router.get('/productos-mas-vendidos', requirePermission('reportes:ver'), ReportesController.productosMasVendidos);
+router.get('/exportar/pdf', requirePermission('reportes:exportar'), ReportesController.exportarPdf);
+router.get('/exportar/excel', requirePermission('reportes:exportar'), ReportesController.exportarExcel);
+module.exports = router;

@@ -7,12 +7,12 @@ import { Alert } from '../components/common/Alert';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { token, usuario, login, loading } = useAuthStore();
+  const { usuario, login, loading } = useAuthStore();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  if (token && usuario) {
+  if (usuario) {
     return <Navigate to={usuario.rol.vistaInicial || '/ventas'} replace />;
   }
 

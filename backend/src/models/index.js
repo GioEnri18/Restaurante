@@ -1,0 +1,92 @@
+// Registro central de los 25 modelos Sequelize y TODAS sus asociaciones relacionales (Capa Modelo MVC)
+const { Permiso, Rol, RolPermiso, Sucursal, Usuario, UsuarioPermiso } = require('./seguridad.models');
+const { Categoria, MenuEspecial, MenuEspecialPlatillo, Mesa, Platillo, RecetaIngrediente } = require('./menu.models');
+const { Compra, CompraDetalle, Ingrediente, InventarioMovimiento, Merma, Proveedor } = require('./inventario.models');
+const { AuditoriaLog, CajaMovimiento, CajaSesion, Comanda, Factura, Venta, VentaDetalle } = require('./operaciones.models');
+// --- Seguridad & RBAC ---
+Sucursal.hasMany(Usuario, { foreignKey: 'sucursalId', as: 'usuarios' });
+Usuario.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+Rol.hasMany(Usuario, { foreignKey: 'rolId', as: 'usuarios' });
+Usuario.belongsTo(Rol, { foreignKey: 'rolId', as: 'rol' });
+Rol.hasMany(RolPermiso, { foreignKey: 'rolId', as: 'rolPermisos' });
+RolPermiso.belongsTo(Rol, { foreignKey: 'rolId', as: 'rol' });
+Permiso.hasMany(RolPermiso, { foreignKey: 'permisoId', as: 'rolPermisos' });
+RolPermiso.belongsTo(Permiso, { foreignKey: 'permisoId', as: 'permiso' });
+Usuario.hasMany(UsuarioPermiso, { foreignKey: 'usuarioId', as: 'usuarioPermisos' });
+UsuarioPermiso.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+Permiso.hasMany(UsuarioPermiso, { foreignKey: 'permisoId', as: 'usuarioPermisos' });
+UsuarioPermiso.belongsTo(Permiso, { foreignKey: 'permisoId', as: 'permiso' });
+// --- Menú, Recetas, Menús Especiales y Mesas ---
+Categoria.hasMany(Platillo, { foreignKey: 'categoriaId', as: 'platillos' });
+Platillo.belongsTo(Categoria, { foreignKey: 'categoriaId', as: 'categoria' });
+Platillo.hasMany(RecetaIngrediente, { foreignKey: 'platilloId', as: 'receta' });
+RecetaIngrediente.belongsTo(Platillo, { foreignKey: 'platilloId', as: 'platillo' });
+Ingrediente.hasMany(RecetaIngrediente, { foreignKey: 'ingredienteId', as: 'recetas' });
+RecetaIngrediente.belongsTo(Ingrediente, { foreignKey: 'ingredienteId', as: 'ingrediente' });
+MenuEspecial.belongsTo(Usuario, { foreignKey: 'creadoPorId', as: 'creadoPor' });
+MenuEspecial.hasMany(MenuEspecialPlatillo, { foreignKey: 'menuEspecialId', as: 'platillos' });
+MenuEspecialPlatillo.belongsTo(MenuEspecial, { foreignKey: 'menuEspecialId', as: 'menuEspecial' });
+Platillo.hasMany(MenuEspecialPlatillo, { foreignKey: 'platilloId', as: 'menusEspeciales' });
+MenuEspecialPlatillo.belongsTo(Platillo, { foreignKey: 'platilloId', as: 'platillo' });
+// --- Inventario, Proveedores, Compras y Mermas ---
+Proveedor.hasMany(Ingrediente, { foreignKey: 'proveedorId', as: 'ingredientes' });
+Ingrediente.belongsTo(Proveedor, { foreignKey: 'proveedorId', as: 'proveedor' });
+Proveedor.hasMany(Compra, { foreignKey: 'proveedorId', as: 'compras' });
+Compra.belongsTo(Proveedor, { foreignKey: 'proveedorId', as: 'proveedor' });
+Compra.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+Compra.hasMany(CompraDetalle, { foreignKey: 'compraId', as: 'detalles' });
+CompraDetalle.belongsTo(Compra, { foreignKey: 'compraId', as: 'compra' });
+CompraDetalle.belongsTo(Ingrediente, { foreignKey: 'ingredienteId', as: 'ingrediente' });
+InventarioMovimiento.belongsTo(Ingrediente, { foreignKey: 'ingredienteId', as: 'ingrediente' });
+InventarioMovimiento.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+Merma.belongsTo(Ingrediente, { foreignKey: 'ingredienteId', as: 'ingrediente' });
+Merma.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+// --- Caja, Ventas, Facturas, Comandas y Auditoría ---
+CajaSesion.belongsTo(Usuario, { foreignKey: 'usuarioAperturaId', as: 'usuarioApertura' });
+CajaSesion.belongsTo(Usuario, { foreignKey: 'usuarioCierreId', as: 'usuarioCierre' });
+CajaSesion.hasMany(CajaMovimiento, { foreignKey: 'cajaSesionId', as: 'movimientos' });
+CajaMovimiento.belongsTo(CajaSesion, { foreignKey: 'cajaSesionId', as: 'cajaSesion' });
+CajaMovimiento.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+Venta.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+Venta.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+Venta.belongsTo(Mesa, { foreignKey: 'mesaId', as: 'mesa' });
+Venta.belongsTo(CajaSesion, { foreignKey: 'cajaSesionId', as: 'cajaSesion' });
+Venta.hasMany(VentaDetalle, { foreignKey: 'ventaId', as: 'detalles' });
+VentaDetalle.belongsTo(Venta, { foreignKey: 'ventaId', as: 'venta' });
+Venta.hasOne(Factura, { foreignKey: 'ventaId', as: 'factura' });
+Factura.belongsTo(Venta, { foreignKey: 'ventaId', as: 'venta' });
+Factura.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+Factura.belongsTo(Usuario, { foreignKey: 'anuladaPorId', as: 'anuladaPor' });
+Venta.hasOne(Comanda, { foreignKey: 'ventaId', as: 'comanda' });
+Comanda.belongsTo(Venta, { foreignKey: 'ventaId', as: 'venta' });
+Comanda.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+AuditoriaLog.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+
+module.exports = {
+  ...require('./enums'),
+  Sucursal,
+  Rol,
+  Permiso,
+  RolPermiso,
+  Usuario,
+  UsuarioPermiso,
+  Categoria,
+  Platillo,
+  RecetaIngrediente,
+  Mesa,
+  MenuEspecial,
+  MenuEspecialPlatillo,
+  Proveedor,
+  Ingrediente,
+  Compra,
+  CompraDetalle,
+  InventarioMovimiento,
+  Merma,
+  CajaSesion,
+  CajaMovimiento,
+  Venta,
+  VentaDetalle,
+  Factura,
+  Comanda,
+  AuditoriaLog,
+};

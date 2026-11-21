@@ -1,22 +1,67 @@
+# IMPORTANTE (Seguridad):
+# Todas las credenciales deben definirse en el archivo `.env` en la raíz del repositorio
+# (copia `.env.example` a `.env`). Docker Compose fallará de forma segura si faltan.
+#
+# Modos de uso:
+#   - Solo base de datos (desarrollo local): docker compose up -d
+#   - Stack completo (DB + Backend + Frontend): docker compose --profile full up -d --build
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: pos_restaurante_pg
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-pos_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pos_secret_2026}
-      POSTGRES_DB: ${POSTGRES_DB:-pos_restaurante_gt}
-      TZ: America/Guatemala
+      POSTGRES_USER: ${POSTGRES_USER:?Define POSTGRES_USER en el archivo .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en el archivo .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en el archivo .env}
+      TZ: ${DEFAULT_TIMEZONE:-America/Guatemala}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pos_admin} -d ${POSTGRES_DB:-pos_restaurante_gt}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?Define POSTGRES_USER en .env} -d ${POSTGRES_DB:?Define POSTGRES_DB en .env}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  backend:
+    profiles: ["full"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pos_restaurante_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      API_PREFIX: /api/v1
+      TRUST_PROXY: "1"
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?Define POSTGRES_USER en .env}:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}@postgres:5432/${POSTGRES_DB:?Define POSTGRES_DB en .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET de al menos 32 caracteres aleatorios en .env}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Guatemala}
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+
+  frontend:
+    profiles: ["full"]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: pos_restaurante_web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
 
 volumes:
   postgres_data:

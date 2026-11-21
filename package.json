@@ -8,9 +8,10 @@
     "db:down": "docker compose down",
     "backend:install": "npm --prefix backend install",
     "backend:dev": "npm --prefix backend run dev",
-    "backend:build": "npm --prefix backend run build",
-    "backend:migrate": "npm --prefix backend run prisma:migrate",
-    "backend:seed": "npm --prefix backend run prisma:seed",
+    "backend:start": "npm --prefix backend run start",
+    "backend:check": "npm --prefix backend run check",
+    "backend:migrate": "npm --prefix backend run db:migrate",
+    "backend:seed": "npm --prefix backend run db:seed",
     "frontend:install": "npm --prefix frontend install",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build"

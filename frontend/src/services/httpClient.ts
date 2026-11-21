@@ -30,18 +30,9 @@ export interface ApiEnvelope<T> {
   };
 }
 
-function getStoredToken(): string | null {
-  try {
-    const raw = localStorage.getItem(env.AUTH_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { token?: string };
-    return parsed.token ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function buildQueryString(params: Record<string, string | number | boolean | undefined | null>): string {
+export function buildQueryString(
+  params: Record<string, string | number | boolean | undefined | null>,
+): string {
   const sp = new URLSearchParams();
   for (const [key, val] of Object.entries(params)) {
     if (val !== undefined && val !== null && String(val).trim() !== '') {
@@ -52,6 +43,10 @@ export function buildQueryString(params: Record<string, string | number | boolea
   return str ? `?${str}` : '';
 }
 
+/**
+ * Cliente HTTP con autenticación mediante cookie `httpOnly` (`credentials: 'include'`)
+ * y encabezado personalizado `X-Requested-With: XMLHttpRequest` para protección CSRF (Fase 2.7).
+ */
 async function request<T>(
   path: string,
   options: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
@@ -60,15 +55,15 @@ async function request<T>(
   const timeout = setTimeout(() => controller.abort(), env.API_TIMEOUT_MS);
 
   try {
-    const token = getStoredToken();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'X-Requested-With': 'XMLHttpRequest',
       ...options.headers,
     };
 
     const res = await fetch(`${env.API_BASE_URL}${path}`, {
       method: options.method ?? 'GET',
+      credentials: 'include',
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: controller.signal,
@@ -77,9 +72,8 @@ async function request<T>(
     const json = (await res.json().catch(() => null)) as ApiEnvelope<T> | null;
 
     if (!res.ok || !json || !json.ok) {
-      // Si el token expiró fuera del login, limpiar sesión local
-      if (res.status === 401 && !path.startsWith('/auth/login')) {
-        localStorage.removeItem(env.AUTH_STORAGE_KEY);
+      // Si la sesión expiró fuera de login/me, notificar al store para limpiar estado en memoria
+      if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/me')) {
         window.dispatchEvent(new CustomEvent('pos:unauthorized'));
       }
 
@@ -104,10 +98,10 @@ async function request<T>(
 }
 
 async function downloadFile(path: string, filename: string): Promise<void> {
-  const token = getStoredToken();
   const res = await fetch(`${env.API_BASE_URL}${path}`, {
     method: 'GET',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' },
   });
 
   if (!res.ok) {

@@ -1,0 +1,4354 @@
+{
+  "info": {
+    "_postman_id": "c8f4b7e2-3a91-4d5e-9c2f-71b8a4e09101",
+    "name": "POS Restaurante Guatemala - API v1 (Completa)",
+    "description": "Colección oficial QA (Postman v2.1.0) para el backend Express + Sequelize + PostgreSQL del Punto de Venta para Restaurante en Guatemala.\n\n### Seguridad y Sesión (Fase 2.7)\n- **Cookie `httpOnly` (`pos_session`)**: Al ejecutar `02. Auth -> POST Login`, Postman guarda automáticamente la cookie en su Cookie Jar y la adjunta en todas las peticiones posteriores.\n- **Protección CSRF**: Todas las carpetas y peticiones incluyen automáticamente `X-Requested-With: XMLHttpRequest` y `Origin: {{frontendOrigin}}`, requeridos por `csrfProtection.js` para peticiones mutadoras (`POST`, `PUT`, `PATCH`, `DELETE`).\n\n### Notas de ejecución recomendada\n1. Importa también `POS_Restaurante_GT.postman_environment.json` y actívalo en la esquina superior derecha de Postman.\n2. Ejecuta `01. Health` y luego `02. Auth -> POST Login`.\n3. Para confirmar ventas (`04. Ventas y Menú -> POST Confirmar Venta`), asegúrate de tener una caja abierta (`03. Caja -> POST Abrir Caja`).\n4. Ejecuta `02. Auth -> POST Logout` al final de tu sesión de pruebas.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Pre-request global: asegura encabezados anti-CSRF compatibles con Fase 2.7",
+          "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+          "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+          "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "ventaId",
+      "value": "1",
+      "type": "string",
+      "description": "ID de la última venta confirmada"
+    },
+    {
+      "key": "facturaId",
+      "value": "1",
+      "type": "string",
+      "description": "ID de la última factura emitida o consultada"
+    },
+    {
+      "key": "platilloId",
+      "value": "1",
+      "type": "string",
+      "description": "ID del platillo activo para pruebas"
+    },
+    {
+      "key": "ingredienteId",
+      "value": "1",
+      "type": "string",
+      "description": "ID del ingrediente activo para pruebas"
+    },
+    {
+      "key": "proveedorId",
+      "value": "1",
+      "type": "string",
+      "description": "ID del proveedor activo para pruebas"
+    },
+    {
+      "key": "menuEspecialId",
+      "value": "1",
+      "type": "string",
+      "description": "ID del menú especial creado para pruebas"
+    },
+    {
+      "key": "usuarioId",
+      "value": "2",
+      "type": "string",
+      "description": "ID del usuario creado/objetivo para pruebas (evita ID 1 admin)"
+    },
+    {
+      "key": "rolId",
+      "value": "2",
+      "type": "string",
+      "description": "ID del rol creado/objetivo para pruebas"
+    },
+    {
+      "key": "categoriaId",
+      "value": "2",
+      "type": "string",
+      "description": "ID de categoría del menú POS"
+    },
+    {
+      "key": "mesaId",
+      "value": "1",
+      "type": "string",
+      "description": "ID de mesa para actualización de estado"
+    },
+    {
+      "key": "permisoId",
+      "value": "1",
+      "type": "string",
+      "description": "ID de permiso del catálogo maestro"
+    },
+    {
+      "key": "cajaSesionId",
+      "value": "1",
+      "type": "string",
+      "description": "ID de la última sesión de caja abierta"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Health",
+      "description": "Verificación de estado, versión de API, moneda (GTQ) y tasa de IVA de Guatemala.",
+      "item": [
+        {
+          "name": "GET Health - Estado de la API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Metadatos del servicio POS Guatemala presentes\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.service).to.eql(\"pos-restaurante-gt-api\");",
+                  "    pm.expect(data.currency).to.eql(\"GTQ\");",
+                  "    pm.expect(data.ivaRate).to.be.a(\"number\");",
+                  "    pm.expect(data.timestamp).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Verifica que el servicio POS Restaurante Guatemala esté activo y devuelve configuración fiscal básica (GTQ, IVA 12%)."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Auth",
+      "description": "Autenticación con cookie httpOnly (`pos_session`) gestionada automáticamente por el Cookie Jar de Postman. Nota: ejecuta `POST /auth/logout` al finalizar tus pruebas para no cerrar la sesión antes de probar los demás módulos.",
+      "item": [
+        {
+          "name": "POST Login - Iniciar sesión (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Devuelve perfil de usuario autenticado y cookie de sesión httpOnly\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.have.property(\"usuario\");",
+                  "    pm.expect(data.usuario.username).to.be.a(\"string\");",
+                  "    const setCookie = pm.response.headers.get(\"Set-Cookie\") || \"\";",
+                  "    pm.expect(setCookie.toLowerCase()).to.include(\"httponly\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Autentica al usuario y establece la cookie httpOnly `pos_session`. Tiene rate limiting por IP + identificador (Fase 2.1). Puedes cambiar `{{adminUser}}`/`{{adminPass}}` por `{{cajeroUser}}` o `{{meseroUser}}` para pruebas RBAC.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifier\": \"{{adminUser}}\",\n  \"password\": \"{{adminPass}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Me - Perfil del usuario autenticado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Perfil autenticado contiene permisos y rol\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Retorna la información del usuario activo, su rol y permisos efectivos usando la cookie httpOnly almacenada en Postman."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Logout - Cerrar sesión",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Confirma cierre de sesión exitoso\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.message).to.be.a(\"string\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Registra el cierre de sesión en auditoría y limpia la cookie httpOnly `pos_session`. Requiere `X-Requested-With: XMLHttpRequest` y `Origin` válido."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Caja",
+      "description": "Apertura, movimientos manuales, historial paginado y cierre/arqueo de caja por turno. Nota: `POST /ventas/confirmar` requiere una caja abierta; si cierras caja aquí, vuelve a abrirla antes de confirmar ventas.",
+      "item": [
+        {
+          "name": "GET Caja Actual - Estado del turno vigente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/caja/actual",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caja",
+                "actual"
+              ]
+            },
+            "description": "Consulta la sesión de caja abierta actualmente en la sucursal (o `null` si no hay turno abierto). Permisos: `caja:ver` o `ventas:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Abrir Caja - Iniciar turno",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Sesión de caja creada en estado ABIERTA\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "    if (data.id) {",
+                  "        pm.collectionVariables.set(\"cajaSesionId\", String(data.id));",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/caja/abrir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caja",
+                "abrir"
+              ]
+            },
+            "description": "Abre un nuevo turno de caja con el fondo inicial en efectivo (Q). Permiso: `caja:abrir`. Esquema Zod: `montoInicial >= 0`, `observaciones?`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"montoInicial\": 500,\n  \"observaciones\": \"Apertura de turno matutino - Prueba QA Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Registrar Movimiento de Caja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Movimiento manual de caja registrado\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/caja/movimientos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caja",
+                "movimientos"
+              ]
+            },
+            "description": "Registra un ingreso o egreso manual en la caja abierta. Permiso: `caja:movimiento`. Esquema Zod: `tipo` (`INGRESO_MANUAL` | `EGRESO_MANUAL`), `monto > 0`, `descripcion` (3..250), `metodoPago` (`EFECTIVO` | `TARJETA`).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo\": \"INGRESO_MANUAL\",\n  \"monto\": 150,\n  \"descripcion\": \"Fondo adicional de billetes pequeños para vuelto\",\n  \"metodoPago\": \"EFECTIVO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Historial de Cajas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "    pm.expect(json).to.have.property(\"meta\");",
+                  "    pm.expect(json.meta).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/caja/historial?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caja",
+                "historial"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "Número de página"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false,
+                  "description": "Registros por página"
+                }
+              ]
+            },
+            "description": "Lista el historial paginado de sesiones de caja cerradas y abiertas. Permiso: `caja:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Cerrar Caja - Arqueo de turno",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Arqueo y cierre de caja completados\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/caja/cerrar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "caja",
+                "cerrar"
+              ]
+            },
+            "description": "Realiza el cierre y arqueo de la caja abierta. Permiso: `caja:cerrar`. Esquema Zod: `montoContadoEfectivo >= 0`, `observacionesCierre?`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"montoContadoEfectivo\": 650,\n  \"observacionesCierre\": \"Cierre de turno verificado y cuadrado sin diferencias\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Ventas y Menú",
+      "description": "Consulta del menú POS, estado de mesas, gestión de platillos/recetas, confirmación atómica de ventas (con idempotencia UUID) y consulta de comandas de cocina.",
+      "item": [
+        {
+          "name": "GET Menú POS - Categorías, platillos y mesas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Menú POS contiene categorías, platillos y mesas y actualiza variables\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.have.property(\"cajaAbierta\");",
+                  "    if (Array.isArray(data.categorias) && data.categorias.length > 0) {",
+                  "        pm.collectionVariables.set(\"categoriaId\", String(data.categorias[0].id));",
+                  "    }",
+                  "    if (Array.isArray(data.mesas) && data.mesas.length > 0) {",
+                  "        pm.collectionVariables.set(\"mesaId\", String(data.mesas[0].id));",
+                  "    }",
+                  "    if (Array.isArray(data.platillos) && data.platillos.length > 0) {",
+                  "        pm.collectionVariables.set(\"platilloId\", String(data.platillos[0].id));",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/menu",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "menu"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Búsqueda por nombre, descripción o SKU"
+                },
+                {
+                  "key": "categoriaId",
+                  "value": "{{categoriaId}}",
+                  "disabled": true,
+                  "description": "Filtrar por ID de categoría"
+                }
+              ]
+            },
+            "description": "Devuelve categorías, platillos con precios vigentes (incluyendo menú especial activo), mesas y estado de caja. Guarda `categoriaId`, `mesaId` y `platilloId` si están disponibles. Permiso: `ventas:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH Actualizar Estado de Mesa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Estado de mesa actualizado a OCUPADA\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.estado).to.eql(\"OCUPADA\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/mesas/{{mesaId}}/estado",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "mesas",
+                "{{mesaId}}",
+                "estado"
+              ]
+            },
+            "description": "Cambia el estado operativo de una mesa (`DISPONIBLE`, `OCUPADA`, `RESERVADA`). Permiso: `ventas:crear`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estado\": \"OCUPADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Platillo (con receta)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Platillo creado y guardado en variable platilloId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.id).to.be.a(\"number\");",
+                  "    pm.collectionVariables.set(\"platilloId\", String(data.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/platillos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "platillos"
+              ]
+            },
+            "description": "Crea un nuevo platillo en el menú. Fase 2.6: exige `ventas:gestionar_menu`, y si incluye `receta` exige ADEMÁS `inventario:gestionar`. Guarda `platilloId` en variables de colección.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoriaId\": {{categoriaId}},\n  \"sku\": \"QA-PLT-{{$randomInt}}\",\n  \"nombre\": \"Churrasco Especial QA {{$randomInt}}\",\n  \"descripcion\": \"Lomito de res al carbón con guacamol, frijoles volteados y tortillas\",\n  \"precioVenta\": 95.5,\n  \"disponible\": true,\n  \"receta\": [\n    {\n      \"ingredienteId\": {{ingredienteId}},\n      \"cantidadOz\": 4\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Actualizar Platillo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Precio del platillo actualizado correctamente\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(Number(data.precioVenta)).to.eql(99);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/platillos/{{platilloId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "platillos",
+                "{{platilloId}}"
+              ]
+            },
+            "description": "Actualiza datos/precio de un platillo y registra cambio de precio en auditoría. Permiso: `ventas:gestionar_menu` (+ `inventario:gestionar` si se envía `receta`).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Churrasco Especial QA Actualizado\",\n  \"precioVenta\": 99,\n  \"disponible\": true,\n  \"motivo\": \"Ajuste de precio de temporada validado en QA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Confirmar Venta (Idempotente + Factura + Comanda)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Venta confirmada con factura y comanda; guarda ventaId y facturaId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.have.property(\"venta\");",
+                  "    pm.expect(data).to.have.property(\"factura\");",
+                  "    pm.expect(data).to.have.property(\"comanda\");",
+                  "    pm.expect(data.venta.id).to.be.a(\"number\");",
+                  "    pm.expect(data.factura.id).to.be.a(\"number\");",
+                  "    pm.collectionVariables.set(\"ventaId\", String(data.venta.id));",
+                  "    pm.collectionVariables.set(\"facturaId\", String(data.factura.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/confirmar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "confirmar"
+              ]
+            },
+            "description": "Confirma una venta atómica: descuenta inventario por receta en onzas, registra ingreso en caja, emite factura inmutable (IVA 12% incluido) y genera comanda. Usa `{{$guid}}` en `idempotencyKey` para evitar cobros duplicados. Guarda `ventaId` y `facturaId`. Requiere caja abierta y permiso `ventas:crear`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{$guid}}\",\n  \"tipoServicio\": \"MOSTRADOR\",\n  \"nombreTurno\": \"Pedido QA #101\",\n  \"metodoPago\": \"EFECTIVO\",\n  \"montoRecibido\": 200,\n  \"clienteNit\": \"CF\",\n  \"clienteNombre\": \"Consumidor Final\",\n  \"clienteDireccion\": \"Ciudad de Guatemala\",\n  \"observaciones\": \"Venta de prueba generada desde Postman\",\n  \"items\": [\n    {\n      \"platilloId\": {{platilloId}},\n      \"cantidad\": 1,\n      \"notas\": \"Término medio, tortillas calientes\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Obtener Comanda de Cocina por Venta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Comanda contiene número y detalle de venta\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.have.property(\"numeroComanda\");",
+                  "    pm.expect(data).to.have.property(\"venta\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/{{ventaId}}/comanda",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "{{ventaId}}",
+                "comanda"
+              ]
+            },
+            "description": "Obtiene la comanda de cocina asociada a la venta `{{ventaId}}`. Permisos: `ventas:ver` o `facturas:ver`."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Menús Especiales",
+      "description": "Programación de menús temporales por fechas especiales (ej. Fiestas Patrias, Navidad) con alertas proactivas y precios promocionales.",
+      "item": [
+        {
+          "name": "GET Alertas de Menús Especiales",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/menus-especiales/alertas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "menus-especiales",
+                "alertas"
+              ]
+            },
+            "description": "Retorna menús especiales activos hoy o próximos a iniciar según `diasAvisoPrevio`. Permiso: `ventas:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Menús Especiales",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});",
+                  "",
+                  "pm.test(\"Si existen menús especiales, respalda el primero en menuEspecialId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    if (data.length > 0 && !pm.collectionVariables.get(\"menuEspecialId\")) {",
+                  "        pm.collectionVariables.set(\"menuEspecialId\", String(data[0].id));",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/menus-especiales",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "menus-especiales"
+              ]
+            },
+            "description": "Lista todos los menús especiales de la sucursal. Exclusivo Administrador + `ventas:gestionar_menu`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Menú Especial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Menú especial creado y guardado en menuEspecialId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.id).to.be.a(\"number\");",
+                  "    pm.collectionVariables.set(\"menuEspecialId\", String(data.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/menus-especiales",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "menus-especiales"
+              ]
+            },
+            "description": "Crea un menú especial por rango de fechas y asigna platillos con precio promocional. Guarda `menuEspecialId`. Exclusivo Administrador + `ventas:gestionar_menu`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Menú Especial Fiestas Patrias QA\",\n  \"descripcion\": \"Especialidades chapinas para celebrar la Independencia de Guatemala\",\n  \"fechaInicio\": \"2026-09-14\",\n  \"fechaFin\": \"2026-09-16\",\n  \"diasAvisoPrevio\": 5,\n  \"activo\": true,\n  \"esMenuPrincipal\": false,\n  \"platillos\": [\n    {\n      \"platilloId\": {{platilloId}},\n      \"precioEspecial\": 85.0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Actualizar Menú Especial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Menú especial actualizado correctamente\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.diasAvisoPrevio).to.eql(7);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/menus-especiales/{{menuEspecialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "menus-especiales",
+                "{{menuEspecialId}}"
+              ]
+            },
+            "description": "Actualiza el nombre, vigencia o platillos de un menú especial existente. Exclusivo Administrador + `ventas:gestionar_menu`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Menú Especial Fiestas Patrias QA (Actualizado)\",\n  \"diasAvisoPrevio\": 7,\n  \"activo\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Eliminar Menú Especial",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Confirma eliminación del menú especial\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.eliminado).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/ventas/menus-especiales/{{menuEspecialId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ventas",
+                "menus-especiales",
+                "{{menuEspecialId}}"
+              ]
+            },
+            "description": "Elimina el menú especial de prueba `{{menuEspecialId}}` y deja traza en auditoría. Exclusivo Administrador + `ventas:gestionar_menu`."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Facturas",
+      "description": "Consulta, reimpresión y anulación auditada de facturas inmutables (por regla fiscal SAT Guatemala no existen endpoints PUT ni DELETE).",
+      "item": [
+        {
+          "name": "GET Listar Facturas (Paginado y filtros)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "    pm.expect(json).to.have.property(\"meta\");",
+                  "    pm.expect(json.meta).to.be.an(\"object\");",
+                  "});",
+                  "",
+                  "pm.test(\"Respalda facturaId si hay registros emitidos\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    if (data.length > 0 && !pm.collectionVariables.get(\"facturaId\")) {",
+                  "        pm.collectionVariables.set(\"facturaId\", String(data[0].id));",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/facturas?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "facturas"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "Página actual"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false,
+                  "description": "Tamaño de página"
+                },
+                {
+                  "key": "numero",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Número o correlativo de factura"
+                },
+                {
+                  "key": "cliente",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Nombre o NIT del cliente"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": true,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": true,
+                  "description": "Fecha final YYYY-MM-DD"
+                },
+                {
+                  "key": "montoMin",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Monto mínimo en Q"
+                },
+                {
+                  "key": "montoMax",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Monto máximo en Q"
+                },
+                {
+                  "key": "estado",
+                  "value": "EMITIDA",
+                  "disabled": true,
+                  "description": "EMITIDA o ANULADA"
+                }
+              ]
+            },
+            "description": "Lista facturas con paginación y filtros por número, cliente, rango de fechas, montos y estado (`EMITIDA` | `ANULADA`). Permiso: `facturas:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Detalle de Factura",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Detalle de factura contiene total y desglose de IVA\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.have.property(\"numeroCompleto\");",
+                  "    pm.expect(data).to.have.property(\"ivaMonto\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/facturas/{{facturaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "facturas",
+                "{{facturaId}}"
+              ]
+            },
+            "description": "Obtiene el detalle completo de la factura `{{facturaId}}` incluyendo líneas, desglose IVA y datos FEL. Permiso: `facturas:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Reimprimir Factura",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Reimpresión de factura registrada correctamente\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/facturas/{{facturaId}}/reimprimir",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "facturas",
+                "{{facturaId}}",
+                "reimprimir"
+              ]
+            },
+            "description": "Registra una reimpresión controlada de la factura `{{facturaId}}` en bitácora de auditoría. Permiso: `facturas:reimprimir`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Anular Factura",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Factura cambia a estado ANULADA\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/facturas/{{facturaId}}/anular",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "facturas",
+                "{{facturaId}}",
+                "anular"
+              ]
+            },
+            "description": "Anula formalmente la factura `{{facturaId}}` con motivo obligatorio (mín. 5 caracteres) y opción de reintegrar inventario. Permiso: `facturas:anular`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Error en datos de facturación solicitados por el cliente (QA)\",\n  \"reintegrarInventario\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Inventario",
+      "description": "Gestión de ingredientes (conversión automática libras <-> onzas, 1 lb = 16 oz), alertas de bajo stock, ajustes manuales, proveedores, compras con costo promedio ponderado y Kardex.",
+      "item": [
+        {
+          "name": "GET Listar Ingredientes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});",
+                  "",
+                  "pm.test(\"Si hay ingredientes, asegura ingredienteId válido\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    if (data.length > 0 && !pm.collectionVariables.get(\"ingredienteId\")) {",
+                  "        pm.collectionVariables.set(\"ingredienteId\", String(data[0].id));",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/ingredientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "ingredientes"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Buscar por código o nombre de ingrediente"
+                }
+              ]
+            },
+            "description": "Lista ingredientes activos con stock en onzas y libras, costo promedio y bandera `bajoStock`. Permisos: `inventario:ver` o `mermas:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Alertas de Stock Bajo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/alertas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "alertas"
+              ]
+            },
+            "description": "Devuelve ingredientes cuyo stock actual es menor o igual al stock mínimo configurado. Permiso: `inventario:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Ingrediente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Ingrediente creado con conversión a onzas y guardado en ingredienteId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.id).to.be.a(\"number\");",
+                  "    pm.expect(data.stockActualOz).to.eql(160);",
+                  "    pm.collectionVariables.set(\"ingredienteId\", String(data.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/ingredientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "ingredientes"
+              ]
+            },
+            "description": "Crea un ingrediente convirtiendo stock inicial y mínimo de libras/onzas a onzas base. Guarda `ingredienteId`. Permiso: `inventario:gestionar`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"ING-QA-{{$randomInt}}\",\n  \"nombre\": \"Chorizo Cobanero Artesanal QA\",\n  \"proveedorId\": {{proveedorId}},\n  \"stockMinimo\": 3,\n  \"unidadStockMinimo\": \"lb\",\n  \"stockInicial\": 10,\n  \"unidadStockInicial\": \"lb\",\n  \"precioPorLb\": 36.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Actualizar Ingrediente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Stock mínimo actualizado (4 lb = 64 oz)\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.stockMinimoOz).to.eql(64);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/ingredientes/{{ingredienteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "ingredientes",
+                "{{ingredienteId}}"
+              ]
+            },
+            "description": "Actualiza nombre, proveedor, stock mínimo o estado del ingrediente `{{ingredienteId}}`. Permiso: `inventario:gestionar`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Chorizo Cobanero Artesanal QA (Editado)\",\n  \"stockMinimo\": 4,\n  \"unidadStockMinimo\": \"lb\",\n  \"activo\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Ajustar Stock de Ingrediente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Ajuste de stock aplicado exitosamente\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/ingredientes/{{ingredienteId}}/ajustar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "ingredientes",
+                "{{ingredienteId}}",
+                "ajustar"
+              ]
+            },
+            "description": "Aplica un ajuste manual (`ENTRADA` o `SALIDA`) al stock en `lb` u `oz` con registro en Kardex y auditoría. Permiso: `inventario:ajustar`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipoAjuste\": \"ENTRADA\",\n  \"cantidad\": 8,\n  \"unidad\": \"oz\",\n  \"motivo\": \"Ajuste de inventario por conteo físico semanal QA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Proveedores",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});",
+                  "",
+                  "pm.test(\"Asegura proveedorId válido si hay proveedores\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    if (data.length > 0 && !pm.collectionVariables.get(\"proveedorId\")) {",
+                  "        pm.collectionVariables.set(\"proveedorId\", String(data[0].id));",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/proveedores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "proveedores"
+              ]
+            },
+            "description": "Lista los proveedores de la sucursal junto al conteo de ingredientes y compras asociadas. Permiso: `inventario:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Proveedor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Proveedor creado y guardado en proveedorId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.id).to.be.a(\"number\");",
+                  "    pm.collectionVariables.set(\"proveedorId\", String(data.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/proveedores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "proveedores"
+              ]
+            },
+            "description": "Registra un nuevo proveedor y guarda `proveedorId`. Permiso: `inventario:gestionar`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Distribuidora Chapina QA {{$randomInt}}\",\n  \"nit\": \"9182736-5\",\n  \"telefono\": \"2360-1234\",\n  \"email\": \"ventas.qa@distribuidorachapina.gt\",\n  \"contacto\": \"Roberto Estrada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Actualizar Proveedor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Teléfono de proveedor actualizado\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.telefono).to.eql(\"2360-5678\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/proveedores/{{proveedorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "proveedores",
+                "{{proveedorId}}"
+              ]
+            },
+            "description": "Actualiza los datos de contacto o fiscales del proveedor `{{proveedorId}}`. Permiso: `inventario:gestionar`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefono\": \"2360-5678\",\n  \"contacto\": \"Roberto Estrada (Actualizado)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Compras",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "    pm.expect(json).to.have.property(\"meta\");",
+                  "    pm.expect(json.meta).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/compras?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "compras"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "Página actual"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false,
+                  "description": "Registros por página"
+                }
+              ]
+            },
+            "description": "Consulta el historial paginado de compras de insumos registradas. Permiso: `inventario:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Registrar Compra (en libras)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Compra registrada con cálculo de total\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/compras",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "compras"
+              ]
+            },
+            "description": "Registra una compra en libras (convertida automáticamente a onzas), recalcula el costo promedio ponderado y registra entradas en Kardex. Permiso: `inventario:comprar`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proveedorId\": {{proveedorId}},\n  \"numeroDocumento\": \"FAC-PROV-{{$randomInt}}\",\n  \"observaciones\": \"Compra de reposición semanal en libras (QA)\",\n  \"items\": [\n    {\n      \"ingredienteId\": {{ingredienteId}},\n      \"cantidadLb\": 5,\n      \"precioPorLb\": 38.0\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Movimientos de Inventario (Kardex)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "    pm.expect(json).to.have.property(\"meta\");",
+                  "    pm.expect(json.meta).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/inventario/movimientos?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "inventario",
+                "movimientos"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "Página actual"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false,
+                  "description": "Registros por página"
+                },
+                {
+                  "key": "ingredienteId",
+                  "value": "{{ingredienteId}}",
+                  "disabled": true,
+                  "description": "Filtrar por ID de ingrediente"
+                },
+                {
+                  "key": "tipo",
+                  "value": "ENTRADA_COMPRA",
+                  "disabled": true,
+                  "description": "TipoMovimientoInventario (ENTRADA_COMPRA, SALIDA_VENTA, MERMA, AJUSTE_MANUAL, etc.)"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": true,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": true,
+                  "description": "Fecha final YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "Lista el Kardex paginado de movimientos de inventario con filtros por ingrediente, tipo y fechas. Permiso: `inventario:ver`."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Mermas",
+      "description": "Registro y consulta de desperdicios/mermas con descuento automático de inventario en onzas y costeo en quetzales.",
+      "item": [
+        {
+          "name": "GET Listar Mermas y Resumen",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json).to.have.property(\"meta\");",
+                  "    pm.expect(json.meta).to.be.an(\"object\");",
+                  "});",
+                  "",
+                  "pm.test(\"Respuesta contiene items y resumen de mermas\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.have.property(\"items\");",
+                  "    pm.expect(data.items).to.be.an(\"array\");",
+                  "    pm.expect(data).to.have.property(\"resumen\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mermas?page=1&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mermas"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "Página actual"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false,
+                  "description": "Registros por página"
+                },
+                {
+                  "key": "motivo",
+                  "value": "ERROR_PREPARACION",
+                  "disabled": true,
+                  "description": "VENCIMIENTO | DANO | ERROR_PREPARACION | ACCIDENTE | OTRO"
+                },
+                {
+                  "key": "ingredienteId",
+                  "value": "{{ingredienteId}}",
+                  "disabled": true,
+                  "description": "Filtrar por ingrediente"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": true,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": true,
+                  "description": "Fecha final YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "Consulta el listado paginado de mermas (`data.items`) junto al resumen de costo perdido (`data.resumen`). Permiso: `mermas:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Registrar Merma",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Merma registrada correctamente\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mermas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "mermas"
+              ]
+            },
+            "description": "Registra una merma en `oz` o `lb`, descuenta stock del ingrediente `{{ingredienteId}}` y registra movimiento en Kardex y auditoría. Permiso: `mermas:crear`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ingredienteId\": {{ingredienteId}},\n  \"cantidad\": 4,\n  \"unidad\": \"oz\",\n  \"motivo\": \"ERROR_PREPARACION\",\n  \"observacion\": \"Porción descartada durante prueba de cocina (QA)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Reportes",
+      "description": "Indicadores ejecutivos de ventas, tendencias por período, ranking de platillos más vendidos y exportación binaria a PDF y Excel (.xlsx).",
+      "item": [
+        {
+          "name": "GET Resumen Ejecutivo de Reportes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reportes/resumen?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "resumen"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": false,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": false,
+                  "description": "Fecha final YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "Devuelve KPIs de ventas, IVA, utilidad, mermas y compras en el rango indicado. Permiso: `reportes:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Ventas por Período",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reportes/ventas-periodo?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "ventas-periodo"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": false,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": false,
+                  "description": "Fecha final YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "Devuelve serie temporal de ventas agrupadas por fecha para gráficas. Permiso: `reportes:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Productos Más Vendidos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reportes/productos-mas-vendidos?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "productos-mas-vendidos"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": false,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": false,
+                  "description": "Fecha final YYYY-MM-DD"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false,
+                  "description": "Cantidad máxima de platillos en el ranking"
+                }
+              ]
+            },
+            "description": "Ranking de platillos más vendidos por volumen e ingresos. Permiso: `reportes:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Exportar Reporte en PDF",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA para descarga binaria PDF",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs * 2);",
+                  "});",
+                  "",
+                  "pm.test(\"Content-Type es application/pdf y archivo no vacío\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"application/pdf\");",
+                  "    pm.expect(pm.response.headers.get(\"Content-Disposition\")).to.include(\".pdf\");",
+                  "    pm.expect(pm.response.responseSize).to.be.above(100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reportes/exportar/pdf?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "exportar",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": false,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": false,
+                  "description": "Fecha final YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "Genera y descarga el reporte gerencial en formato binario `application/pdf`. Permiso: `reportes:exportar`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Exportar Reporte en Excel (.xlsx)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA para descarga binaria Excel (.xlsx)",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs * 2);",
+                  "});",
+                  "",
+                  "pm.test(\"Content-Type es Excel (.xlsx) y archivo no vacío\", function () {",
+                  "    pm.expect(pm.response.headers.get(\"Content-Type\")).to.include(\"spreadsheetml.sheet\");",
+                  "    pm.expect(pm.response.headers.get(\"Content-Disposition\")).to.include(\".xlsx\");",
+                  "    pm.expect(pm.response.responseSize).to.be.above(100);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reportes/exportar/excel?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "exportar",
+                "excel"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": false,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": false,
+                  "description": "Fecha final YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "Genera y descarga el libro Excel (`.xlsx`) con hojas de resumen y ventas. Permiso: `reportes:exportar`."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Auditoría",
+      "description": "Bitácora estrictamente inmutable (solo lectura GET) con historial de acciones críticas, valores anteriores/nuevos, IP y User-Agent.",
+      "item": [
+        {
+          "name": "GET Listar Eventos de Auditoría",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "    pm.expect(json).to.have.property(\"meta\");",
+                  "    pm.expect(json.meta).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auditoria?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auditoria"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false,
+                  "description": "Página actual"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false,
+                  "description": "Registros por página"
+                },
+                {
+                  "key": "usuarioId",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtrar por ID de usuario"
+                },
+                {
+                  "key": "accion",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtrar por código de acción"
+                },
+                {
+                  "key": "entidad",
+                  "value": "",
+                  "disabled": true,
+                  "description": "Filtrar por entidad (Venta, Factura, Usuario, etc.)"
+                },
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": true,
+                  "description": "Fecha inicial YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": true,
+                  "description": "Fecha final YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "Lista paginada de eventos de auditoría con filtros opcionales por usuario, acción, entidad y rango de fechas. Permiso: `auditoria:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Catálogo de Acciones y Filtros de Auditoría",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auditoria/acciones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auditoria",
+                "acciones"
+              ]
+            },
+            "description": "Devuelve el catálogo de acciones, entidades y usuarios disponibles para filtrar la bitácora. Permiso: `auditoria:ver`."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Accesos",
+      "description": "Administración de usuarios, roles configurables y matriz de permisos RBAC. Doble candado: requiere sesión autenticada + rol `ADMIN`.",
+      "item": [
+        {
+          "name": "GET Listar Usuarios",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "usuarios"
+              ]
+            },
+            "description": "Lista todos los usuarios de la sucursal con su rol, permisos efectivos y overrides personalizados. Permiso: `accesos:ver` + rol ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Usuario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Usuario creado y guardado en usuarioId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.id).to.be.a(\"number\");",
+                  "    pm.collectionVariables.set(\"usuarioId\", String(data.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "usuarios"
+              ]
+            },
+            "description": "Crea un usuario nuevo con contraseña encriptada con bcrypt y rol asignado. Guarda `usuarioId` en variables de colección. Permiso: `accesos:gestionar` + rol ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombreCompleto\": \"María Fernanda López (QA)\",\n  \"username\": \"qa.user.{{$randomInt}}\",\n  \"email\": \"qa.user.{{$randomInt}}@parrillachapina.gt\",\n  \"password\": \"QaUser123!\",\n  \"rolId\": {{rolId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Actualizar Usuario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Nombre del usuario actualizado\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/usuarios/{{usuarioId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "usuarios",
+                "{{usuarioId}}"
+              ]
+            },
+            "description": "Actualiza datos del usuario `{{usuarioId}}`, su rol o sus permisos personalizados. Permiso: `accesos:gestionar` + rol ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombreCompleto\": \"María Fernanda López (QA Editado)\",\n  \"rolId\": {{rolId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH Cambiar Estado de Usuario (Activar / Desactivar)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Estado del usuario actualizado correctamente\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/usuarios/{{usuarioId}}/estado",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "usuarios",
+                "{{usuarioId}}",
+                "estado"
+              ]
+            },
+            "description": "Activa o desactiva el acceso del usuario `{{usuarioId}}` (no permite desactivarse a sí mismo). Permiso: `accesos:gestionar` + rol ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"activo\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Roles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/roles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "roles"
+              ]
+            },
+            "description": "Lista todos los roles configurables y sus permisos asignados. Permiso: `accesos:ver` + rol ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Rol",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Rol creado y guardado en rolId\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data.id).to.be.a(\"number\");",
+                  "    pm.collectionVariables.set(\"rolId\", String(data.id));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/roles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "roles"
+              ]
+            },
+            "description": "Crea un nuevo rol configurable con vista inicial y lista de permisos. Guarda `rolId`. Permiso: `accesos:gestionar` + rol ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"SUPERVISOR_QA_{{$randomInt}}\",\n  \"nombre\": \"Supervisor de Turno QA\",\n  \"descripcion\": \"Rol configurable creado para pruebas QA de RBAC\",\n  \"vistaInicial\": \"/ventas\",\n  \"permisoIds\": [{{permisoId}}]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Actualizar Permisos de Rol",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Permisos del rol actualizados correctamente\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.be.an(\"object\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text",
+                "description": "Cuerpo JSON en formato UTF-8"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/roles/{{rolId}}/permisos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "roles",
+                "{{rolId}}",
+                "permisos"
+              ]
+            },
+            "description": "Reemplaza los permisos y vista inicial del rol `{{rolId}}` (protege que ADMIN conserve permisos de Accesos). Permiso: `accesos:gestionar` + rol ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permisoIds\": [{{permisoId}}],\n  \"vistaInicial\": \"/ventas\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Permisos Maestros",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "pm.test(\"Catálogo de permisos contiene lista y agrupación porVista\", function () {",
+                  "    const { data } = pm.response.json();",
+                  "    pm.expect(data).to.have.property(\"lista\");",
+                  "    pm.expect(data.lista).to.be.an(\"array\");",
+                  "    pm.expect(data).to.have.property(\"porVista\");",
+                  "    if (data.lista.length > 0) {",
+                  "        pm.collectionVariables.set(\"permisoId\", String(data.lista[0].id));",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/accesos/permisos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "accesos",
+                "permisos"
+              ]
+            },
+            "description": "Devuelve el catálogo completo de permisos (`data.lista` y `data.porVista`). Actualiza `permisoId` en variables de colección. Permiso: `accesos:ver` + rol ADMIN."
+          },
+          "response": []
+        }
+      ],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Garantiza encabezados anti-CSRF (Fase 2.7) en todas las peticiones de esta carpeta",
+              "pm.request.headers.upsert({ key: \"X-Requested-With\", value: \"XMLHttpRequest\" });",
+              "const origin = pm.environment.get(\"frontendOrigin\") || \"http://localhost:5173\";",
+              "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
