@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Users, Shield, UserPlus, Plus, Power, Edit } from 'lucide-react';
 import { PermisoModel, RolModel, UsuarioAdminModel } from '../../models';
 import { accesosService } from '../../services/accesos.service';
+import { ApiError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
 import { formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
@@ -19,6 +20,32 @@ const VISTAS_RUTAS = [
   '/accesos',
 ];
 
+const ETIQUETAS_USUARIO: Record<string, string> = {
+  nombreCompleto: 'Nombre completo',
+  username: 'Nombre de usuario',
+  email: 'Correo electrónico',
+  password: 'Contraseña',
+  rolId: 'Rol',
+};
+
+function mensajeErrorUsuario(error: unknown): string {
+  if (!(error instanceof ApiError) || !Array.isArray(error.details)) {
+    return error instanceof Error ? error.message : 'No se pudo guardar el usuario';
+  }
+  if (error.code === 'DUPLICATE_ENTRY') {
+    const duplicados = error.details
+      .filter((campo): campo is string => typeof campo === 'string' && Object.hasOwn(ETIQUETAS_USUARIO, campo))
+      .map((campo) => ETIQUETAS_USUARIO[campo]);
+    return duplicados.length ? `Ya está en uso: ${duplicados.join(', ')}.` : error.message;
+  }
+  const detalles = error.details.flatMap((detalle) => {
+    if (!detalle || typeof detalle.campo !== 'string' || typeof detalle.mensaje !== 'string') return [];
+    const etiqueta = ETIQUETAS_USUARIO[detalle.campo];
+    return [etiqueta ? `${etiqueta}: ${detalle.mensaje}` : detalle.mensaje];
+  });
+  return detalles.length ? detalles.join(' · ') : error.message;
+}
+
 export const AccesosPage: React.FC = () => {
   const currentUser = useAuthStore((s) => s.usuario);
   const [tab, setTab] = useState<'usuarios' | 'roles'>('usuarios');
@@ -30,6 +57,9 @@ export const AccesosPage: React.FC = () => {
 
   // Modal Usuario (crear / editar)
   const [userModal, setUserModal] = useState(false);
+  const [errorUsuario, setErrorUsuario] = useState<string | null>(null);
+  const [guardandoUsuario, setGuardandoUsuario] = useState(false);
+  const [longitudMinima, setLongitudMinima] = useState<number>();
   const [editingUser, setEditingUser] = useState<UsuarioAdminModel | null>(null);
   const [userForm, setUserForm] = useState({
     nombreCompleto: '',
@@ -81,9 +111,13 @@ export const AccesosPage: React.FC = () => {
 
   useEffect(() => {
     void cargarTodo();
+    void accesosService.obtenerLongitudMinimaPassword().then(setLongitudMinima).catch(() => {
+      // La validación de la API sigue vigente si el servidor todavía no expone la política.
+    });
   }, [cargarTodo]);
 
   const abrirNuevoUsuario = () => {
+    setErrorUsuario(null);
     setEditingUser(null);
     setUserForm({
       nombreCompleto: '',
@@ -96,6 +130,7 @@ export const AccesosPage: React.FC = () => {
   };
 
   const abrirEditarUsuario = (u: UsuarioAdminModel) => {
+    setErrorUsuario(null);
     setEditingUser(u);
     setUserForm({
       nombreCompleto: u.nombreCompleto,
@@ -109,8 +144,11 @@ export const AccesosPage: React.FC = () => {
 
   const handleGuardarUsuario = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardandoUsuario) return;
     setError(null);
+    setErrorUsuario(null);
     setSuccess(null);
+    setGuardandoUsuario(true);
     try {
       if (editingUser) {
         await accesosService.actualizarUsuario(editingUser.id, {
@@ -133,7 +171,9 @@ export const AccesosPage: React.FC = () => {
       setUserModal(false);
       await cargarTodo();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar el usuario');
+      setErrorUsuario(mensajeErrorUsuario(err));
+    } finally {
+      setGuardandoUsuario(false);
     }
   };
 
@@ -394,7 +434,7 @@ export const AccesosPage: React.FC = () => {
       <Modal
         open={userModal}
         title={editingUser ? `Editar Usuario @${editingUser.username}` : 'Crear Nuevo Usuario'}
-        onClose={() => setUserModal(false)}
+        onClose={() => { if (!guardandoUsuario) setUserModal(false); }}
         maxWidthClass="max-w-lg"
       >
         <form onSubmit={handleGuardarUsuario} className="space-y-3">
@@ -425,12 +465,19 @@ export const AccesosPage: React.FC = () => {
           <input
             required={!editingUser}
             type="password"
-            minLength={6}
-            placeholder={editingUser ? 'Nueva contraseña (dejar vacío para mantener)' : 'Contraseña (mín. 6 caracteres)'}
+            autoComplete="new-password"
+            aria-describedby="requisitos-contrasena-usuario"
+            minLength={longitudMinima}
+            maxLength={72}
+            pattern="(?=.*[A-Za-z])(?=.*[0-9]).*"
+            placeholder={editingUser ? 'Nueva contraseña (opcional)' : 'Contraseña'}
             value={userForm.password}
             onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
             className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
           />
+          <p id="requisitos-contrasena-usuario" className="text-xs text-slate-600">
+            {longitudMinima ? `Mínimo ${longitudMinima} caracteres, con al menos una letra y un número.` : 'Incluye al menos una letra y un número.'}
+          </p>
           <select
             required
             value={userForm.rolId}
@@ -444,11 +491,13 @@ export const AccesosPage: React.FC = () => {
               </option>
             ))}
           </select>
+          {errorUsuario && <div role="alert"><Alert type="error" message={errorUsuario} /></div>}
           <button
             type="submit"
-            className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white"
+            disabled={guardandoUsuario || roles.length === 0}
+            className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
           >
-            {editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
+            {guardandoUsuario ? 'Guardando…' : editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
           </button>
         </form>
       </Modal>

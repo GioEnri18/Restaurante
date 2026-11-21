@@ -55,6 +55,7 @@ const router = Router();
 // DOBLE CANDADO: Autenticado + Rol Administrador exclusivo
 router.use(authenticate, requireAdmin);
 router.get('/usuarios', requirePermission('accesos:ver'), AccesosController.listarUsuarios);
+router.get('/usuarios/politica-password', requirePermission('accesos:ver'), AccesosController.obtenerPoliticaPassword);
 router.post('/usuarios', requirePermission('accesos:gestionar'), validate(crearUsuarioSchema), AccesosController.crearUsuario);
 router.put('/usuarios/:id', requirePermission('accesos:gestionar'), validate(idParamsSchema, 'params'), validate(actualizarUsuarioSchema), AccesosController.actualizarUsuario);
 router.patch('/usuarios/:id/estado', requirePermission('accesos:gestionar'), validate(idParamsSchema, 'params'), validate(estadoUsuarioSchema), AccesosController.cambiarEstadoUsuario);

@@ -131,7 +131,7 @@ Docker guarda las miniaturas en el volumen `platillos_media`. El backend escribe
 
 ### Menú base de Restaurante Exprés BX
 
-Importa el catálogo permanente a una sucursal existente después de aplicar las migraciones. Cambia el código del ejemplo por el de la sucursal de destino.
+La migración incorpora el catálogo permanente en las sucursales activas y un trigger de PostgreSQL lo precarga al insertar una nueva sucursal activa. Para reponer productos faltantes por SKU, ejecuta el comando con el código de la sucursal.
 
 ```bash
 npm --prefix backend run db:cargar-menu-base -- SUC-01
@@ -139,7 +139,7 @@ npm --prefix backend run db:cargar-menu-base -- SUC-01
 docker compose exec backend npm run db:cargar-menu-base -- SUC-01
 ```
 
-La importación crea borradores por SKU y copia las miniaturas al volumen. Puedes repetirla sin duplicar productos ni sobrescribir recetas, precios o fotos editadas. Los gramajes son pruebas por porción almacenadas en onzas en el POS. Los insumos nuevos empiezan sin existencias y sin costo registrado. Los combos requieren composición y las bebidas envasadas requieren definir su control por presentación. Antes de habilitar cualquier producto, confirma su receta, registra los costos de compra y asigna el precio de venta. Los menús de temporada se siguen gestionando por fechas desde Menús Especiales.
+La carga crea borradores por SKU y puede repetirse sin duplicar productos ni sobrescribir recetas, precios o fotos editadas. Las fotos iniciales WebP se sirven desde la aplicación y las que suba el administrador se guardan en el volumen. Los gramajes son pruebas por porción almacenadas en onzas en el POS. Los insumos nuevos empiezan sin existencias y sin costo registrado. Los combos requieren composición y las bebidas envasadas requieren definir su control por presentación. Antes de habilitar cualquier producto, confirma su receta, registra los costos de compra y asigna el precio de venta. Los menús de temporada se siguen gestionando por fechas desde Menús Especiales.
 
 ### Respaldos
 

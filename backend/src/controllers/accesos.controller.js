@@ -1,5 +1,9 @@
 const { AccesosService } = require('../services/accesos.service');
+const { env } = require('../config/env');
 class AccesosController {
+    static obtenerPoliticaPassword(_req, res) {
+        res.json({ ok: true, data: { longitudMinima: env.PASSWORD_MIN_LENGTH } });
+    }
     static async listarUsuarios(req, res, next) {
         try {
             const data = await AccesosService.listarUsuarios(req.user.sucursalId);

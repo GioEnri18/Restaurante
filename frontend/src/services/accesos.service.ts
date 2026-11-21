@@ -8,6 +8,11 @@ export const accesosService = {
     return (res.data ?? []).map((u) => accesosAdapter.fromUsuarioJson(u));
   },
 
+  async obtenerLongitudMinimaPassword(): Promise<number> {
+    const res = await httpClient.get<{ longitudMinima: number }>('/accesos/usuarios/politica-password');
+    return res.data.longitudMinima;
+  },
+
   async crearUsuario(payload: {
     nombreCompleto: string;
     username: string;

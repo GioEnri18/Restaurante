@@ -3,7 +3,9 @@ const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');
 const { env } = require('./config/env');
-const { PLATILLOS_MEDIA_DIR, PLATILLOS_MEDIA_URL, NOMBRE_FOTO_PLATILLO } = require('./config/platillos-media');
+const {
+  PLATILLOS_MEDIA_DIR, PLATILLOS_MEDIA_BASE_DIR, PLATILLOS_MEDIA_URL, NOMBRE_FOTO_PLATILLO,
+} = require('./config/platillos-media');
 const { csrfProtection } = require('./middlewares/csrfProtection');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { requestTimeout } = require('./middlewares/requestTimeout');
@@ -47,14 +49,20 @@ function createApp() {
   app.get(`${PLATILLOS_MEDIA_URL}/:nombre`, (req, res, next) => {
     const { nombre } = req.params;
     if (!NOMBRE_FOTO_PLATILLO.test(nombre)) return next(new NotFoundError('Foto no encontrada'));
-    res.sendFile(nombre, {
-      root: PLATILLOS_MEDIA_DIR,
+    const opciones = {
       maxAge: '1d',
       immutable: true,
       headers: { 'Cross-Origin-Resource-Policy': 'cross-origin' },
-    }, (error) => {
-      if (error?.status === 404) return next(new NotFoundError('Foto no encontrada'));
-      if (error) next(error);
+    };
+    res.sendFile(nombre, { ...opciones, root: PLATILLOS_MEDIA_DIR }, (error) => {
+      if (error?.status !== 404) {
+        if (error) next(error);
+        return;
+      }
+      res.sendFile(nombre, { ...opciones, root: PLATILLOS_MEDIA_BASE_DIR }, (errorBase) => {
+        if (errorBase?.status === 404) return next(new NotFoundError('Foto no encontrada'));
+        if (errorBase) next(errorBase);
+      });
     });
   });
 

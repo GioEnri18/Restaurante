@@ -301,8 +301,7 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
     assert.equal((await abrir(primerUrl)).status, 404);
   });
 
-  it('importa el menú base con sus fotos y porciones sin habilitar cobros ni sobrescribir cambios', async () => {
-    assert.equal(await cargarMenuBase(sucursalAjena.codigo), 35);
+  it('precarga el menú base al crear una sucursal y conserva las ediciones al repetir la carga', async () => {
     const borradores = await Platillo.findAll({ where: { sucursalId: sucursalAjena.id } });
     platillosTemporalesIds.push(...borradores.map((p) => p.id));
     assert.equal(borradores.length, 35);
