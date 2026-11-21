@@ -21,10 +21,14 @@ function createApp() {
   app.use(httpLogger);
 
   // Seguridad HTTP y CORS (con credenciales para cookies httpOnly)
+  const corsOrigins = env.CORS_ORIGIN.split(',')
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
   app.use(helmet());
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+      origin: corsOrigins,
       credentials: true,
     }),
   );

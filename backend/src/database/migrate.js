@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { QueryTypes, Sequelize } = require('sequelize');
 const { env } = require('../config/env');
+const { buildPgSslOptions } = require('../config/pgSsl');
 
 /**
  * Ejecutor idempotente de migraciones SQL versionadas sobre PostgreSQL.
@@ -32,10 +33,13 @@ function resolverUrlMigraciones() {
  * (lock, transacciones de migración y unlock) ocurre en la misma sesión.
  */
 function crearConexionMigraciones() {
-  return new Sequelize(resolverUrlMigraciones(), {
+  const url = resolverUrlMigraciones();
+  const sslOptions = buildPgSslOptions(url);
+  return new Sequelize(url, {
     dialect: 'postgres',
     logging: false,
     pool: { max: 1, min: 1, acquire: 60000, idle: 60000 },
+    ...(sslOptions ? { dialectOptions: { ssl: sslOptions } } : {}),
   });
 }
 

@@ -11,6 +11,7 @@ pg.types.setTypeParser(PG_TIMESTAMP_SIN_ZONA_OID, (valor) =>
 );
 const { AppError, ConflictError } = require('../shared/errors/AppError');
 const { env } = require('./env');
+const { buildPgSslOptions } = require('./pgSsl');
 const { logger } = require('../shared/logger');
 /**
  * Instancia única de Sequelize conectada a PostgreSQL con pool optimizado y timeouts anti-cola.
@@ -18,6 +19,7 @@ const { logger } = require('../shared/logger');
  */
 // En test, env.js ya garantiza que DATABASE_URL_TEST existe y es distinta de DATABASE_URL
 const activeDatabaseUrl = env.NODE_ENV === 'test' ? env.DATABASE_URL_TEST : env.DATABASE_URL;
+const sslOptions = buildPgSslOptions(activeDatabaseUrl);
 
 const sequelize = new Sequelize(activeDatabaseUrl, {
     dialect: 'postgres',
@@ -31,6 +33,7 @@ const sequelize = new Sequelize(activeDatabaseUrl, {
     dialectOptions: {
         statement_timeout: env.DB_STATEMENT_TIMEOUT_MS,
         lock_timeout: env.DB_LOCK_TIMEOUT_MS,
+        ...(sslOptions ? { ssl: sslOptions } : {}),
     },
     define: {
         underscored: true,

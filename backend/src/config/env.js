@@ -40,6 +40,12 @@ const envSchema = z.object({
   DB_POOL_IDLE_MS: z.coerce.number().int().min(1000).max(60000).default(10000),
   DB_LOCK_TIMEOUT_MS: z.coerce.number().int().min(500).max(30000).default(3000),
   DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(10000),
+  // Control de SSL/TLS para PostgreSQL gestionado en la nube (Render, Neon, Supabase, RDS)
+  DB_SSL: z.enum(['auto', 'true', 'false']).default('auto'),
+  DB_SSL_REJECT_UNAUTHORIZED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 
   JWT_SECRET: z.string().min(16, 'JWT_SECRET debe tener al menos 16 caracteres'),
   JWT_EXPIRES_IN: z.string().default('12h'),

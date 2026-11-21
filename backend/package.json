@@ -4,6 +4,9 @@
   "private": true,
   "description": "API REST /api/v1 MVC con Node.js (JavaScript), Express y Sequelize para POS de Restaurante (Guatemala)",
   "main": "src/server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",

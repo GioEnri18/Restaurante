@@ -1,5 +1,6 @@
 const { Sequelize } = require('sequelize');
 const { env } = require('../config/env');
+const { buildPgSslOptions } = require('../config/pgSsl');
 
 /**
  * Crea o actualiza el usuario de LOGIN de la API y lo hace miembro de pos_app_rol
@@ -24,7 +25,12 @@ async function main() {
     env.NODE_ENV === 'test'
       ? env.DATABASE_MIGRATION_URL_TEST || env.DATABASE_URL_TEST
       : env.DATABASE_MIGRATION_URL || env.DATABASE_URL;
-  const sequelize = new Sequelize(url, { dialect: 'postgres', logging: false });
+  const sslOptions = buildPgSslOptions(url);
+  const sequelize = new Sequelize(url, {
+    dialect: 'postgres',
+    logging: false,
+    ...(sslOptions ? { dialectOptions: { ssl: sslOptions } } : {}),
+  });
 
   try {
     const [existe] = await sequelize.query('SELECT 1 FROM pg_roles WHERE rolname = :usuario', {

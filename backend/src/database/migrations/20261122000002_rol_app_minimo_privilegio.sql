@@ -9,33 +9,39 @@
 -- Qué NO puede: borrar ventas, facturas, caja o inventario; alterar esquema; quitar triggers;
 -- tocar schema_migrations.
 
+-- En proveedores PostgreSQL gestionados sin permiso CREATEROLE (p. ej. Render Managed PostgreSQL),
+-- se captura insufficient_privilege para no bloquear el despliegue manteniendo intacto el trigger
+-- de inmutabilidad de auditoria_logs. En Docker/VPS propios el rol y todos sus privilegios se aplican completo.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pos_app_rol') THEN
     CREATE ROLE pos_app_rol NOLOGIN;
   END IF;
+
+  GRANT USAGE ON SCHEMA public TO pos_app_rol;
+  REVOKE CREATE ON SCHEMA public FROM pos_app_rol;
+
+  GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO pos_app_rol;
+  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pos_app_rol;
+
+  -- DELETE únicamente donde el código reemplaza filas (permisos, recetas y menús especiales)
+  GRANT DELETE ON "rol_permisos", "usuario_permisos", "receta_ingredientes",
+    "menus_especiales", "menu_especial_platillos" TO pos_app_rol;
+
+  -- Bitácora de auditoría: append-only también a nivel de privilegios
+  REVOKE UPDATE, DELETE, TRUNCATE ON "auditoria_logs" FROM pos_app_rol;
+
+  -- El historial de migraciones no es asunto de la API
+  REVOKE ALL ON "schema_migrations" FROM pos_app_rol;
+
+  -- Tablas y secuencias futuras creadas por el dueño heredan los permisos básicos
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO pos_app_rol;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO pos_app_rol;
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE NOTICE 'PostgreSQL gestionado sin CREATEROLE: se omite pos_app_rol y se mantiene el trigger de auditoría inmutable.';
 END
 $$;
-
-GRANT USAGE ON SCHEMA public TO pos_app_rol;
-REVOKE CREATE ON SCHEMA public FROM pos_app_rol;
-
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO pos_app_rol;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO pos_app_rol;
-
--- DELETE únicamente donde el código reemplaza filas (permisos, recetas y menús especiales)
-GRANT DELETE ON "rol_permisos", "usuario_permisos", "receta_ingredientes",
-  "menus_especiales", "menu_especial_platillos" TO pos_app_rol;
-
--- Bitácora de auditoría: append-only también a nivel de privilegios
-REVOKE UPDATE, DELETE, TRUNCATE ON "auditoria_logs" FROM pos_app_rol;
-
--- El historial de migraciones no es asunto de la API
-REVOKE ALL ON "schema_migrations" FROM pos_app_rol;
-
--- Tablas y secuencias futuras creadas por el dueño heredan los permisos básicos
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO pos_app_rol;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO pos_app_rol;
 
 -- El trigger de inmutabilidad (fase 2) solo cubría UPDATE/DELETE por fila: TRUNCATE lo saltaba
 DROP TRIGGER IF EXISTS trg_auditoria_logs_no_truncate ON auditoria_logs;

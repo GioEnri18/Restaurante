@@ -24,3 +24,4 @@ postman/carga/resultados*.json
 
 # Memoria de contexto del trabajo (solo local, nunca versionar)
 memoria/
+.vercel/
