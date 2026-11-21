@@ -2,19 +2,23 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');
-const morgan = require('morgan');
 const { env } = require('./config/env');
 const { csrfProtection } = require('./middlewares/csrfProtection');
 const { errorHandler } = require('./middlewares/errorHandler');
 const { requestTimeout } = require('./middlewares/requestTimeout');
 const apiRoutes = require('./routes');
 const { NotFoundError } = require('./shared/errors/AppError');
+const { httpLogger } = require('./shared/logger');
 
 function createApp() {
   const app = express();
 
   // Fase 2.3: Configuración explícita de proxy confiable para req.ip
   app.set('trust proxy', env.TRUST_PROXY);
+
+  // Logs estructurados JSON con requestId por petición (sin cookies ni Authorization).
+  // Va primero para registrar también las peticiones rechazadas por CSRF o timeout.
+  app.use(httpLogger);
 
   // Seguridad HTTP y CORS (con credenciales para cookies httpOnly)
   app.use(helmet());
@@ -35,7 +39,6 @@ function createApp() {
   // Fase 2.7: Protección CSRF en profundidad para peticiones mutadoras con cookie de sesión
   app.use(csrfProtection);
 
-  app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
   // Enrutador central MVC versionado (env.API_PREFIX = /api/v1)
   app.use(env.API_PREFIX, apiRoutes);

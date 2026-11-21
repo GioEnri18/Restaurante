@@ -1,10 +1,23 @@
 # IMPORTANTE (Seguridad):
 # Todas las credenciales deben definirse en el archivo `.env` en la raíz del repositorio
-# (copia `.env.example` a `.env`). Docker Compose fallará de forma segura si faltan.
+# (crea `.env` localmente con los valores de tu entorno). Docker Compose falla si faltan.
+# Las contraseñas usadas dentro de las URL no deben llevar caracteres como @ : / ? # %.
 #
 # Modos de uso:
 #   - Solo base de datos (desarrollo local): docker compose up -d
-#   - Stack completo (DB + Backend + Frontend): docker compose --profile full up -d --build
+#   - Stack completo (DB + migraciones + API + frontend): docker compose --profile full up -d --build
+#
+# Exposición de red del stack completo:
+#   - Solo `frontend` (nginx) publica un puerto (HTTP). En producción, el HTTPS lo termina un proxy
+#     delante de ese puerto (Caddy, Traefik, el nginx del servidor o el balanceador).
+#   - `backend` no publica puertos: se alcanza únicamente por nginx en la red interna.
+#   - `postgres` solo escucha en 127.0.0.1 del equipo anfitrión (para desarrollo local);
+#     en un servidor de producción elimina por completo su sección `ports`.
+#
+# Roles de base de datos:
+#   - POSTGRES_USER: dueño del esquema; lo usan únicamente las migraciones (servicio `migrator`).
+#   - APP_DB_USER: usuario de la API, miembro de pos_app_rol (sin DDL, sin borrar ventas/facturas,
+#     auditoría solo INSERT/SELECT). Lo crea/actualiza `migrator` en cada despliegue.
 
 services:
   postgres:
@@ -17,7 +30,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?Define POSTGRES_DB en el archivo .env}
       TZ: ${DEFAULT_TIMEZONE:-America/Guatemala}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -25,6 +38,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Tarea única por despliegue: aplica migraciones como dueño y crea/actualiza el usuario de la API
+  migrator:
+    profiles: ["full"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pos_restaurante_migrator
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "-c", "node src/database/migrate.js && node src/database/crearRolApp.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_MIGRATION_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      APP_DB_USER: ${APP_DB_USER:?Define APP_DB_USER (usuario de BD de la API) en .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Define APP_DB_PASSWORD (16+ caracteres aleatorios) en .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET de al menos 32 caracteres aleatorios en .env}
 
   backend:
     profiles: ["full"]
@@ -34,20 +67,23 @@ services:
     container_name: pos_restaurante_api
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 4000
       API_PREFIX: /api/v1
-      TRUST_PROXY: "1"
+      # Saltos de proxy confiables. "1" = solo el nginx del frontend: Express toma la última IP de
+      # X-Forwarded-For (la que agrega nginx), así un cliente no puede falsificarla con su propio header.
+      # Si en producción pones otro proxy HTTPS delante, usa "2".
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
-      DATABASE_URL: postgresql://${POSTGRES_USER:?Define POSTGRES_USER en .env}:${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}@postgres:5432/${POSTGRES_DB:?Define POSTGRES_DB en .env}
+      # La API se conecta con el usuario de mínimo privilegio, nunca con el dueño del esquema
+      DATABASE_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MIGRATE_ON_START: "false"
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET de al menos 32 caracteres aleatorios en .env}
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
       DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Guatemala}
-    ports:
-      - "${BACKEND_PORT:-4000}:4000"
+    # Sin `ports`: la API no es accesible desde fuera de la red de Docker
 
   frontend:
     profiles: ["full"]

@@ -1,5 +1,6 @@
 const { env } = require('../config/env');
 const { ForbiddenError } = require('../shared/errors/AppError');
+const { resolverCredencial } = require('../shared/utils/credenciales');
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -39,13 +40,9 @@ function csrfProtection(req, _res, next) {
     return;
   }
 
-  const hasSessionCookie = Boolean(req.cookies && req.cookies[env.AUTH_COOKIE_NAME]);
-  const hasBearerHeader =
-    typeof req.headers.authorization === 'string' &&
-    req.headers.authorization.startsWith('Bearer ');
-
-  // Si la petición no depende de cookie de sesión (ej. login inicial o cliente API con Bearer), continuar
-  if (!hasSessionCookie || hasBearerHeader) {
+  // Misma decisión que authenticate: solo se exige CSRF cuando la cookie es la credencial usada
+  // (login inicial sin sesión o cliente API con Bearer no dependen de la cookie)
+  if (resolverCredencial(req).fuente !== 'cookie') {
     next();
     return;
   }

@@ -4,7 +4,7 @@ class VentasController {
         try {
             const search = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
             const categoriaId = req.query.categoriaId ? Number(req.query.categoriaId) : undefined;
-            const data = await VentasService.obtenerMenu(req.user.sucursalId, search, categoriaId);
+            const data = await VentasService.obtenerMenu(req.user, search, categoriaId);
             res.status(200).json({ ok: true, data });
         }
         catch (error) {

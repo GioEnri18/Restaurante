@@ -2,7 +2,25 @@ node_modules/
 dist/
 build/
 .env
-.env.local
+.env.*
+*.env
+*.env.*
+*.postman_environment.json
 *.log
 .DS_Store
 coverage/
+
+*.pem
+*.key
+*.pfx
+*.p12
+certs/
+# Respaldos de base de datos
+backups/
+
+# Prueba de carga: credenciales generadas y resultados locales
+postman/carga/usuarios.json
+postman/carga/resultados*.json
+
+# Memoria de contexto del trabajo (solo local, nunca versionar)
+memoria/

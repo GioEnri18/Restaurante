@@ -6,6 +6,8 @@ const { env } = require('../config/env');
 const { Permiso, Rol, RolPermiso, Usuario, UsuarioPermiso } = require('../models');
 const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
+const { PermisosCache } = require('../shared/services/permisosCache');
+const { revocarSesionesUsuario } = require('./auth.service');
 class AccesosService {
     static async listarUsuarios(sucursalId) {
         const usuarios = await Usuario.findAll({
@@ -157,6 +159,11 @@ class AccesosService {
                 rolId: input.rolId ?? actual.rolId,
                 ...(passwordHash ? { passwordHash } : {}),
             }, { transaction: tx });
+            // Auditoría P0.3: cambiar contraseña o rol cierra todas las sesiones activas del usuario
+            const cambioRol = input.rolId !== undefined && input.rolId !== prevRolId;
+            if (passwordHash || cambioRol) {
+                await revocarSesionesUsuario(targetUserId, tx);
+            }
             if (input.permisosPersonalizados !== undefined) {
                 await UsuarioPermiso.destroy({ where: { usuarioId: targetUserId }, transaction: tx });
                 if (input.permisosPersonalizados.length > 0) {
@@ -219,7 +226,7 @@ class AccesosService {
                     nombre: actualizado.rol.nombre,
                 },
             };
-        });
+        }, () => PermisosCache.invalidarUsuario(targetUserId));
     }
     static async cambiarEstadoUsuario(adminUser, targetUserId, activo, clientMeta) {
         if (targetUserId === adminUser.id && !activo) {
@@ -235,6 +242,10 @@ class AccesosService {
             }
             const prevActivo = actual.activo;
             await actual.update({ activo }, { transaction: tx });
+            if (!activo) {
+                // Auditoría P0.3: la desactivación también revoca los tokens emitidos
+                await revocarSesionesUsuario(targetUserId, tx);
+            }
             await AuditService.registrar({
                 sucursalId: adminUser.sucursalId,
                 usuarioId: adminUser.id,
@@ -412,7 +423,7 @@ class AccesosService {
                 userAgent: clientMeta.userAgent,
             }, tx);
             return (rolActualizado ?? rolActual).get({ plain: true });
-        });
+        }, () => PermisosCache.invalidarTodo());
     }
     static async listarPermisos() {
         const permisos = await Permiso.findAll({

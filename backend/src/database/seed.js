@@ -262,8 +262,9 @@ async function main() {
     ];
     for (const p of platillosSeed) {
         const [platillo] = await Platillo.findOrCreate({
-            where: { sku: p.sku },
+            where: { sucursalId: sucursal.id, sku: p.sku },
             defaults: {
+                sucursalId: sucursal.id,
                 categoriaId: categoriasMap.get(p.categoria),
                 sku: p.sku,
                 nombre: p.nombre,

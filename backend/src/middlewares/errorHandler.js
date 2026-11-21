@@ -3,6 +3,7 @@ const { ZodError } = require('zod');
 const { getPgErrorCode } = require('../config/database');
 const { env } = require('../config/env');
 const { AppError } = require('../shared/errors/AppError');
+const { logger } = require('../shared/logger');
 // Middleware centralizado de manejo de errores para Sequelize, Zod y reglas de negocio
 function errorHandler(err, _req, res, _next) {
     if (res.headersSent) {
@@ -87,11 +88,13 @@ function errorHandler(err, _req, res, _next) {
         });
         return;
     }
-    console.error('❌ Error no controlado:', err);
+    (_req.log ?? logger).error({ err }, 'Error no controlado');
     res.status(500).json({
         ok: false,
         error: {
             code: 'INTERNAL_SERVER_ERROR',
+            // Permite al usuario reportar el error y a soporte encontrarlo en los logs
+            requestId: _req.id,
             message: env.NODE_ENV === 'production'
                 ? 'Error interno del servidor'
                 : err instanceof Error

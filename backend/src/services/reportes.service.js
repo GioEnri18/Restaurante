@@ -1,109 +1,104 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
-const { Op, col, fn } = require('sequelize');
-const { Compra, EstadoVenta, Merma, Sucursal, Venta, VentaDetalle } = require('../models');
+const { QueryTypes } = require('sequelize');
+const { sequelize } = require('../config/database');
+const { env } = require('../config/env');
+const { EstadoVenta, Sucursal } = require('../models');
 const {
     formatDateTimeInTimezone,
     parseDateRangeInTimezone,
-    toIsoDateInTimezone,
 } = require('../shared/utils/dates');
+const { BadRequestError } = require('../shared/errors/AppError');
 const { round2 } = require('../shared/utils/tax');
+const { MAX_RANGO_DIAS } = require('../shared/validators/common.validators');
+/**
+ * Las replacements de consultas crudas formatean un Date en la hora LOCAL del proceso
+ * ('... 00:00 -06:00') y PostgreSQL descarta ese desfase al comparar contra TIMESTAMP sin zona.
+ * Por eso los límites se envían como texto UTC, igual que los escribe el ORM.
+ */
+const aTextoUtc = (fecha) => fecha.toISOString().replace('T', ' ').replace('Z', '');
 function parseDateRange(fechaDesde, fechaHasta) {
-    return parseDateRangeInTimezone(fechaDesde, fechaHasta, 30);
-}
-class ReportesService {
-    static async findVentasCompletadas(sucursalId, desde, hasta) {
-        return Venta.findAll({
-            where: {
-                sucursalId,
-                estado: EstadoVenta.COMPLETADA,
-                createdAt: { [Op.gte]: desde, [Op.lte]: hasta },
-            },
-            include: [{ model: VentaDetalle, as: 'detalles' }],
-            order: [['createdAt', 'ASC']],
-        });
+    const rango = parseDateRangeInTimezone(fechaDesde, fechaHasta, 30);
+    // El validador HTTP solo puede comparar cuando llegan ambas fechas. Aquí se valida el rango
+    // EFECTIVO, ya con el valor por defecto aplicado (ej. solo fechaHasta=2030-01-01).
+    if (rango.desde > rango.hasta) {
+        throw new BadRequestError('fechaDesde no puede ser posterior a fechaHasta');
     }
+    const dias = (rango.hasta.getTime() - rango.desde.getTime()) / 86_400_000;
+    if (dias > MAX_RANGO_DIAS + 1) {
+        throw new BadRequestError(`El rango de fechas no puede superar ${MAX_RANGO_DIAS} días`);
+    }
+    return { ...rango, desde: aTextoUtc(rango.desde), hasta: aTextoUtc(rango.hasta) };
+}
+/**
+ * Reportes agregados en PostgreSQL (antes se cargaban todas las ventas con sus detalles en memoria
+ * y se sumaban en JavaScript). Con 30 000 ventas: resumen de ~2,3 s / 207 MB de heap a milisegundos.
+ * Los importes se suman como NUMERIC (exactos) y se redondean a 2 decimales al final.
+ * `created_at` es TIMESTAMP sin zona en UTC; el día calendario se calcula en env.DEFAULT_TIMEZONE.
+ */
+async function consultar(sql, replacements) {
+    return sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
+}
+const num = (v) => round2(Number(v ?? 0));
+class ReportesService {
     static async obtenerResumen(sucursalId, fechaDesde, fechaHasta) {
         const { desde, hasta, labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
-        const [ventas, anuladas, mermas, compras] = await Promise.all([
-            this.findVentasCompletadas(sucursalId, desde, hasta),
-            Venta.findOne({
-                where: {
-                    sucursalId,
-                    estado: EstadoVenta.ANULADA,
-                    createdAt: { [Op.gte]: desde, [Op.lte]: hasta },
-                },
-                attributes: [
-                    [fn('COUNT', col('id')), 'cnt'],
-                    [fn('COALESCE', fn('SUM', col('total')), 0), 'sumTotal'],
-                ],
-                raw: true,
-            }),
-            Merma.findOne({
-                where: {
-                    sucursalId,
-                    fecha: { [Op.gte]: desde, [Op.lte]: hasta },
-                },
-                attributes: [
-                    [fn('COUNT', col('id')), 'cnt'],
-                    [fn('COALESCE', fn('SUM', col('costo_estimado')), 0), 'sumCosto'],
-                ],
-                raw: true,
-            }),
-            Compra.findOne({
-                where: {
-                    sucursalId,
-                    fechaCompra: { [Op.gte]: desde, [Op.lte]: hasta },
-                },
-                attributes: [[fn('COALESCE', fn('SUM', col('total')), 0), 'sumTotal']],
-                raw: true,
-            }),
+        const rango = { sucursalId, desde, hasta };
+        const [totales, porMetodo, porServicio, [anuladas], [mermas], [compras]] = await Promise.all([
+            consultar(`SELECT COUNT(*) AS cantidad,
+                    COALESCE(SUM(total), 0) AS ingresos,
+                    COALESCE(SUM(subtotal_sin_iva), 0) AS subtotal,
+                    COALESCE(SUM(iva_monto), 0) AS iva,
+                    COALESCE(SUM(costo_total_receta), 0) AS costo
+                FROM ventas
+                WHERE sucursal_id = :sucursalId AND estado = :estado
+                  AND created_at >= :desde AND created_at <= :hasta`, { ...rango, estado: EstadoVenta.COMPLETADA }),
+            consultar(`SELECT metodo_pago AS clave, COUNT(*) AS cantidad, SUM(total) AS total
+                FROM ventas
+                WHERE sucursal_id = :sucursalId AND estado = :estado
+                  AND created_at >= :desde AND created_at <= :hasta
+                GROUP BY metodo_pago`, { ...rango, estado: EstadoVenta.COMPLETADA }),
+            consultar(`SELECT tipo_servicio AS clave, COUNT(*) AS cantidad, SUM(total) AS total
+                FROM ventas
+                WHERE sucursal_id = :sucursalId AND estado = :estado
+                  AND created_at >= :desde AND created_at <= :hasta
+                GROUP BY tipo_servicio`, { ...rango, estado: EstadoVenta.COMPLETADA }),
+            consultar(`SELECT COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS "sumTotal"
+                FROM ventas
+                WHERE sucursal_id = :sucursalId AND estado = :estado
+                  AND created_at >= :desde AND created_at <= :hasta`, { ...rango, estado: EstadoVenta.ANULADA }),
+            consultar(`SELECT COUNT(*) AS cnt, COALESCE(SUM(costo_estimado), 0) AS "sumCosto"
+                FROM mermas
+                WHERE sucursal_id = :sucursalId AND fecha >= :desde AND fecha <= :hasta`, rango),
+            consultar(`SELECT COALESCE(SUM(total), 0) AS "sumTotal"
+                FROM compras
+                WHERE sucursal_id = :sucursalId AND fecha_compra >= :desde AND fecha_compra <= :hasta`, rango),
         ]);
-        let ingresosTotales = 0;
-        let subtotalSinIva = 0;
-        let ivaTotal = 0;
-        let costoRecetasTotal = 0;
-        const porMetodoPago = {
-            EFECTIVO: { cantidad: 0, total: 0 },
-            TARJETA: { cantidad: 0, total: 0 },
-        };
-        const porTipoServicio = {
-            MOSTRADOR: { cantidad: 0, total: 0 },
-            LLEVAR: { cantidad: 0, total: 0 },
-            MESA: { cantidad: 0, total: 0 },
-            DELIVERY: { cantidad: 0, total: 0 },
-        };
-        for (const v of ventas) {
-            const total = Number(v.total);
-            ingresosTotales = round2(ingresosTotales + total);
-            subtotalSinIva = round2(subtotalSinIva + Number(v.subtotalSinIva));
-            ivaTotal = round2(ivaTotal + Number(v.ivaMonto));
-            costoRecetasTotal = round2(costoRecetasTotal + Number(v.costoTotalReceta));
-            if (!porMetodoPago[v.metodoPago]) {
-                porMetodoPago[v.metodoPago] = { cantidad: 0, total: 0 };
+        const t = totales[0];
+        const cantidadVentas = Number(t.cantidad);
+        const ingresosTotales = num(t.ingresos);
+        const costoRecetasTotal = num(t.costo);
+        const agrupar = (filas, claves) => {
+            const base = Object.fromEntries(claves.map((c) => [c, { cantidad: 0, total: 0 }]));
+            for (const f of filas) {
+                base[f.clave] = { cantidad: Number(f.cantidad), total: num(f.total) };
             }
-            porMetodoPago[v.metodoPago].cantidad += 1;
-            porMetodoPago[v.metodoPago].total = round2(porMetodoPago[v.metodoPago].total + total);
-            if (!porTipoServicio[v.tipoServicio]) {
-                porTipoServicio[v.tipoServicio] = { cantidad: 0, total: 0 };
-            }
-            porTipoServicio[v.tipoServicio].cantidad += 1;
-            porTipoServicio[v.tipoServicio].total = round2(porTipoServicio[v.tipoServicio].total + total);
-        }
-        const costoMermasTotal = round2(Number(mermas?.sumCosto ?? 0));
-        const totalCompras = round2(Number(compras?.sumTotal ?? 0));
+            return base;
+        };
+        const costoMermasTotal = num(mermas?.sumCosto);
+        const totalCompras = num(compras?.sumTotal);
         const utilidadBruta = round2(ingresosTotales - costoRecetasTotal - costoMermasTotal);
         const margenBrutoPct = ingresosTotales > 0 ? round2((utilidadBruta / ingresosTotales) * 100) : 0;
-        const ticketPromedio = ventas.length > 0 ? round2(ingresosTotales / ventas.length) : 0;
+        const ticketPromedio = cantidadVentas > 0 ? round2(ingresosTotales / cantidadVentas) : 0;
         return {
             periodo: { fechaDesde: labelDesde, fechaHasta: labelHasta },
             kpis: {
-                cantidadVentas: ventas.length,
+                cantidadVentas,
                 cantidadAnuladas: Number(anuladas?.cnt ?? 0),
-                totalAnulado: round2(Number(anuladas?.sumTotal ?? 0)),
+                totalAnulado: num(anuladas?.sumTotal),
                 ingresosTotales,
-                subtotalSinIva,
-                ivaTotal,
+                subtotalSinIva: num(t.subtotal),
+                ivaTotal: num(t.iva),
                 costoRecetasTotal,
                 costoMermasTotal,
                 cantidadMermas: Number(mermas?.cnt ?? 0),
@@ -112,59 +107,73 @@ class ReportesService {
                 margenBrutoPct,
                 ticketPromedio,
             },
-            porMetodoPago,
-            porTipoServicio,
+            porMetodoPago: agrupar(porMetodo, ['EFECTIVO', 'TARJETA']),
+            porTipoServicio: agrupar(porServicio, ['MOSTRADOR', 'LLEVAR', 'MESA', 'DELIVERY']),
         };
     }
     static async ventasPorPeriodo(sucursalId, fechaDesde, fechaHasta) {
         const { desde, hasta } = parseDateRange(fechaDesde, fechaHasta);
-        const ventas = await this.findVentasCompletadas(sucursalId, desde, hasta);
-        const mapaDias = new Map();
-        for (const v of ventas) {
-            const key = toIsoDateInTimezone(v.createdAt);
-            const prev = mapaDias.get(key) ?? {
-                fecha: key,
-                cantidadVentas: 0,
-                ingresos: 0,
-                costos: 0,
-                utilidad: 0,
+        const filas = await consultar(`SELECT
+                to_char((created_at AT TIME ZONE 'UTC') AT TIME ZONE :zona, 'YYYY-MM-DD') AS fecha,
+                COUNT(*) AS cantidad,
+                SUM(total) AS ingresos,
+                SUM(costo_total_receta) AS costos
+            FROM ventas
+            WHERE sucursal_id = :sucursalId AND estado = :estado
+              AND created_at >= :desde AND created_at <= :hasta
+            GROUP BY 1
+            ORDER BY 1`, {
+            sucursalId,
+            desde,
+            hasta,
+            estado: EstadoVenta.COMPLETADA,
+            zona: env.DEFAULT_TIMEZONE,
+        });
+        return filas.map((f) => {
+            const ingresos = num(f.ingresos);
+            const costos = num(f.costos);
+            return {
+                fecha: f.fecha,
+                cantidadVentas: Number(f.cantidad),
+                ingresos,
+                costos,
+                utilidad: round2(ingresos - costos),
             };
-            const ing = Number(v.total);
-            const cost = Number(v.costoTotalReceta);
-            prev.cantidadVentas += 1;
-            prev.ingresos = round2(prev.ingresos + ing);
-            prev.costos = round2(prev.costos + cost);
-            prev.utilidad = round2(prev.ingresos - prev.costos);
-            mapaDias.set(key, prev);
-        }
-        return Array.from(mapaDias.values()).sort((a, b) => a.fecha.localeCompare(b.fecha));
+        });
     }
     static async productosMasVendidos(sucursalId, fechaDesde, fechaHasta, limit = 10) {
         const { desde, hasta } = parseDateRange(fechaDesde, fechaHasta);
-        const ventas = await this.findVentasCompletadas(sucursalId, desde, hasta);
-        const mapaProductos = new Map();
-        for (const v of ventas) {
-            for (const det of v.detalles ?? []) {
-                const prev = mapaProductos.get(det.platilloId) ?? {
-                    platilloId: det.platilloId,
-                    nombre: det.nombrePlatillo,
-                    cantidadVendida: 0,
-                    ingresos: 0,
-                    costoTotal: 0,
-                    utilidad: 0,
-                };
-                const ing = Number(det.subtotal);
-                const cost = round2(Number(det.costoUnitarioReceta) * det.cantidad);
-                prev.cantidadVendida += det.cantidad;
-                prev.ingresos = round2(prev.ingresos + ing);
-                prev.costoTotal = round2(prev.costoTotal + cost);
-                prev.utilidad = round2(prev.ingresos - prev.costoTotal);
-                mapaProductos.set(det.platilloId, prev);
-            }
-        }
-        return Array.from(mapaProductos.values())
-            .sort((a, b) => b.cantidadVendida - a.cantidadVendida || b.ingresos - a.ingresos)
-            .slice(0, limit);
+        const filas = await consultar(`SELECT
+                d.platillo_id AS "platilloId",
+                (array_agg(d.nombre_platillo ORDER BY v.created_at, d.id))[1] AS nombre,
+                SUM(d.cantidad) AS cantidad,
+                SUM(d.subtotal) AS ingresos,
+                SUM(ROUND(d.costo_unitario_receta * d.cantidad, 2)) AS costo
+            FROM venta_detalles d
+            JOIN ventas v ON v.id = d.venta_id
+            WHERE v.sucursal_id = :sucursalId AND v.estado = :estado
+              AND v.created_at >= :desde AND v.created_at <= :hasta
+            GROUP BY d.platillo_id
+            ORDER BY cantidad DESC, ingresos DESC, d.platillo_id ASC
+            LIMIT :limit`, {
+            sucursalId,
+            desde,
+            hasta,
+            estado: EstadoVenta.COMPLETADA,
+            limit: Math.min(Math.max(Number(limit) || 10, 1), 100),
+        });
+        return filas.map((f) => {
+            const ingresos = num(f.ingresos);
+            const costoTotal = num(f.costo);
+            return {
+                platilloId: f.platilloId,
+                nombre: f.nombre,
+                cantidadVendida: Number(f.cantidad),
+                ingresos,
+                costoTotal,
+                utilidad: round2(ingresos - costoTotal),
+            };
+        });
     }
     static async exportarPdf(sucursalId, fechaDesde, fechaHasta) {
         const [sucursal, resumen, serie, topProductos] = await Promise.all([

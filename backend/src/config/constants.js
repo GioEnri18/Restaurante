@@ -5,6 +5,8 @@ const FACTURAS_PAGE_SIZE = env.FACTURAS_PAGE_SIZE;
 const DEFAULT_PAGE_SIZE = env.DEFAULT_PAGE_SIZE;
 const MAX_PAGE_SIZE = env.MAX_PAGE_SIZE;
 const ROL_ADMIN_CODIGO = env.ADMIN_ROLE_CODE;
+// Algoritmo JWT fijado explícitamente al firmar y verificar (evita confusión de algoritmos)
+const JWT_ALGORITHM = 'HS256';
 // Catálogo maestro de acciones de auditoría inmutable
 const ACCIONES_AUDITORIA = {
     LOGIN_EXITOSO: 'LOGIN_EXITOSO',
@@ -24,8 +26,6 @@ const ACCIONES_AUDITORIA = {
     GESTION_USUARIO: 'GESTION_USUARIO',
     GESTION_ROL: 'GESTION_ROL',
     GESTION_MENU_ESPECIAL: 'GESTION_MENU_ESPECIAL',
-    CERTIFICACION_FEL: 'CERTIFICACION_FEL',
-    ANULACION_FEL: 'ANULACION_FEL',
 };
 // Catálogo base de permisos organizados por vista para RBAC configurable
 const PERMISOS_CATALOGO = [
@@ -66,6 +66,7 @@ module.exports = {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   ROL_ADMIN_CODIGO,
+  JWT_ALGORITHM,
   ACCIONES_AUDITORIA,
   PERMISOS_CATALOGO,
 };

@@ -1,0 +1,270 @@
+{
+  "info": {
+    "name": "Auditor",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GET Bitácora de auditoría",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Bitácora de auditoría: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/auditoria?page=1&limit=20"
+      }
+    },
+    {
+      "name": "GET Catálogo de auditoría",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Catálogo de auditoría: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/auditoria/acciones"
+      }
+    },
+    {
+      "name": "GET Facturas filtradas",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Facturas filtradas: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              "const lista = pm.response.json().data;",
+              "pm.variables.set('facturaId', lista.length ? lista[0].id : 1);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/facturas?page=1&limit=10&cliente=Consumidor"
+      }
+    },
+    {
+      "name": "GET Detalle de factura (auditor)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Detalle de factura (auditor): HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/facturas/{{facturaId}}"
+      }
+    },
+    {
+      "name": "GET Ventas por período",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Ventas por período: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/reportes/ventas-periodo"
+      }
+    },
+    {
+      "name": "GET Productos más vendidos",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Productos más vendidos: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/reportes/productos-mas-vendidos?limit=10"
+      }
+    },
+    {
+      "name": "GET Mermas",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Mermas: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/mermas?page=1&limit=10"
+      }
+    },
+    {
+      "name": "GET Historial de caja",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Historial de caja: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/caja/historial?page=1&limit=10"
+      }
+    },
+    {
+      "name": "GET Kardex (auditor)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Kardex (auditor): HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/inventario/movimientos?page=1&limit=20"
+      }
+    }
+  ]
+}

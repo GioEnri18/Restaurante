@@ -1,13 +1,12 @@
 const { Op, QueryTypes } = require('sequelize');
 const { ACCIONES_AUDITORIA, FACTURAS_PAGE_SIZE } = require('../config/constants');
 const { sequelize, withTransaction } = require('../config/database');
-const { env } = require('../config/env');
-const { CajaMovimiento, CajaSesion, Comanda, EstadoCaja, EstadoFactura, EstadoFel, EstadoMesa, EstadoVenta, Factura, Ingrediente, InventarioMovimiento, Mesa, MetodoPago, Sucursal, TipoMovimientoCaja, TipoMovimientoInventario, Usuario, Venta, VentaDetalle } = require('../models');
+const { CajaMovimiento, CajaSesion, Comanda, EstadoCaja, EstadoFactura, EstadoMesa, EstadoVenta, Factura, Ingrediente, InventarioMovimiento, Mesa, MetodoPago, Sucursal, TipoMovimientoCaja, TipoMovimientoInventario, Usuario, Venta, VentaDetalle } = require('../models');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
-const { FelAdapter } = require('../shared/services/fel.adapter');
 const { endOfDayInTimezone, startOfDayInTimezone } = require('../shared/utils/dates');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
+const { patronContiene } = require('../shared/utils/busqueda');
 const { round2, round4 } = require('../shared/utils/tax');
 class FacturasService {
     static async listar(sucursalId, query) {
@@ -15,10 +14,10 @@ class FacturasService {
         const { page, limit, skip } = parsePagination(query.page, query.limit, FACTURAS_PAGE_SIZE, 50);
         const where = { sucursalId };
         if (query.numero?.trim()) {
-            where.numeroCompleto = { [Op.iLike]: `%${query.numero.trim()}%` };
+            where.numeroCompleto = { [Op.iLike]: patronContiene(query.numero.trim()) };
         }
         if (query.cliente?.trim()) {
-            const term = `%${query.cliente.trim()}%`;
+            const term = patronContiene(query.cliente.trim());
             where[Op.or] = [
                 { clienteNombre: { [Op.iLike]: term } },
                 { clienteNit: { [Op.iLike]: term } },
@@ -169,7 +168,6 @@ class FacturasService {
      * - Libera la mesa si la venta pertenecía a una mesa aún marcada OCUPADA.
      */
     static async anular(user, facturaId, input, clientMeta) {
-        let contextoFelAnulacion = null;
         return withTransaction(async (tx) => {
             // 1. Exigir caja abierta actual (no se permite alterar sesiones ya cerradas)
             const cajaAbierta = await CajaSesion.findOne({
@@ -257,10 +255,10 @@ class FacturasService {
                 if (ingredienteIds.length > 0) {
                     const filasBloqueadas = await sequelize.query(`SELECT id, stock_actual_oz
              FROM ingredientes
-             WHERE id IN (:ids)
+             WHERE id IN (:ids) AND sucursal_id = :sucursalId
              ORDER BY id ASC
              FOR UPDATE`, {
-                        replacements: { ids: ingredienteIds },
+                        replacements: { ids: ingredienteIds, sucursalId: user.sucursalId },
                         type: QueryTypes.SELECT,
                         transaction: tx,
                     });
@@ -272,7 +270,7 @@ class FacturasService {
                         const cantidadReintegrarOz = round4(Math.abs(Number(mov.cantidadOz)));
                         const stockNuevoOz = round4(stockAnteriorOz + cantidadReintegrarOz);
                         stockPorId.set(mov.ingredienteId, stockNuevoOz);
-                        await Ingrediente.increment({ stockActualOz: cantidadReintegrarOz }, { where: { id: mov.ingredienteId }, transaction: tx });
+                        await Ingrediente.increment({ stockActualOz: cantidadReintegrarOz }, { where: { id: mov.ingredienteId, sucursalId: user.sucursalId }, transaction: tx });
                         await InventarioMovimiento.create({
                             sucursalId: user.sucursalId,
                             ingredienteId: mov.ingredienteId,
@@ -317,78 +315,13 @@ class FacturasService {
                 ipAddress: clientMeta.ipAddress,
                 userAgent: clientMeta.userAgent,
             }, tx);
-            // Fase 3.3: Preparar contexto de anulación FEL post-commit si la factura estaba certificada
-            if (env.FEL_ENABLED && factura.felEstado === EstadoFel.CERTIFICADA) {
-                contextoFelAnulacion = {
-                    facturaId: factura.id,
-                    numeroCompleto: factura.numeroCompleto,
-                    felUuid: factura.felUuid,
-                    clienteNit: factura.clienteNit,
-                    motivo,
-                };
-            }
             return {
                 factura: facturaAnulada ? facturaAnulada.get({ plain: true }) : null,
                 cajaRevertidaId: cajaAbierta.id,
                 cajaOriginalId: factura.venta.cajaSesionId,
                 ingredientesReintegrados,
                 mesaLiberada,
-                felAnulacion: { felAnulacionEstado: 'NO_APLICA' },
             };
-        }, async (result) => {
-            // Fase 3.3: Callback post-commit — solicitar anulación DTE ante SAT fuera de la transacción
-            if (!contextoFelAnulacion) {
-                return;
-            }
-            let felRes;
-            try {
-                felRes = await FelAdapter.anular(contextoFelAnulacion);
-            }
-            catch (felError) {
-                felRes = {
-                    felAnulacionEstado: 'RECHAZADA_SAT',
-                    felAnulacionUuid: null,
-                    felAnuladaEn: null,
-                    felErrorDetalle: String(felError instanceof Error ? felError.message : felError).slice(0, 300),
-                };
-            }
-            await Factura.update({
-                felAnulacionEstado: felRes.felAnulacionEstado,
-                felAnulacionUuid: felRes.felAnulacionUuid ?? null,
-                felAnuladaEn: felRes.felAnuladaEn ?? null,
-                felErrorDetalle: felRes.felErrorDetalle ?? null,
-            }, { where: { id: contextoFelAnulacion.facturaId } });
-            if (result.factura) {
-                Object.assign(result.factura, {
-                    felAnulacionEstado: felRes.felAnulacionEstado,
-                    felAnulacionUuid: felRes.felAnulacionUuid ?? null,
-                    felAnuladaEn: felRes.felAnuladaEn ?? null,
-                    felErrorDetalle: felRes.felErrorDetalle ?? null,
-                });
-            }
-            result.felAnulacion = felRes;
-            await AuditService.registrar({
-                sucursalId: user.sucursalId,
-                usuarioId: user.id,
-                accion: ACCIONES_AUDITORIA.ANULACION_FEL,
-                entidad: 'Factura',
-                entidadId: contextoFelAnulacion.facturaId,
-                valorAnterior: {
-                    numeroCompleto: contextoFelAnulacion.numeroCompleto,
-                    felUuid: contextoFelAnulacion.felUuid,
-                    felAnulacionEstado: null,
-                },
-                valorNuevo: {
-                    numeroCompleto: contextoFelAnulacion.numeroCompleto,
-                    felAnulacionEstado: felRes.felAnulacionEstado,
-                    felAnulacionUuid: felRes.felAnulacionUuid ?? null,
-                    felAnuladaEn: felRes.felAnuladaEn ?? null,
-                    felErrorDetalle: felRes.felErrorDetalle ?? null,
-                },
-                motivo: felRes.felErrorDetalle || `Anulación FEL (${felRes.felAnulacionEstado}): ${contextoFelAnulacion.motivo}`,
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
-            });
         });
     }
 }

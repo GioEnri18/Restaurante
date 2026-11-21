@@ -1,0 +1,346 @@
+{
+  "info": {
+    "name": "Administrador",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GET Ingredientes",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Ingredientes: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              "const lista = pm.response.json().data;",
+              "const i = lista[Math.floor(Math.random() * lista.length)];",
+              "pm.variables.set('ingredienteId', i.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/inventario/ingredientes"
+      }
+    },
+    {
+      "name": "POST Registrar merma",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('POST Registrar merma: HTTP 201', () => pm.expect([201]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/mermas",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n \"ingredienteId\": \"{{ingredienteId}}\",\n \"cantidad\": 1,\n \"unidad\": \"oz\",\n \"motivo\": \"DANO\",\n \"observacion\": \"Prueba de carga\"\n}"
+        }
+      }
+    },
+    {
+      "name": "POST Ajustar stock",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('POST Ajustar stock: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/inventario/ingredientes/{{ingredienteId}}/ajustar",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n \"tipoAjuste\": \"ENTRADA\",\n \"cantidad\": 2,\n \"unidad\": \"oz\",\n \"motivo\": \"Conteo físico (prueba de carga)\"\n}"
+        }
+      }
+    },
+    {
+      "name": "GET Proveedores",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Proveedores: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              "pm.variables.set('proveedorId', pm.response.json().data[0].id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/inventario/proveedores"
+      }
+    },
+    {
+      "name": "POST Registrar compra",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('POST Registrar compra: HTTP 201', () => pm.expect([201]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/inventario/compras",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n \"proveedorId\": \"{{proveedorId}}\",\n \"numeroDocumento\": \"CARGA\",\n \"items\": [\n  {\n   \"ingredienteId\": \"{{ingredienteId}}\",\n   \"cantidadLb\": 5,\n   \"precioPorLb\": 18\n  }\n ]\n}"
+        }
+      }
+    },
+    {
+      "name": "GET Kardex",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Kardex: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/inventario/movimientos?page=1&limit=20"
+      }
+    },
+    {
+      "name": "GET Facturas emitidas",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Facturas emitidas: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              "const lista = pm.response.json().data;",
+              "pm.variables.set('facturaAnular', lista.length ? lista[lista.length - 1].id : 0);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/facturas?estado=EMITIDA&page=1&limit=10"
+      }
+    },
+    {
+      "name": "POST Anular factura",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('POST Anular factura: HTTP 200 o 409', () => pm.expect([200,409]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/facturas/{{facturaAnular}}/anular",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n \"motivo\": \"Anulación durante prueba de carga\",\n \"reintegrarInventario\": true\n}"
+        }
+      }
+    },
+    {
+      "name": "GET Reporte resumen",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Reporte resumen: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/reportes/resumen"
+      }
+    },
+    {
+      "name": "GET Exportar Excel",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Exportar Excel: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/reportes/exportar/excel"
+      }
+    },
+    {
+      "name": "GET Usuarios",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Usuarios: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/accesos/usuarios"
+      }
+    }
+  ]
+}

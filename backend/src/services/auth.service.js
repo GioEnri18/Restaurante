@@ -1,10 +1,11 @@
 const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Op } = require('sequelize');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { Op, QueryTypes, col, fn, where } = require('sequelize');
+const { ACCIONES_AUDITORIA, JWT_ALGORITHM } = require('../config/constants');
+const { sequelize } = require('../config/database');
 const { env } = require('../config/env');
-const { obtenerPermisosEfectivos } = require('../middlewares/authenticate');
+const { obtenerPermisosEfectivos } = require('./permisos.service');
 const { Rol, Sucursal, Usuario } = require('../models');
 const { UnauthorizedError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
@@ -27,16 +28,53 @@ function sanitizarIdentificadorAuditoria(raw) {
   };
 }
 
+/**
+ * Auditoría P0.2: incremento atómico de intentos fallidos. Al llegar al máximo se bloquea la
+ * cuenta durante AUTH_LOCKOUT_MINUTES y el contador vuelve a 0.
+ */
+async function registrarIntentoFallido(usuarioId) {
+  await sequelize.query(
+    `UPDATE usuarios
+     SET intentos_fallidos = CASE
+           WHEN intentos_fallidos + 1 >= :max THEN 0
+           ELSE intentos_fallidos + 1
+         END,
+         bloqueado_hasta = CASE
+           WHEN intentos_fallidos + 1 >= :max THEN NOW() + (:minutos || ' minutes')::interval
+           ELSE bloqueado_hasta
+         END
+     WHERE id = :usuarioId`,
+    {
+      replacements: {
+        usuarioId,
+        max: env.AUTH_LOCKOUT_MAX_ATTEMPTS,
+        minutos: String(env.AUTH_LOCKOUT_MINUTES),
+      },
+      type: QueryTypes.UPDATE,
+    },
+  );
+}
+
+/**
+ * Auditoría P0.3: incrementa token_version para revocar todos los JWT vigentes del usuario.
+ * Acepta una transacción opcional para usarse dentro de operaciones de Accesos.
+ */
+async function revocarSesionesUsuario(usuarioId, transaction) {
+  await Usuario.increment('tokenVersion', { by: 1, where: { id: usuarioId }, transaction });
+}
+
 class AuthService {
   static async login(identifier, password, clientMeta) {
     const cleanIdentifier = identifier.trim();
     const auditId = sanitizarIdentificadorAuditoria(cleanIdentifier);
 
+    // Auditoría P0.2: comparación EXACTA insensible a mayúsculas (ILIKE trataba % y _ como comodines)
+    const identificadorNormalizado = cleanIdentifier.toLowerCase();
     const usuario = await Usuario.findOne({
       where: {
         [Op.or]: [
-          { username: { [Op.iLike]: cleanIdentifier } },
-          { email: { [Op.iLike]: cleanIdentifier } },
+          where(fn('lower', col('Usuario.username')), identificadorNormalizado),
+          where(fn('lower', col('Usuario.email')), identificadorNormalizado),
         ],
       },
       include: [
@@ -49,8 +87,32 @@ class AuthService {
     const hashAComparar = usuario ? usuario.passwordHash : DUMMY_PASSWORD_HASH;
     const passwordValido = await bcrypt.compare(password, hashAComparar);
 
+    // Auditoría P0.2: cuenta bloqueada temporalmente por intentos fallidos.
+    // Solo se revela el bloqueo si la contraseña es correcta (mismo criterio que Fase 2.2).
+    const bloqueada = Boolean(usuario?.bloqueadoHasta && usuario.bloqueadoHasta > new Date());
+    if (bloqueada) {
+      await AuditService.registrar({
+        sucursalId: usuario.sucursalId,
+        usuarioId: usuario.id,
+        accion: ACCIONES_AUDITORIA.LOGIN_FALLIDO,
+        entidad: 'Usuario',
+        entidadId: usuario.id,
+        valorNuevo: { ...auditId, motivo: 'Cuenta bloqueada temporalmente' },
+        ipAddress: clientMeta.ipAddress,
+        userAgent: clientMeta.userAgent,
+      });
+      throw new UnauthorizedError(
+        passwordValido
+          ? 'Cuenta bloqueada temporalmente por intentos fallidos. Intenta más tarde.'
+          : 'Credenciales inválidas',
+      );
+    }
+
     // Fase 2.2: Validar contraseña ANTES de revelar si la cuenta está desactivada (mismo mensaje genérico)
     if (!usuario || !usuario.rol || !usuario.sucursal || !passwordValido) {
+      if (usuario && !passwordValido) {
+        await registrarIntentoFallido(usuario.id);
+      }
       await AuditService.registrar({
         sucursalId: usuario?.sucursalId ?? null,
         usuarioId: usuario?.id ?? null,
@@ -85,18 +147,20 @@ class AuthService {
       throw new UnauthorizedError('Tu cuenta se encuentra desactivada. Contacta al administrador.');
     }
 
-    await usuario.update({ ultimoAcceso: new Date() });
+    await usuario.update({ ultimoAcceso: new Date(), intentosFallidos: 0, bloqueadoHasta: null });
     const permisos = await obtenerPermisosEfectivos(usuario.id, usuario.rolId);
 
+    // Auditoría P0.3: `ver` liga el token a token_version; al incrementarla se revocan las sesiones
     const token = jwt.sign(
       {
         sub: usuario.id,
+        ver: usuario.tokenVersion,
         username: usuario.username,
         rolCodigo: usuario.rol.codigo,
         sucursalId: usuario.sucursalId,
       },
       env.JWT_SECRET,
-      { expiresIn: env.JWT_EXPIRES_IN },
+      { expiresIn: env.JWT_EXPIRES_IN, algorithm: JWT_ALGORITHM },
     );
 
     await AuditService.registrar({
@@ -142,6 +206,8 @@ class AuthService {
   }
 
   static async logout(user, clientMeta) {
+    // Auditoría P0.3: invalida en servidor todos los JWT emitidos para el usuario
+    await revocarSesionesUsuario(user.id);
     await AuditService.registrar({
       sucursalId: user.sucursalId,
       usuarioId: user.id,
@@ -175,4 +241,8 @@ class AuthService {
   }
 }
 
-module.exports = { AuthService, sanitizarIdentificadorAuditoria };
+module.exports = {
+  AuthService,
+  sanitizarIdentificadorAuditoria,
+  revocarSesionesUsuario,
+};

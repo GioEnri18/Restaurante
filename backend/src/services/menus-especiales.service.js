@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const { ACCIONES_AUDITORIA } = require('../config/constants');
 const { withTransaction } = require('../config/database');
 const { env } = require('../config/env');
@@ -7,6 +8,22 @@ const { AuditService } = require('../shared/services/audit.service');
 const { endOfDayInTimezone, startOfDayInTimezone } = require('../shared/utils/dates');
 const { round2 } = require('../shared/utils/tax');
 const { evaluarEstadoMenuEspecial } = require('./menu.service');
+
+/** Aislamiento por sucursal: todos los platillos del menú especial deben ser de la sucursal */
+async function validarPlatillosSucursal(sucursalId, platillos, tx) {
+  if (!platillos?.length) return;
+  const ids = new Set(platillos.map((p) => p.platilloId));
+  if (ids.size !== platillos.length) {
+    throw new BadRequestError('El menú especial contiene platillos repetidos');
+  }
+  const encontrados = await Platillo.count({
+    where: { id: { [Op.in]: Array.from(ids) }, sucursalId, activo: true },
+    transaction: tx,
+  });
+  if (encontrados !== ids.size) {
+    throw new NotFoundError('Uno o más platillos no existen en esta sucursal');
+  }
+}
 
 /**
  * Servicio dedicado a menús especiales por fecha (gestión exclusiva de Administrador + alertas proactivas).
@@ -78,6 +95,7 @@ class MenusEspecialesService {
     }
 
     return withTransaction(async (tx) => {
+      await validarPlatillosSucursal(user.sucursalId, input.platillos, tx);
       const creado = await MenuEspecial.create(
         {
           sucursalId: user.sucursalId,
@@ -177,6 +195,7 @@ class MenusEspecialesService {
       );
 
       if (input.platillos !== undefined) {
+        await validarPlatillosSucursal(user.sucursalId, input.platillos, tx);
         await MenuEspecialPlatillo.destroy({ where: { menuEspecialId: menuId }, transaction: tx });
         if (input.platillos.length > 0) {
           await MenuEspecialPlatillo.bulkCreate(

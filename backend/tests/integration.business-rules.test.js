@@ -22,7 +22,7 @@ const {
   UnidadMedida,
   Usuario,
 } = require('../src/models');
-const { obtenerPermisosEfectivos } = require('../src/middlewares/authenticate');
+const { obtenerPermisosEfectivos } = require('../src/services/permisos.service');
 const { AuthService } = require('../src/services/auth.service');
 const { CajaService } = require('../src/services/caja.service');
 const { FacturasService } = require('../src/services/facturas.service');
@@ -138,12 +138,14 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     adminJwt = jwt.sign(
       {
         sub: adminUser.id,
+        // P0.3: el token debe llevar la token_version vigente del usuario
+        ver: adminDb.tokenVersion,
         username: adminUser.username,
         rolCodigo: adminUser.rolCodigo,
         sucursalId: adminUser.sucursalId,
       },
       env.JWT_SECRET,
-      { expiresIn: '1h' },
+      { expiresIn: '1h', algorithm: 'HS256' },
     );
 
     // 2. Obtener una categoría activa para asociar los platillos temporales
@@ -377,18 +379,36 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
       platilloHttpId = platillo.id;
     });
 
-    async function postConfirmarVenta(body) {
+    // P0.4: idempotencyKey es obligatoria; se genera una por llamada salvo que el test la controle
+    async function postConfirmarVenta(body, { sinIdempotencyKey = false } = {}) {
+      const payload = sinIdempotencyKey
+        ? body
+        : { idempotencyKey: crypto.randomUUID(), ...body };
       const response = await fetch(`${API_BASE_URL}/ventas/confirmar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${adminJwt}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       });
       const json = await response.json();
       return { status: response.status, json };
     }
+
+    it('rechaza con HTTP 400 una venta sin idempotencyKey (P0.4)', async () => {
+      const { status, json } = await postConfirmarVenta(
+        {
+          tipoServicio: TipoServicio.MOSTRADOR,
+          metodoPago: MetodoPago.EFECTIVO,
+          montoRecibido: 100,
+          items: [{ platilloId: platilloHttpId, cantidad: 1 }],
+        },
+        { sinIdempotencyKey: true },
+      );
+      assert.equal(status, 400);
+      assert.ok(json.error.details.some((d) => d.campo === 'idempotencyKey'));
+    });
 
     it('rechaza con HTTP 400 metodoPago = TARJETA sin referenciaPago', async () => {
       const { status, json } = await postConfirmarVenta({
@@ -640,6 +660,18 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     });
     usuariosTemporalesIds.push(usuarioInactivo.id);
 
+    // Usuario activo temporal: evita sumar intentos fallidos (y bloquear) al admin real del seed
+    const usuarioActivo = await Usuario.create({
+      sucursalId: adminUser.sucursalId,
+      rolId: adminUser.rolId,
+      nombreCompleto: `Usuario QA Activo ${RUN_TAG}`,
+      username: `qa_activo_${RUN_TAG.toLowerCase()}`,
+      email: `qa_activo_${RUN_TAG.toLowerCase()}@pos.local`,
+      passwordHash,
+      activo: true,
+    });
+    usuariosTemporalesIds.push(usuarioActivo.id);
+
     // 10a. Usuario inexistente -> "Credenciales inválidas"
     await assert.rejects(
       () => AuthService.login(`no_existe_${RUN_TAG.toLowerCase()}`, 'Clave123!', CLIENT_META),
@@ -653,7 +685,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
 
     // 10b. Usuario activo existente + contraseña incorrecta -> "Credenciales inválidas"
     await assert.rejects(
-      () => AuthService.login(adminUser.username, 'ClaveTotalmenteErronea#999', CLIENT_META),
+      () => AuthService.login(usuarioActivo.username, 'ClaveTotalmenteErronea#999', CLIENT_META),
       (err) => {
         assert.ok(err instanceof UnauthorizedError);
         assert.equal(err.statusCode, 401);
@@ -686,83 +718,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
   });
 
   // =========================================================================
-  // 11. FEL fuera de transacción y anulación FEL (Fase 3.2 y 3.3)
-  // =========================================================================
-  it('certifica y anula FEL post-commit fuera de la transacción cuando FEL_ENABLED=true y mantiene NO_APLICA cuando false', async () => {
-    const ing = await crearIngredienteTemporal('FEL', 20);
-    const platillo = await crearPlatilloTemporal('FEL', ing.id, 2, 45);
-
-    const prevEnabled = env.FEL_ENABLED;
-    const prevProvider = env.FEL_PROVIDER;
-
-    try {
-      // Caso A: FEL_ENABLED = false -> NO_APLICA
-      env.FEL_ENABLED = false;
-      const ventaNoFel = await VentasService.confirmarVenta(
-        adminUser,
-        {
-          idempotencyKey: crypto.randomUUID(),
-          tipoServicio: TipoServicio.MOSTRADOR,
-          metodoPago: MetodoPago.EFECTIVO,
-          montoRecibido: 50,
-          items: [{ platilloId: platillo.id, cantidad: 1 }],
-        },
-        CLIENT_META,
-      );
-      assert.equal(ventaNoFel.factura.felEstado, 'NO_APLICA');
-      assert.equal(ventaNoFel.factura.felUuid, null);
-
-      // Caso B: FEL_ENABLED = true + SIMULADOR -> certifica post-commit (CERTIFICADA) y anula FEL (ANULADA_SAT)
-      env.FEL_ENABLED = true;
-      env.FEL_PROVIDER = 'SIMULADOR';
-      const ventaFel = await VentasService.confirmarVenta(
-        adminUser,
-        {
-          idempotencyKey: crypto.randomUUID(),
-          tipoServicio: TipoServicio.MOSTRADOR,
-          metodoPago: MetodoPago.EFECTIVO,
-          montoRecibido: 50,
-          items: [{ platilloId: platillo.id, cantidad: 1 }],
-        },
-        CLIENT_META,
-      );
-      assert.equal(ventaFel.factura.felEstado, 'CERTIFICADA');
-      assert.ok(ventaFel.factura.felUuid, 'Debe guardar UUID FEL tras certificación post-commit');
-
-      const anulacionFel = await FacturasService.anular(
-        adminUser,
-        ventaFel.factura.id,
-        { motivo: 'Prueba QA anulación FEL post-commit', reintegrarInventario: true },
-        CLIENT_META,
-      );
-      assert.equal(anulacionFel.felAnulacion.felAnulacionEstado, 'ANULADA_SAT');
-      assert.ok(anulacionFel.factura.felAnulacionUuid);
-
-      // Caso C: Proveedor no configurado -> venta se confirma en BD pero factura queda RECHAZADA en FEL
-      env.FEL_ENABLED = true;
-      env.FEL_PROVIDER = 'NO_CONFIGURADO';
-      const ventaRechazada = await VentasService.confirmarVenta(
-        adminUser,
-        {
-          idempotencyKey: crypto.randomUUID(),
-          tipoServicio: TipoServicio.MOSTRADOR,
-          metodoPago: MetodoPago.EFECTIVO,
-          montoRecibido: 50,
-          items: [{ platilloId: platillo.id, cantidad: 1 }],
-        },
-        CLIENT_META,
-      );
-      assert.equal(ventaRechazada.factura.estado, 'EMITIDA');
-      assert.equal(ventaRechazada.factura.felEstado, 'RECHAZADA');
-      assert.match(ventaRechazada.factura.felErrorDetalle || '', /no configurado/i);
-    } finally {
-      env.FEL_ENABLED = prevEnabled;
-      env.FEL_PROVIDER = prevProvider;
-    }
-  });
-
-  // =========================================================================
-  // 12. Caja cerrada en venta/anulación y doble apertura concurrente (Fase 4.1)
+  // 11. Caja cerrada en venta/anulación y doble apertura concurrente (Fase 4.1)
   // =========================================================================
   it('rechaza confirmarVenta y anular sin caja abierta y controla doble apertura concurrente (409)', async () => {
     // Crear sucursal temporal aislada para probar caja cerrada y apertura concurrente sin tocar la sucursal principal

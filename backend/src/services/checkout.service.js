@@ -1,7 +1,7 @@
+const crypto = require('node:crypto');
 const { Op, QueryTypes, UniqueConstraintError } = require('sequelize');
 const { ACCIONES_AUDITORIA } = require('../config/constants');
 const { getPgErrorCode, sequelize, withTransaction } = require('../config/database');
-const { env } = require('../config/env');
 const {
   CajaMovimiento,
   CajaSesion,
@@ -9,7 +9,6 @@ const {
   EstadoCaja,
   EstadoComanda,
   EstadoFactura,
-  EstadoFel,
   EstadoMesa,
   EstadoVenta,
   Factura,
@@ -30,16 +29,45 @@ const {
 } = require('../models');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
-const { FelAdapter } = require('../shared/services/fel.adapter');
 const { calcularDesgloseIvaIncluido, round2, round4 } = require('../shared/utils/tax');
+const { ORDEN_PRECEDENCIA_MENU_ESPECIAL } = require('./menu.service');
 
 /**
  * Servicio de checkout transaccional del POS:
  * confirmación idempotente de ventas, bloqueo pesimista de stock (FOR UPDATE),
- * certificación FEL post-commit, comandas y estado de mesas.
+ * comandas y estado de mesas. La factura es un comprobante interno (no se certifica ante la SAT).
  */
+/**
+ * Huella SHA-256 del cobro: define cuándo dos peticiones con la misma idempotencyKey son
+ * "el mismo cobro". Incluye el pedido y los datos de pago que quedan registrados en la venta:
+ * - platillos y cantidades (agregados y ordenados), tipo de servicio y mesa;
+ * - método de pago, efectivo recibido (solo EFECTIVO: con TARJETA se registra el total) y la
+ *   referencia/autorización del pago.
+ * Si la venta ya se confirmó y el reintento trae otros datos de pago, responde 409 en lugar de
+ * devolver una venta registrada con datos distintos a los que el cajero ve en pantalla.
+ */
+function calcularHuellaPedido(input) {
+  const cantidades = new Map();
+  for (const item of input.items ?? []) {
+    cantidades.set(item.platilloId, (cantidades.get(item.platilloId) ?? 0) + item.cantidad);
+  }
+  const esEfectivo = input.metodoPago === MetodoPago.EFECTIVO;
+  const normalizado = {
+    items: Array.from(cantidades.entries()).sort((a, b) => a[0] - b[0]),
+    tipoServicio: input.tipoServicio,
+    mesaId: input.tipoServicio === TipoServicio.MESA ? input.mesaId ?? null : null,
+    metodoPago: input.metodoPago,
+    montoRecibido:
+      esEfectivo && input.montoRecibido !== undefined && input.montoRecibido !== null
+        ? round2(input.montoRecibido)
+        : null,
+    referenciaPago: input.referenciaPago?.trim() || null,
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(normalizado)).digest('hex');
+}
+
 class CheckoutService {
-  static async obtenerVentaExistentePorIdempotencyKey(sucursalId, idempotencyKey) {
+  static async obtenerVentaExistentePorIdempotencyKey(sucursalId, idempotencyKey, huella) {
     const existente = await Venta.findOne({
       where: { sucursalId, idempotencyKey },
       include: [
@@ -59,6 +87,15 @@ class CheckoutService {
       return null;
     }
 
+    if (huella && existente.idempotencyHuella && existente.idempotencyHuella !== huella) {
+      // Con esta clave YA hay una venta confirmada, pero con otro pedido o datos de pago.
+      // No se cobra de nuevo: el cajero debe revisar la venta registrada antes de reintentar.
+      throw new ConflictError(
+        `Este cobro ya fue registrado como la factura ${existente.factura.numeroCompleto} con otros datos de pedido o de pago. Revísala en el historial antes de volver a cobrar.`,
+        { facturaId: existente.factura.id, numeroCompleto: existente.factura.numeroCompleto },
+      );
+    }
+
     const plain = existente.get({ plain: true });
     const { factura, comanda, sucursal, ...venta } = plain;
     return { venta, factura, comanda, sucursal };
@@ -70,12 +107,14 @@ class CheckoutService {
     }
 
     const idempotencyKey = input.idempotencyKey?.trim() || undefined;
+    const huella = idempotencyKey ? calcularHuellaPedido(input) : null;
 
     // 0. Comprobación rápida de idempotencia antes de abrir transacción
     if (idempotencyKey) {
       const previa = await this.obtenerVentaExistentePorIdempotencyKey(
         user.sucursalId,
         idempotencyKey,
+        huella,
       );
       if (previa) {
         return previa;
@@ -86,8 +125,12 @@ class CheckoutService {
       return await withTransaction(
         async (tx) => {
           // 1. Validar que exista caja abierta en la sucursal
+          // Bloqueo de la sesión de caja (mismo FOR UPDATE que cerrarCaja): si el cierre se está
+          // ejecutando, la venta espera y luego ve la caja CERRADA; si la venta va primero, el
+          // cierre espera y su arqueo incluye la venta. Ninguna venta queda fuera del cuadre.
           const cajaAbierta = await CajaSesion.findOne({
             where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+            lock: tx.LOCK.UPDATE,
             transaction: tx,
           });
 
@@ -124,6 +167,8 @@ class CheckoutService {
               fechaFin: { [Op.gte]: ahora },
             },
             include: [{ model: MenuEspecialPlatillo, as: 'platillos' }],
+            // Misma precedencia que el catálogo: el precio cobrado es el mismo que el mostrado
+            order: ORDEN_PRECEDENCIA_MENU_ESPECIAL,
             transaction: tx,
           });
 
@@ -139,7 +184,7 @@ class CheckoutService {
           // 4. Cargar platillos y definiciones de receta
           const platilloIds = Array.from(new Set(input.items.map((i) => i.platilloId)));
           const platillos = await Platillo.findAll({
-            where: { id: { [Op.in]: platilloIds }, activo: true },
+            where: { id: { [Op.in]: platilloIds }, sucursalId: user.sucursalId, activo: true },
             include: [{ model: RecetaIngrediente, as: 'receta' }],
             transaction: tx,
           });
@@ -323,6 +368,7 @@ class CheckoutService {
               referenciaPago: input.referenciaPago?.trim() || null,
               observaciones: input.observaciones?.trim() || null,
               idempotencyKey: idempotencyKey ?? null,
+              idempotencyHuella: huella,
               datosDeliveryJson: input.datosDeliveryJson ?? null,
             },
             { transaction: tx },
@@ -333,8 +379,7 @@ class CheckoutService {
             { transaction: tx },
           );
 
-          // 11. Emitir Factura inmutable (Fase 3.2: SIN llamar a FelAdapter dentro de la transacción)
-          const felEstadoInicial = env.FEL_ENABLED ? EstadoFel.PENDIENTE : EstadoFel.NO_APLICA;
+          // 11. Emitir Factura inmutable (comprobante interno: el restaurante no certifica ante la SAT)
           const factura = await Factura.create(
             {
               sucursalId: user.sucursalId,
@@ -349,11 +394,6 @@ class CheckoutService {
               ivaMonto,
               total,
               estado: EstadoFactura.EMITIDA,
-              felEstado: felEstadoInicial,
-              felUuid: null,
-              felSerie: null,
-              felNumero: null,
-              felCertificadoEn: null,
             },
             { transaction: tx },
           );
@@ -489,79 +529,6 @@ class CheckoutService {
             },
           };
         },
-        async (result) => {
-          // Fase 3.2: Callback post-commit — certificar FEL FUERA de la transacción de BD
-          if (!env.FEL_ENABLED || !result?.factura) {
-            return;
-          }
-
-          let felResultado;
-          try {
-            felResultado = await FelAdapter.certificar({
-              facturaId: result.factura.id,
-              numeroCompleto: result.factura.numeroCompleto,
-              clienteNit: result.factura.clienteNit,
-              clienteNombre: result.factura.clienteNombre,
-              total: Number(result.factura.total),
-              ivaMonto: Number(result.factura.ivaMonto),
-            });
-          } catch (felError) {
-            felResultado = {
-              felEstado: EstadoFel.RECHAZADA,
-              felUuid: null,
-              felSerie: null,
-              felNumero: null,
-              felCertificadoEn: null,
-              felErrorDetalle: String(
-                felError instanceof Error ? felError.message : felError,
-              ).slice(0, 300),
-            };
-          }
-
-          await Factura.update(
-            {
-              felEstado: felResultado.felEstado,
-              felUuid: felResultado.felUuid ?? null,
-              felSerie: felResultado.felSerie ?? null,
-              felNumero: felResultado.felNumero ?? null,
-              felCertificadoEn: felResultado.felCertificadoEn ?? null,
-              felErrorDetalle: felResultado.felErrorDetalle ?? null,
-            },
-            { where: { id: result.factura.id } },
-          );
-
-          Object.assign(result.factura, {
-            felEstado: felResultado.felEstado,
-            felUuid: felResultado.felUuid ?? null,
-            felSerie: felResultado.felSerie ?? null,
-            felNumero: felResultado.felNumero ?? null,
-            felCertificadoEn: felResultado.felCertificadoEn ?? null,
-            felErrorDetalle: felResultado.felErrorDetalle ?? null,
-          });
-
-          await AuditService.registrar({
-            sucursalId: user.sucursalId,
-            usuarioId: user.id,
-            accion: ACCIONES_AUDITORIA.CERTIFICACION_FEL,
-            entidad: 'Factura',
-            entidadId: result.factura.id,
-            valorAnterior: {
-              numeroCompleto: result.factura.numeroCompleto,
-              felEstado: EstadoFel.PENDIENTE,
-            },
-            valorNuevo: {
-              numeroCompleto: result.factura.numeroCompleto,
-              felEstado: felResultado.felEstado,
-              felUuid: felResultado.felUuid ?? null,
-              felSerie: felResultado.felSerie ?? null,
-              felNumero: felResultado.felNumero ?? null,
-              felErrorDetalle: felResultado.felErrorDetalle ?? null,
-            },
-            motivo: felResultado.felErrorDetalle || 'Certificación FEL ejecutada post-commit',
-            ipAddress: clientMeta.ipAddress,
-            userAgent: clientMeta.userAgent,
-          });
-        },
       );
     } catch (error) {
       // Si dos peticiones simultáneas enviaron la misma idempotencyKey, devolver la venta original
@@ -572,6 +539,7 @@ class CheckoutService {
         const previa = await this.obtenerVentaExistentePorIdempotencyKey(
           user.sucursalId,
           idempotencyKey,
+          huella,
         );
         if (previa) {
           return previa;

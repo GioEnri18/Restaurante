@@ -18,7 +18,20 @@ const {
   nowInTimezone,
   startOfDayInTimezone,
 } = require('../shared/utils/dates');
+const { patronContiene } = require('../shared/utils/busqueda');
 const { round2 } = require('../shared/utils/tax');
+
+const PERMISOS_VER_COSTOS = ['inventario:ver', 'ventas:gestionar_menu', 'reportes:ver'];
+
+/**
+ * Precedencia ÚNICA cuando varios menús especiales están vigentes el mismo día: gana el que
+ * empezó primero y, a igual fecha de inicio, el creado más recientemente. La comparten el
+ * catálogo (precio mostrado) y el cobro (precio cobrado), así ambos aplican el mismo menú.
+ */
+const ORDEN_PRECEDENCIA_MENU_ESPECIAL = [
+  ['fechaInicio', 'ASC'],
+  ['id', 'DESC'],
+];
 
 /**
  * Evalúa el estado de vigencia de un menú especial usando explícitamente env.DEFAULT_TIMEZONE (America/Guatemala).
@@ -66,16 +79,20 @@ function evaluarEstadoMenuEspecial(menu) {
 }
 
 class MenuService {
-  static async obtenerMenu(sucursalId, search, categoriaId) {
+  static async obtenerMenu(user, search, categoriaId) {
+    const { sucursalId } = user;
+    // Los costos de receta solo se exponen a roles con visibilidad de inventario, menú o reportes
+    const puedeVerCostos = PERMISOS_VER_COSTOS.some((p) => user.permisos?.includes(p));
     const platilloWhere = {
+      sucursalId,
       activo: true,
       ...(categoriaId ? { categoriaId } : {}),
       ...(search
         ? {
             [Op.or]: [
-              { nombre: { [Op.iLike]: `%${search}%` } },
-              { descripcion: { [Op.iLike]: `%${search}%` } },
-              { sku: { [Op.iLike]: `%${search}%` } },
+              { nombre: { [Op.iLike]: patronContiene(search) } },
+              { descripcion: { [Op.iLike]: patronContiene(search) } },
+              { sku: { [Op.iLike]: patronContiene(search) } },
             ],
           }
         : {}),
@@ -103,6 +120,9 @@ class MenuService {
               {
                 model: Ingrediente,
                 as: 'ingrediente',
+                // Aislamiento: solo se leen existencias y costos de la sucursal del usuario
+                where: { sucursalId },
+                required: false,
                 attributes: ['id', 'codigo', 'nombre', 'stockActualOz', 'costoPromedioOz'],
               },
             ],
@@ -123,10 +143,8 @@ class MenuService {
       }),
       MenuEspecial.findAll({
         where: { sucursalId },
-        order: [
-          ['fechaInicio', 'ASC'],
-          ['id', 'DESC'],
-        ],
+        // Mismo orden que usa el cobro: el primer menú ACTIVO_HOY de esta lista es el que aplica
+        order: ORDEN_PRECEDENCIA_MENU_ESPECIAL,
         include: [
           { model: Usuario, as: 'creadoPor', attributes: ['id', 'nombreCompleto'] },
           {
@@ -184,8 +202,11 @@ class MenuService {
           0,
         ),
       );
+      // Un ingrediente ausente en la sucursal (null) cuenta como sin existencias
       const stockDisponible = receta.every(
-        (item) => Number(item.ingrediente?.stockActualOz ?? 0) >= Number(item.cantidadOz),
+        (item) =>
+          item.ingrediente !== null &&
+          Number(item.ingrediente?.stockActualOz ?? 0) >= Number(item.cantidadOz),
       );
       const especial = mapaEspecialHoy.get(p.id);
       const precioBase = Number(p.precioVenta);
@@ -201,7 +222,7 @@ class MenuService {
         precioVenta: precioVigente,
         precioRegular: precioBase,
         esEspecialHoy: Boolean(especial),
-        costoReceta,
+        costoReceta: puedeVerCostos ? costoReceta : null,
         disponible: p.disponible,
         stockDisponible,
         receta: receta.map((r) => ({
@@ -237,4 +258,4 @@ class MenuService {
   }
 }
 
-module.exports = { MenuService, evaluarEstadoMenuEspecial };
+module.exports = { MenuService, evaluarEstadoMenuEspecial, ORDEN_PRECEDENCIA_MENU_ESPECIAL };

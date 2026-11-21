@@ -57,6 +57,9 @@ Usuario.init({
     passwordHash: { type: DataTypes.STRING(255), allowNull: false, field: 'password_hash' },
     activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     ultimoAcceso: { type: DataTypes.DATE, allowNull: true, field: 'ultimo_acceso' },
+    intentosFallidos: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'intentos_fallidos' },
+    bloqueadoHasta: { type: DataTypes.DATE, allowNull: true, field: 'bloqueado_hasta' },
+    tokenVersion: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'token_version' },
 }, { sequelize, tableName: 'usuarios', timestamps: true, createdAt: true, updatedAt: true });
 // ==================== USUARIO_PERMISO ====================
 class UsuarioPermiso extends Model {

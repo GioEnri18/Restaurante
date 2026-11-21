@@ -22,12 +22,6 @@ const EstadoFactura = {
     EMITIDA: 'EMITIDA',
     ANULADA: 'ANULADA',
 };
-const EstadoFel = {
-    NO_APLICA: 'NO_APLICA',
-    PENDIENTE: 'PENDIENTE',
-    CERTIFICADA: 'CERTIFICADA',
-    RECHAZADA: 'RECHAZADA',
-};
 const EstadoComanda = {
     PENDIENTE: 'PENDIENTE',
     EN_PREPARACION: 'EN_PREPARACION',
@@ -69,7 +63,6 @@ module.exports = {
   MetodoPago,
   EstadoVenta,
   EstadoFactura,
-  EstadoFel,
   EstadoComanda,
   EstadoCaja,
   TipoMovimientoCaja,

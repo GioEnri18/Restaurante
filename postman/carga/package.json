@@ -1,0 +1,15 @@
+{
+  "name": "pos-restaurante-prueba-carga",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prueba de carga concurrente con Newman: 8 cajeros, 2 administradores y 2 auditores",
+  "scripts": {
+    "preparar": "node preparar.js",
+    "carga": "node ejecutar.js",
+    "analizar": "node analizar.js"
+  },
+  "dependencies": {
+    "newman": "^6.2.3",
+    "tough-cookie": "^4.1.4"
+  }
+}

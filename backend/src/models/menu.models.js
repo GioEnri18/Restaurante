@@ -17,8 +17,10 @@ class Platillo extends Model {
 }
 Platillo.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    sucursalId: { type: DataTypes.INTEGER, allowNull: false, field: 'sucursal_id' },
     categoriaId: { type: DataTypes.INTEGER, allowNull: false, field: 'categoria_id' },
-    sku: { type: DataTypes.STRING(30), allowNull: false, unique: true },
+    // Único por sucursal (índice platillos_sucursal_id_sku_key)
+    sku: { type: DataTypes.STRING(30), allowNull: false },
     nombre: { type: DataTypes.STRING(120), allowNull: false },
     descripcion: { type: DataTypes.STRING(300), allowNull: true },
     precioVenta: { type: DataTypes.DECIMAL(10, 2), allowNull: false, field: 'precio_venta' },

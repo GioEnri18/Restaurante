@@ -6,6 +6,7 @@ const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
 const { endOfDayInTimezone, startOfDayInTimezone } = require('../shared/utils/dates');
+const { patronContiene } = require('../shared/utils/busqueda');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { round2, round4 } = require('../shared/utils/tax');
 class InventarioService {
@@ -32,8 +33,8 @@ class InventarioService {
             ...(search
                 ? {
                     [Op.or]: [
-                        { nombre: { [Op.iLike]: `%${search}%` } },
-                        { codigo: { [Op.iLike]: `%${search}%` } },
+                        { nombre: { [Op.iLike]: patronContiene(search) } },
+                        { codigo: { [Op.iLike]: patronContiene(search) } },
                     ],
                 }
                 : {}),

@@ -4,6 +4,7 @@ const { CajaController } = require('../controllers/caja.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
+const { paginacionQuery } = require('../shared/validators/common.validators');
 const abrirCajaSchema = z.object({
     montoInicial: z.coerce.number().min(0, 'El monto inicial no puede ser negativo'),
     observaciones: z.string().trim().max(300).optional(),
@@ -24,5 +25,5 @@ router.get('/actual', requirePermission('caja:ver', 'ventas:ver'), CajaControlle
 router.post('/abrir', requirePermission('caja:abrir'), validate(abrirCajaSchema), CajaController.abrir);
 router.post('/movimientos', requirePermission('caja:movimiento'), validate(movimientoCajaSchema), CajaController.registrarMovimiento);
 router.post('/cerrar', requirePermission('caja:cerrar'), validate(cerrarCajaSchema), CajaController.cerrar);
-router.get('/historial', requirePermission('caja:ver'), CajaController.historial);
+router.get('/historial', requirePermission('caja:ver'), validate(z.object(paginacionQuery), 'query'), CajaController.historial);
 module.exports = router;

@@ -4,15 +4,35 @@ const { FacturasController } = require('../controllers/facturas.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
+const {
+    idParamsSchema,
+    montoStr,
+    paginacionQuery,
+    rangoFechasQuery,
+    refinarRangoFechas,
+    textoBusqueda,
+} = require('../shared/validators/common.validators');
 const anularFacturaSchema = z.object({
     motivo: z.string().trim().min(5, 'El motivo de anulación debe tener al menos 5 caracteres').max(300),
     reintegrarInventario: z.boolean().default(false),
 });
+// Auditoría P1: filtros de listado validados (montos, fechas, estado y longitud de búsquedas)
+const listarFacturasQuerySchema = z
+    .object({
+    ...paginacionQuery,
+    ...rangoFechasQuery,
+    numero: textoBusqueda(30).optional(),
+    cliente: textoBusqueda(100).optional(),
+    montoMin: montoStr.optional(),
+    montoMax: montoStr.optional(),
+    estado: z.enum(['EMITIDA', 'ANULADA']).optional(),
+})
+    .superRefine(refinarRangoFechas);
 const router = Router();
 router.use(authenticate);
 // Nota de negocio: NO existen endpoints PUT ni DELETE para facturas (inmutables)
-router.get('/', requirePermission('facturas:ver'), FacturasController.listar);
-router.get('/:id', requirePermission('facturas:ver'), FacturasController.detalle);
-router.post('/:id/reimprimir', requirePermission('facturas:reimprimir'), FacturasController.reimprimir);
-router.post('/:id/anular', requirePermission('facturas:anular'), validate(anularFacturaSchema), FacturasController.anular);
+router.get('/', requirePermission('facturas:ver'), validate(listarFacturasQuerySchema, 'query'), FacturasController.listar);
+router.get('/:id', requirePermission('facturas:ver'), validate(idParamsSchema, 'params'), FacturasController.detalle);
+router.post('/:id/reimprimir', requirePermission('facturas:reimprimir'), validate(idParamsSchema, 'params'), FacturasController.reimprimir);
+router.post('/:id/anular', requirePermission('facturas:anular'), validate(idParamsSchema, 'params'), validate(anularFacturaSchema), FacturasController.anular);
 module.exports = router;

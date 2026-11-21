@@ -12,8 +12,8 @@ const { PlatillosService } = require('./platillos.service');
  * - CheckoutService: confirmación transaccional de ventas, mesas y comandas
  */
 class VentasService {
-  static obtenerMenu(sucursalId, search, categoriaId) {
-    return MenuService.obtenerMenu(sucursalId, search, categoriaId);
+  static obtenerMenu(user, search, categoriaId) {
+    return MenuService.obtenerMenu(user, search, categoriaId);
   }
 
   static listarMenusEspeciales(sucursalId) {

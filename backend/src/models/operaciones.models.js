@@ -1,6 +1,6 @@
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { EstadoCaja, EstadoComanda, EstadoFactura, EstadoFel, EstadoVenta, MetodoPago, TipoServicio } = require('./enums');
+const { EstadoCaja, EstadoComanda, EstadoFactura, EstadoVenta, MetodoPago, TipoServicio } = require('./enums');
 // ==================== CAJA_SESION ====================
 class CajaSesion extends Model {
 }
@@ -58,6 +58,7 @@ Venta.init({
     referenciaPago: { type: DataTypes.STRING(80), allowNull: true, field: 'referencia_pago' },
     observaciones: { type: DataTypes.STRING(300), allowNull: true },
     idempotencyKey: { type: DataTypes.STRING(64), allowNull: true, field: 'idempotency_key' },
+    idempotencyHuella: { type: DataTypes.STRING(64), allowNull: true, field: 'idempotency_huella' },
     reservaId: { type: DataTypes.INTEGER, allowNull: true, field: 'reserva_id' },
     datosDeliveryJson: { type: DataTypes.JSONB, allowNull: true, field: 'datos_delivery_json' },
 }, { sequelize, tableName: 'ventas', timestamps: true, createdAt: true, updatedAt: false });
@@ -75,7 +76,7 @@ VentaDetalle.init({
     subtotal: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     notas: { type: DataTypes.STRING(250), allowNull: true },
 }, { sequelize, tableName: 'venta_detalles', timestamps: false });
-// ==================== FACTURA (INMUTABLE + PREPARADA FEL) ====================
+// ==================== FACTURA (INMUTABLE, COMPROBANTE INTERNO) ====================
 class Factura extends Model {
 }
 Factura.init({
@@ -96,15 +97,8 @@ Factura.init({
     anuladaPorId: { type: DataTypes.INTEGER, allowNull: true, field: 'anulada_por_id' },
     anuladaEn: { type: DataTypes.DATE, allowNull: true, field: 'anulada_en' },
     reimpresionesCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'reimpresiones_count' },
-    felEstado: { type: DataTypes.STRING(20), allowNull: false, defaultValue: EstadoFel.NO_APLICA, field: 'fel_estado' },
-    felUuid: { type: DataTypes.STRING(80), allowNull: true, field: 'fel_uuid' },
-    felSerie: { type: DataTypes.STRING(30), allowNull: true, field: 'fel_serie' },
-    felNumero: { type: DataTypes.STRING(40), allowNull: true, field: 'fel_numero' },
-    felCertificadoEn: { type: DataTypes.DATE, allowNull: true, field: 'fel_certificado_en' },
-    felAnulacionEstado: { type: DataTypes.STRING(30), allowNull: true, field: 'fel_anulacion_estado' },
-    felAnulacionUuid: { type: DataTypes.STRING(80), allowNull: true, field: 'fel_anulacion_uuid' },
-    felAnuladaEn: { type: DataTypes.DATE, allowNull: true, field: 'fel_anulada_en' },
-    felErrorDetalle: { type: DataTypes.STRING(300), allowNull: true, field: 'fel_error_detalle' },
+    // Las columnas fel_* siguen en la tabla (migraciones antiguas) pero ya no se usan: la factura es un
+    // comprobante interno y no se certifica ante la SAT. fel_estado conserva su DEFAULT 'NO_APLICA'.
 }, { sequelize, tableName: 'facturas', timestamps: true, createdAt: true, updatedAt: false });
 // ==================== COMANDA ====================
 class Comanda extends Model {

@@ -1,9 +1,45 @@
 const { ACCIONES_AUDITORIA } = require('../config/constants');
 const { withTransaction } = require('../config/database');
+const { Op } = require('sequelize');
 const { Categoria, Ingrediente, Platillo, RecetaIngrediente } = require('../models');
-const { NotFoundError } = require('../shared/errors/AppError');
+const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { round2, round4 } = require('../shared/utils/tax');
+
+/**
+ * Aislamiento por sucursal: la categoría debe ser de la sucursal del usuario (o global)
+ * y todos los ingredientes de la receta deben pertenecer a su sucursal y estar activos.
+ */
+async function validarReferenciasSucursal(sucursalId, { categoriaId, receta }, tx) {
+  if (categoriaId !== undefined) {
+    const categoria = await Categoria.findOne({
+      where: {
+        id: categoriaId,
+        activa: true,
+        [Op.or]: [{ sucursalId }, { sucursalId: null }],
+      },
+      transaction: tx,
+    });
+    if (!categoria) {
+      throw new NotFoundError('La categoría seleccionada no existe en esta sucursal');
+    }
+  }
+
+  if (receta?.length) {
+    const ids = receta.map((r) => r.ingredienteId);
+    const unicos = new Set(ids);
+    if (unicos.size !== ids.length) {
+      throw new BadRequestError('La receta contiene ingredientes repetidos');
+    }
+    const encontrados = await Ingrediente.count({
+      where: { id: { [Op.in]: Array.from(unicos) }, sucursalId, activo: true },
+      transaction: tx,
+    });
+    if (encontrados !== unicos.size) {
+      throw new NotFoundError('Uno o más ingredientes de la receta no existen en esta sucursal');
+    }
+  }
+}
 
 /**
  * Servicio dedicado al mantenimiento de platillos, precios y recetas en onzas.
@@ -11,8 +47,10 @@ const { round2, round4 } = require('../shared/utils/tax');
 class PlatillosService {
   static async crearPlatillo(user, input, clientMeta) {
     return withTransaction(async (tx) => {
+      await validarReferenciasSucursal(user.sucursalId, input, tx);
       const platillo = await Platillo.create(
         {
+          sucursalId: user.sucursalId,
           categoriaId: input.categoriaId,
           sku: input.sku.trim().toUpperCase(),
           nombre: input.nombre.trim(),
@@ -73,14 +111,20 @@ class PlatillosService {
 
   static async actualizarPlatillo(user, platilloId, input, clientMeta) {
     return withTransaction(async (tx) => {
-      const actual = await Platillo.findByPk(platilloId, {
+      // Alcance de sucursal: un platillo de otra sucursal se trata como inexistente (404)
+      const actual = await Platillo.findOne({
+        where: { id: platilloId, sucursalId: user.sucursalId },
         include: [{ model: RecetaIngrediente, as: 'receta' }],
+        // FOR UPDATE OF solo sobre la fila del platillo (no admite el lado nullable del LEFT JOIN)
+        lock: { level: tx.LOCK.UPDATE, of: Platillo },
         transaction: tx,
       });
 
       if (!actual) {
         throw new NotFoundError('Platillo no encontrado');
       }
+
+      await validarReferenciasSucursal(user.sucursalId, input, tx);
 
       const prevNombre = actual.nombre;
       const precioAnterior = Number(actual.precioVenta);

@@ -15,7 +15,8 @@
     "db:seed": "node src/database/seed.js",
     "test:unit": "node --test tests/unit.business.test.js",
     "test": "node --test tests/*.test.js",
-    "test:watch": "node --test --watch tests/*.test.js"
+    "test:watch": "node --test --watch tests/*.test.js",
+    "db:crear-rol-app": "node src/database/crearRolApp.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -28,10 +29,11 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.7.2",
-    "morgan": "^1.10.0",
     "pdfkit": "^0.16.0",
     "pg": "^8.14.1",
     "pg-hstore": "^2.3.4",
+    "pino": "^9.14.0",
+    "pino-http": "^10.5.0",
     "sequelize": "^6.37.7",
     "zod": "^4.6.7"
   },

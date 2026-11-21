@@ -5,6 +5,11 @@ const { VentasController } = require('../controllers/ventas.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requireAdmin, requireAllPermissions, requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
+const {
+    enteroPositivoStr,
+    idParamsSchema,
+    textoBusqueda,
+} = require('../shared/validators/common.validators');
 // Valida profundidad y cantidad total de claves en datosDeliveryJson para evitar payloads abusivos
 function inspeccionarJson(obj, profundidadActual = 1) {
     if (obj === null || typeof obj !== 'object') {
@@ -26,7 +31,9 @@ function inspeccionarJson(obj, profundidadActual = 1) {
 }
 const confirmarVentaSchema = z
     .object({
-    idempotencyKey: z.string().uuid('idempotencyKey debe ser un UUID válido').optional(),
+    // Auditoría P0.4: obligatoria para que un reintento del cliente nunca duplique un cobro
+    idempotencyKey: z.string({ error: 'idempotencyKey es obligatoria (UUID por intento de cobro)' })
+        .uuid('idempotencyKey debe ser un UUID válido'),
     tipoServicio: z.enum(['MOSTRADOR', 'LLEVAR', 'MESA', 'DELIVERY']).default('MOSTRADOR'),
     mesaId: z.coerce.number().int().positive().nullable().optional(),
     nombreTurno: z.string().trim().max(80).optional(),
@@ -38,13 +45,19 @@ const confirmarVentaSchema = z
     clienteDireccion: z.string().trim().max(250).optional(),
     observaciones: z.string().trim().max(300).optional(),
     datosDeliveryJson: z.record(z.string(), z.unknown()).optional(),
+    // Límites de carga: un pedido real de restaurante no necesita más, y acotan el costo por petición
     items: z
         .array(z.object({
         platilloId: z.coerce.number().int().positive(),
-        cantidad: z.coerce.number().int().positive('La cantidad debe ser mayor a 0'),
+        cantidad: z.coerce
+            .number()
+            .int()
+            .positive('La cantidad debe ser mayor a 0')
+            .max(env.VENTA_MAX_CANTIDAD_POR_LINEA, `La cantidad por platillo no puede superar ${env.VENTA_MAX_CANTIDAD_POR_LINEA}`),
         notas: z.string().trim().max(250).optional(),
     }))
-        .min(1, 'Agrega al menos un platillo al carrito'),
+        .min(1, 'Agrega al menos un platillo al carrito')
+        .max(env.VENTA_MAX_LINEAS, `El pedido no puede tener más de ${env.VENTA_MAX_LINEAS} líneas`),
 })
     .superRefine((data, ctx) => {
     // 1.6 Si el servicio es en MESA, mesaId es obligatorio
@@ -106,6 +119,7 @@ const platilloSchema = z.object({
         ingredienteId: z.coerce.number().int().positive(),
         cantidadOz: z.coerce.number().positive('La cantidad en onzas debe ser mayor a 0'),
     }))
+        .max(50, 'La receta no puede tener más de 50 ingredientes')
         .optional(),
 });
 const actualizarPlatilloSchema = platilloSchema.partial().extend({
@@ -124,13 +138,20 @@ const menuEspecialSchema = z.object({
         platilloId: z.coerce.number().int().positive(),
         precioEspecial: z.coerce.number().positive().nullable().optional(),
     }))
+        .max(300, 'El menú especial no puede tener más de 300 platillos')
         .optional(),
 });
+// Auditoría P1: validación de query params y :id
+const menuQuerySchema = z.object({
+    search: textoBusqueda(80).optional(),
+    categoriaId: enteroPositivoStr.optional(),
+});
+const idParams = validate(idParamsSchema, 'params');
 const router = Router();
 router.use(authenticate);
-router.get('/menu', requirePermission('ventas:ver'), VentasController.menu);
+router.get('/menu', requirePermission('ventas:ver'), validate(menuQuerySchema, 'query'), VentasController.menu);
 // Liberar o actualizar estado de mesas (DISPONIBLE / OCUPADA / RESERVADA)
-router.patch('/mesas/:id/estado', requirePermission('ventas:crear'), validate(estadoMesaSchema), VentasController.actualizarEstadoMesa);
+router.patch('/mesas/:id/estado', requirePermission('ventas:crear'), idParams, validate(estadoMesaSchema), VentasController.actualizarEstadoMesa);
 // Fase 2.6: Permiso estricto para crear/editar platillos:
 // Siempre exige ventas:gestionar_menu; si además modifica/define receta, exige TAMBIÉN inventario:gestionar.
 function requirePlatilloPermissions(req, res, next) {
@@ -145,10 +166,10 @@ function requirePlatilloPermissions(req, res, next) {
 router.get('/menus-especiales/alertas', requirePermission('ventas:ver'), VentasController.alertasMenusEspeciales);
 router.get('/menus-especiales', requireAdmin, requirePermission('ventas:gestionar_menu'), VentasController.listarMenusEspeciales);
 router.post('/menus-especiales', requireAdmin, requirePermission('ventas:gestionar_menu'), validate(menuEspecialSchema), VentasController.crearMenuEspecial);
-router.put('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gestionar_menu'), validate(menuEspecialSchema.partial()), VentasController.actualizarMenuEspecial);
-router.delete('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gestionar_menu'), VentasController.eliminarMenuEspecial);
+router.put('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gestionar_menu'), idParams, validate(menuEspecialSchema.partial()), VentasController.actualizarMenuEspecial);
+router.delete('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gestionar_menu'), idParams, VentasController.eliminarMenuEspecial);
 router.post('/platillos', requirePermission('ventas:gestionar_menu'), validate(platilloSchema), requirePlatilloPermissions, VentasController.crearPlatillo);
-router.put('/platillos/:id', requirePermission('ventas:gestionar_menu'), validate(actualizarPlatilloSchema), requirePlatilloPermissions, VentasController.actualizarPlatillo);
+router.put('/platillos/:id', requirePermission('ventas:gestionar_menu'), idParams, validate(actualizarPlatilloSchema), requirePlatilloPermissions, VentasController.actualizarPlatillo);
 router.post('/confirmar', requirePermission('ventas:crear'), validate(confirmarVentaSchema), VentasController.confirmar);
-router.get('/:id/comanda', requirePermission('ventas:ver', 'facturas:ver'), VentasController.obtenerComanda);
+router.get('/:id/comanda', requirePermission('ventas:ver', 'facturas:ver'), idParams, VentasController.obtenerComanda);
 module.exports = router;

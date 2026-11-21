@@ -11,32 +11,13 @@ jobs:
     name: Backend (Node.js JS + Express + Sequelize)
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: pos_ci_user
-          POSTGRES_PASSWORD: pos_ci_password
-          POSTGRES_DB: pos_restaurante_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
       NODE_ENV: test
       PORT: 4000
       API_PREFIX: /api/v1
       CORS_ORIGIN: http://localhost:5173
-      DATABASE_URL: postgresql://pos_ci_user:pos_ci_password@localhost:5432/pos_restaurante_test
-      DATABASE_URL_TEST: postgresql://pos_ci_user:pos_ci_password@localhost:5432/pos_restaurante_test
-      JWT_SECRET: ci-test-secret-pos-restaurante-guatemala-2026-xyz123
+      APP_DB_USER: pos_app_ci
       DEFAULT_TIMEZONE: America/Guatemala
-      FEL_ENABLED: "false"
-      FEL_PROVIDER: NONE
 
     steps:
       - name: Checkout repositorio
@@ -59,23 +40,60 @@ jobs:
           npm run check
           npm run lint
 
-      - name: Aplicar migraciones SQL y seed en BD de prueba
+      - name: Preparar PostgreSQL aislado y credenciales temporales
+        run: |
+          owner_password=$(openssl rand -hex 24)
+          app_password=$(openssl rand -hex 24)
+          jwt_secret=$(openssl rand -hex 32)
+          for value in "$owner_password" "$app_password" "$jwt_secret"; do
+            echo "::add-mask::$value"
+          done
+          docker run -d --name pos-ci-postgres \
+            -p 127.0.0.1:5432:5432 \
+            -e POSTGRES_USER=pos_ci_user -e POSTGRES_PASSWORD="$owner_password" \
+            -e POSTGRES_DB=pos_restaurante_test postgres:16-alpine
+          for i in $(seq 1 30); do
+            if docker exec pos-ci-postgres pg_isready -h 127.0.0.1 -U pos_ci_user -d pos_restaurante_test; then
+              {
+                printf 'DATABASE_URL=%s\n' 'postgresql://unused@localhost:5432/pos_restaurante_ci_no_usar'
+                printf 'DATABASE_URL_TEST=postgresql://pos_ci_user:%s@localhost:5432/pos_restaurante_test\n' "$owner_password"
+                printf 'APP_DB_PASSWORD=%s\n' "$app_password"
+                printf 'JWT_SECRET=%s\n' "$jwt_secret"
+              } >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'PostgreSQL de pruebas no respondió a tiempo'
+          exit 1
+
+      - name: Aplicar migraciones SQL, seed y crear el usuario de mínimo privilegio
         working-directory: backend
         run: |
           npm run db:migrate
           npm run db:seed
+          npm run db:crear-rol-app
 
-      - name: Levantar API en segundo plano y ejecutar pruebas unitarias + integración
+      - name: Levantar API (rol de mínimo privilegio) y ejecutar pruebas unitarias + integración
         working-directory: backend
         run: |
+          # API y pruebas usan el usuario pos_app_ci (miembro de pos_app_rol), igual que en producción
+          export DATABASE_URL_TEST="postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@localhost:5432/pos_restaurante_test"
           node src/server.js &
           SERVER_PID=$!
+          LISTA=0
           for i in $(seq 1 20); do
-            if curl -sf http://127.0.0.1:4000/api/v1/health > /dev/null; then
+            if curl -sf http://127.0.0.1:4000/api/v1/health/ready > /dev/null; then
+              LISTA=1
               break
             fi
             sleep 1
           done
+          if [ "$LISTA" != "1" ]; then
+            echo "La API no respondió /health/ready"
+            kill $SERVER_PID || true
+            exit 1
+          fi
           npm test
           TEST_EXIT=$?
           kill $SERVER_PID || true

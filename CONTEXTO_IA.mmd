@@ -14,8 +14,8 @@
 %% - Base de datos: PostgreSQL 16 (Docker Compose) + Prisma ORM con 3
 %%   migraciones SQL versionadas y seeder idempotente (backend/prisma/seed.ts).
 %% - Multi-sucursal: campo sucursal_id en entidades clave.
-%% - Preparado para expansión futura: FEL (SAT Guatemala vía FelAdapter),
-%%   Delivery (datos_delivery_json) y Reservas (tabla mesas + reserva_id).
+%% - Facturas como comprobante interno (sin certificación ante la SAT).
+%% - Preparado para expansión futura: Delivery (datos_delivery_json) y Reservas (tabla mesas + reserva_id).
 %% - Todo en variables de entorno: backend/.env y frontend/.env (con plantillas
 %%   .env.example). Cero configuraciones quemadas en código.
 %% - Conversión de unidades centralizada: UnitConversionService (1 lb = 16 oz).
@@ -54,7 +54,6 @@
 %% 4. PENDIENTE / MEJORAS OPCIONALES COMENTADAS EN CONVERSACIÓN
 %% - Autenticación actual: JWT en localStorage (se conversó migrar a Cookies
 %%   HttpOnly o sesiones en BD si se requiere eliminar localStorage).
-%% - Certificación FEL real conectando FelAdapter a un certificador SAT.
 %% ============================================================================
 
 flowchart TD
@@ -79,7 +78,7 @@ flowchart TD
         ENVB["config/env.ts (Zod .env)"]
         MW["Middlewares: JWT authenticate + RBAC authorize + Zod validate"]
         MODS["9 Módulos MVC+Service: auth, ventas (+Menús Especiales), facturas, inventario, mermas, caja, reportes, auditoria, accesos"]
-        SHARED["Servicios Transversales: UnitConversionService (1 lb = 16 oz), AuditService, FelAdapter"]
+        SHARED["Servicios Transversales: UnitConversionService (1 lb = 16 oz), AuditService"]
 
         ENVB --> MW
         MW --> MODS

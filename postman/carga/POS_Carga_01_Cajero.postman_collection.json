@@ -1,0 +1,165 @@
+{
+  "info": {
+    "name": "Cajero",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "GET Menú POS",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Menú POS: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              "const d = pm.response.json().data;",
+              "const vendibles = d.platillos.filter((p) => p.disponible && p.stockDisponible);",
+              "const p = vendibles[Math.floor(Math.random() * vendibles.length)];",
+              "pm.variables.set('platilloId', p.id);",
+              "pm.variables.set('cantidad', 1 + Math.floor(Math.random() * 3));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/ventas/menu"
+      }
+    },
+    {
+      "name": "POST Confirmar venta",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('POST Confirmar venta: HTTP 201', () => pm.expect([201]).to.include(pm.response.code));",
+              "if (pm.response.code === 201) {",
+              "  const d = pm.response.json().data;",
+              "  pm.variables.set('ventaId', d.venta.id);",
+              "  pm.variables.set('facturaId', d.factura.id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/ventas/confirmar",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n \"idempotencyKey\": \"{{$guid}}\",\n \"tipoServicio\": \"MOSTRADOR\",\n \"metodoPago\": \"EFECTIVO\",\n \"montoRecibido\": 2000,\n \"clienteNit\": \"CF\",\n \"items\": [\n  {\n   \"platilloId\": \"{{platilloId}}\",\n   \"cantidad\": \"{{cantidad}}\"\n  }\n ]\n}"
+        }
+      }
+    },
+    {
+      "name": "GET Comanda de cocina",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Comanda de cocina: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/ventas/{{ventaId}}/comanda"
+      }
+    },
+    {
+      "name": "GET Detalle de factura (sin permiso)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Detalle de factura (sin permiso): HTTP 403', () => pm.expect([403]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/facturas/{{facturaId}}"
+      }
+    },
+    {
+      "name": "GET Caja actual",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('GET Caja actual: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Requested-With",
+            "value": "XMLHttpRequest"
+          }
+        ],
+        "url": "{{baseUrl}}/caja/actual"
+      }
+    }
+  ]
+}

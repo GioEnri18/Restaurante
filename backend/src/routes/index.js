@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { verificarBaseDatos } = require('../config/database');
 const { env } = require('../config/env');
 const accesosRoutes = require('./accesos.routes');
 const auditoriaRoutes = require('./auditoria.routes');
@@ -12,7 +13,21 @@ const ventasRoutes = require('./ventas.routes');
 
 const router = Router();
 
-// Salud de la API versionada
+// Readiness: ¿puede atender peticiones? Verifica PostgreSQL (503 si no responde).
+// Úsalo en el healthcheck de Docker / balanceador; /health solo indica que el proceso vive.
+router.get('/health/ready', async (_req, res) => {
+  const db = await verificarBaseDatos();
+  res.status(db.ok ? 200 : 503).json({
+    ok: db.ok,
+    data: {
+      status: db.ok ? 'ready' : 'unavailable',
+      database: { ok: db.ok, latencyMs: db.latenciaMs },
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
+// Liveness: el proceso responde (no consulta la base de datos)
 router.get('/health', (_req, res) => {
   res.status(200).json({
     ok: true,

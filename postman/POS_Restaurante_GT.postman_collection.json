@@ -1888,7 +1888,7 @@
                 "{{facturaId}}"
               ]
             },
-            "description": "Obtiene el detalle completo de la factura `{{facturaId}}` incluyendo líneas, desglose IVA y datos FEL. Permiso: `facturas:ver`."
+            "description": "Obtiene el detalle completo de la factura `{{facturaId}}` incluyendo líneas, desglose IVA. Permiso: `facturas:ver`."
           },
           "response": []
         },

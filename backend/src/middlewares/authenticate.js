@@ -1,34 +1,11 @@
 const jwt = require('jsonwebtoken');
+const { JWT_ALGORITHM } = require('../config/constants');
 const { env } = require('../config/env');
-const { Permiso, Rol, RolPermiso, Sucursal, Usuario, UsuarioPermiso } = require('../models');
+const { Rol, Sucursal, Usuario } = require('../models');
+const { obtenerPermisosEfectivos } = require('../services/permisos.service');
 const { UnauthorizedError } = require('../shared/errors/AppError');
-
-/**
- * Calcula los permisos efectivos combinando permisos del rol + overrides por usuario.
- */
-async function obtenerPermisosEfectivos(usuarioId, rolId) {
-  const [rolPermisos, usuarioPermisos] = await Promise.all([
-    RolPermiso.findAll({
-      where: { rolId },
-      include: [{ model: Permiso, as: 'permiso', attributes: ['codigo'] }],
-    }),
-    UsuarioPermiso.findAll({
-      where: { usuarioId },
-      include: [{ model: Permiso, as: 'permiso', attributes: ['codigo'] }],
-    }),
-  ]);
-
-  const setPermisos = new Set(rolPermisos.map((rp) => rp.permiso?.codigo).filter((c) => Boolean(c)));
-
-  for (const up of usuarioPermisos) {
-    const codigo = up.permiso?.codigo;
-    if (!codigo) continue;
-    if (up.permitido) setPermisos.add(codigo);
-    else setPermisos.delete(codigo);
-  }
-
-  return Array.from(setPermisos).sort();
-}
+const { PermisosCache } = require('../shared/services/permisosCache');
+const { resolverCredencial } = require('../shared/utils/credenciales');
 
 /**
  * Fase 2.3: Usa exclusivamente `req.ip` (controlado por `app.set('trust proxy', env.TRUST_PROXY)`),
@@ -40,23 +17,9 @@ function extractClientMeta(req) {
   return { ipAddress, userAgent };
 }
 
-/**
- * Fase 2.7: Extrae el JWT primero desde la cookie `httpOnly` de sesión y mantiene
- * el header `Authorization: Bearer` como respaldo opcional para clientes CLI/pruebas.
- */
+/** La misma regla que aplica csrfProtection (ver shared/utils/credenciales.js) */
 function extractJwtToken(req) {
-  const cookieToken = req.cookies?.[env.AUTH_COOKIE_NAME];
-  if (typeof cookieToken === 'string' && cookieToken.trim().length > 0) {
-    return cookieToken.trim();
-  }
-
-  const authHeader = req.headers.authorization;
-  if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-    const bearer = authHeader.slice(7).trim();
-    if (bearer.length > 0) return bearer;
-  }
-
-  return null;
+  return resolverCredencial(req).token;
 }
 
 async function authenticate(req, _res, next) {
@@ -70,12 +33,17 @@ async function authenticate(req, _res, next) {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, env.JWT_SECRET);
+      decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
     } catch {
       throw new UnauthorizedError('Token inválido o expirado');
     }
 
-    const usuario = await Usuario.findByPk(Number(decoded.sub), {
+    const usuarioId = Number(decoded.sub);
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
+      throw new UnauthorizedError('Token inválido o expirado');
+    }
+
+    const usuario = await Usuario.findByPk(usuarioId, {
       include: [
         { model: Rol, as: 'rol' },
         { model: Sucursal, as: 'sucursal' },
@@ -86,7 +54,15 @@ async function authenticate(req, _res, next) {
       throw new UnauthorizedError('Usuario o sucursal inactiva');
     }
 
-    const permisos = await obtenerPermisosEfectivos(usuario.id, usuario.rolId);
+    // Auditoría P0.3: tokens sin versión o con versión anterior quedan revocados
+    // (logout, cambio de contraseña/rol o desactivación incrementan token_version)
+    if (decoded.ver !== usuario.tokenVersion) {
+      throw new UnauthorizedError('La sesión fue cerrada o revocada. Inicia sesión nuevamente.');
+    }
+
+    const permisos = await PermisosCache.obtener(usuario.id, usuario.rolId, () =>
+      obtenerPermisosEfectivos(usuario.id, usuario.rolId),
+    );
 
     req.user = {
       id: usuario.id,
@@ -108,4 +84,4 @@ async function authenticate(req, _res, next) {
   }
 }
 
-module.exports = { obtenerPermisosEfectivos, extractClientMeta, authenticate };
+module.exports = { extractClientMeta, authenticate };
