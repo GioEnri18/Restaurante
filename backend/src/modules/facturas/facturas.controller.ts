@@ -1,0 +1,58 @@
+import { NextFunction, Request, Response } from 'express';
+import { EstadoFactura } from '@prisma/client';
+import { FacturasService } from './facturas.service';
+
+export class FacturasController {
+  static async listar(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { items, meta } = await FacturasService.listar(req.user!.sucursalId, {
+        page: req.query.page,
+        limit: req.query.limit,
+        numero: typeof req.query.numero === 'string' ? req.query.numero : undefined,
+        cliente: typeof req.query.cliente === 'string' ? req.query.cliente : undefined,
+        fechaDesde: typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined,
+        fechaHasta: typeof req.query.fechaHasta === 'string' ? req.query.fechaHasta : undefined,
+        montoMin: typeof req.query.montoMin === 'string' ? req.query.montoMin : undefined,
+        montoMax: typeof req.query.montoMax === 'string' ? req.query.montoMax : undefined,
+        estado:
+          req.query.estado === 'EMITIDA' || req.query.estado === 'ANULADA'
+            ? (req.query.estado as EstadoFactura)
+            : undefined,
+      });
+
+      res.status(200).json({ ok: true, data: items, meta });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async detalle(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = Number(req.params.id);
+      const data = await FacturasService.obtenerDetalle(id, req.user!.sucursalId);
+      res.status(200).json({ ok: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async reimprimir(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = Number(req.params.id);
+      const data = await FacturasService.reimprimir(req.user!, id, req.clientMeta!);
+      res.status(200).json({ ok: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async anular(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = Number(req.params.id);
+      const data = await FacturasService.anular(req.user!, id, req.body, req.clientMeta!);
+      res.status(200).json({ ok: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+}

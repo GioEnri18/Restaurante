@@ -1,0 +1,101 @@
+%% ============================================================================
+%% CONTEXTO DE LA CONVERSACIÓN IA — SISTEMA POS RESTAURANTE (GUATEMALA)
+%% Fecha de generación: 2026-11-20
+%% Repositorio destino: https://github.com/GioEnri18/Restaurante.git
+%% ============================================================================
+%%
+%% 1. DECISIONES DE ARQUITECTURA Y NEGOCIO ACORDADAS
+%% - Negocio: Restaurante en Guatemala, moneda Quetzales (GTQ / Q), IVA 12%
+%%   INCLUIDO en el precio del menú (fórmula legal: base = total / 1.12).
+%% - Servicio actual: Enfoque en MOSTRADOR y PARA LLEVAR (con nombre/turno
+%%   impreso en comanda). El soporte de MESAS queda implementado y oculto por
+%%   variable de entorno (ENABLE_TABLE_SERVICE / VITE_ENABLE_TABLE_SERVICE=false)
+%%   para habilitarlo en el futuro sin modificar código.
+%% - Base de datos: PostgreSQL 16 (Docker Compose) + Prisma ORM con 3
+%%   migraciones SQL versionadas y seeder idempotente (backend/prisma/seed.ts).
+%% - Multi-sucursal: campo sucursal_id en entidades clave.
+%% - Preparado para expansión futura: FEL (SAT Guatemala vía FelAdapter),
+%%   Delivery (datos_delivery_json) y Reservas (tabla mesas + reserva_id).
+%% - Todo en variables de entorno: backend/.env y frontend/.env (con plantillas
+%%   .env.example). Cero configuraciones quemadas en código.
+%% - Conversión de unidades centralizada: UnitConversionService (1 lb = 16 oz).
+%%   Compras en libras -> conversión automática a onzas para recetas y costeo.
+%% - Transacción atómica de venta: valida caja abierta -> venta -> factura ->
+%%   comanda -> movimiento de caja -> descuento de inventario por receta ->
+%%   auditoría inmutable, todo en una sola transacción Prisma.
+%% - Facturas inmutables: nunca se editan ni borran; solo se anulan con motivo
+%%   obligatorio, reversión automática en caja y opción de reintegrar inventario.
+%% - Paginación estricta en Facturas: 10 registros por página.
+%%
+%% 2. ARQUITECTURA DE CARPETAS
+%% - Backend (backend/src/): MVC + Servicio por 9 dominios
+%%   (auth, ventas, facturas, inventario, mermas, caja, reportes, auditoria,
+%%   accesos), cada uno con *.model.ts, *.service.ts, *.controller.ts, *.routes.ts.
+%% - Frontend (frontend/src/): MVC + Capa de Adaptadores + UI
+%%   * config/env.ts       -> Variables VITE_* tipadas
+%%   * models/index.ts     -> Modelos de dominio limpios
+%%   * adapters/           -> Traducción exclusiva JSON backend <-> modelos UI
+%%   * services/           -> Llamadas HTTP (/api/v1) + httpClient.ts
+%%   * store/              -> Estado global Zustand (auth.store.ts, cart.store.ts)
+%%   * ui/components/      -> common/, layout/ (Sidebar RBAC), print/ (80mm)
+%%   * ui/pages/           -> 9 vistas obligatorias + MenusEspecialesPage (Admin)
+%%
+%% 3. ROLES Y PERMISOS ACTUALES (RBAC CONFIGURABLE EN BD)
+%% - ADMIN  (admin / Admin123!)   -> Vista inicial: /reportes
+%%   Acceso total: Menú/Ventas, Caja, Facturas, Inventario, Mermas, Reportes
+%%   (PDF/Excel), Auditoría, Accesos (exclusivo Admin) y Menús Especiales por
+%%   Fecha con avisos proactivos.
+%% - CAJERO (cajero / Cajero123!) -> Vista inicial: /ventas
+%%   Permisos vigentes: ventas:ver, ventas:crear, caja:ver, caja:abrir,
+%%   caja:movimiento, caja:cerrar (toma órdenes en mostrador + arqueo/cuadre GTQ).
+%% - MESERO (mesero / Mesero123!) -> Vista inicial: /ventas
+%%   Permisos vigentes: ventas:ver, ventas:crear, facturas:ver.
+%%
+%% 4. PENDIENTE / MEJORAS OPCIONALES COMENTADAS EN CONVERSACIÓN
+%% - Autenticación actual: JWT en localStorage (se conversó migrar a Cookies
+%%   HttpOnly o sesiones en BD si se requiere eliminar localStorage).
+%% - Certificación FEL real conectando FelAdapter a un certificador SAT.
+%% ============================================================================
+
+flowchart TD
+    subgraph FRONTEND["Frontend POS (React + TypeScript + Tailwind · MVC + UI)"]
+        ENVF["config/env.ts (.env VITE_*)"]
+        UI["ui/pages (10 vistas) + ui/components (Sidebar RBAC, Tickets 80mm)"]
+        STORE["store/ (auth.store + cart.store · Zustand)"]
+        SERVICES["services/ (httpClient + 9 servicios HTTP)"]
+        ADAPTERS["adapters/ (Traducción JSON <-> Models)"]
+        MODELS["models/index.ts"]
+
+        ENVF --> SERVICES
+        ENVF --> STORE
+        UI --> STORE
+        UI --> SERVICES
+        SERVICES --> ADAPTERS
+        ADAPTERS --> MODELS
+        MODELS --> UI
+    end
+
+    subgraph BACKEND["Backend API REST (/api/v1 · Node.js + Express + TS)"]
+        ENVB["config/env.ts (Zod .env)"]
+        MW["Middlewares: JWT authenticate + RBAC authorize + Zod validate"]
+        MODS["9 Módulos MVC+Service: auth, ventas (+Menús Especiales), facturas, inventario, mermas, caja, reportes, auditoria, accesos"]
+        SHARED["Servicios Transversales: UnitConversionService (1 lb = 16 oz), AuditService, FelAdapter"]
+
+        ENVB --> MW
+        MW --> MODS
+        MODS --> SHARED
+    end
+
+    subgraph DATABASE["Base de Datos (PostgreSQL 16 + Prisma ORM)"]
+        PG[("25 Tablas Multi-Sucursal (sucursal_id)\n3 Migraciones SQL + Seeder")]
+    end
+
+    subgraph ROLES["Roles Configurables (RBAC)"]
+        R1["ADMIN: Control total + Menús Especiales + Accesos"]
+        R2["CAJERO: Menú/Ventas (Mostrador) + Caja (Arqueo GTQ)"]
+        R3["MESERO: Menú/Ventas + Facturas"]
+    end
+
+    SERVICES <-->|"JSON / PDF / Excel\nhttp://localhost:4000/api/v1"| MW
+    MODS <-->|"Transacciones ACID"| PG
+    ROLES -.->|"Permisos dinámicos"| MW
