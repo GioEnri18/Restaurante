@@ -1,4 +1,5 @@
 -- Menú inicial de Restaurante Exprés BX. Gramajes por orden, sujetos a validación.
+-- El agua (consomé y bebidas naturales) se prepara pero no se descuenta del inventario.
 -- Cada copia por sucursal conserva los cambios posteriores de sus administradores.
 CREATE FUNCTION public.precargar_menu_base_bx(p_sucursal_id integer)
 RETURNS integer
@@ -24,8 +25,8 @@ DECLARE
     ["09","Sándwich con cerdo",13,{"Pan de sándwich":80,"Espaldilla de cerdo":165,"Guacamole":35},"Se estimó con espaldilla. La pierna es la alternativa del documento."]
   ]},
   {"categoria": "BX · Tacos y para compartir", "productos": [
-    ["12","Tacos de birria",16,{"Tortilla de maíz":75,"Cebolla blanca":35,"Cilantro":4,"Limón":20,"Salsa":20,"Res para birria":170,"Chile guajillo seco":5,"Chile ancho seco":2,"Tomate":25,"Ajo":3,"Mezcla de especias de birria":2,"Agua":100},"Tres tacos con consomé. Los gramajes de birria incluyen su proporción de consomé."],
-    ["13","Quesabirrias",17,{"Tortilla de maíz":75,"Cebolla blanca":35,"Cilantro":4,"Limón":20,"Salsa":20,"Res para birria":170,"Chile guajillo seco":5,"Chile ancho seco":2,"Tomate":25,"Ajo":3,"Mezcla de especias de birria":2,"Agua":100,"Queso mozzarella":65},"Tres quesabirrias con consomé."],
+    ["12","Tacos de birria",16,{"Tortilla de maíz":75,"Cebolla blanca":35,"Cilantro":4,"Limón":20,"Salsa":20,"Res para birria":170,"Chile guajillo seco":5,"Chile ancho seco":2,"Tomate":25,"Ajo":3,"Mezcla de especias de birria":2},"Tres tacos con consomé. Los gramajes de birria incluyen su proporción de consomé; el agua del consomé no se descuenta del inventario."],
+    ["13","Quesabirrias",17,{"Tortilla de maíz":75,"Cebolla blanca":35,"Cilantro":4,"Limón":20,"Salsa":20,"Res para birria":170,"Chile guajillo seco":5,"Chile ancho seco":2,"Tomate":25,"Ajo":3,"Mezcla de especias de birria":2,"Queso mozzarella":65},"Tres quesabirrias con consomé; el agua del consomé no se descuenta del inventario."],
     ["14","Tacos de camarón",18,{"Tortilla de maíz":75,"Cebolla blanca":15,"Cilantro":4,"Limón":20,"Salsa":20,"Camarón limpio":145,"Batter":24,"Panko":20,"Repollo":35,"Aderezo":25,"Aceite de fritura imputado":8},"Tres tacos. Se estimó con camarón empanizado."],
     ["15","Papas con carne",19,{"Papas para freír":220,"Aceite de fritura imputado":10,"Res molida":130,"Salsa de queso":45,"Salsa":25}],
     ["16","Nachos con carne",20,{"Totopos":110,"Res molida":130,"Salsa de queso":55,"Frijol":50,"Salsa":30,"Jalapeño":12,"Crema":25}]
@@ -40,9 +41,9 @@ DECLARE
     ["22","Combo para picar",27,{},"Pendiente definir combinación y tamaño."]
   ]},
   {"categoria": "BX · Bebidas naturales", "productos": [
-    ["23","Jamaica",28,{"Agua":325,"Flor de jamaica seca":6,"Azúcar":25},"Vaso de 355 ml. Ajustar agua y hielo al medir el rendimiento final."],
-    ["24","Horchata",28,{"Agua":300,"Arroz seco":28,"Azúcar":28,"Canela":1,"Vainilla":1},"Vaso de 355 ml. Validar el rendimiento después de colar."],
-    ["25","Tamarindo",28,{"Agua":305,"Pulpa de tamarindo":34,"Azúcar":25},"Vaso de 355 ml. Validar el rendimiento después de colar."]
+    ["23","Jamaica",28,{"Flor de jamaica seca":6,"Azúcar":25},"Vaso de 355 ml con unos 325 ml de agua (no se descuenta del inventario). Ajustar agua y hielo al medir el rendimiento final."],
+    ["24","Horchata",28,{"Arroz seco":28,"Azúcar":28,"Canela":1,"Vainilla":1},"Vaso de 355 ml con unos 300 ml de agua (no se descuenta del inventario). Validar el rendimiento después de colar."],
+    ["25","Tamarindo",28,{"Pulpa de tamarindo":34,"Azúcar":25},"Vaso de 355 ml con unos 305 ml de agua (no se descuenta del inventario). Validar el rendimiento después de colar."]
   ]},
   {"categoria": "BX · Gaseosas y agua", "productos": [
     ["26","Grapette lata",29,{},"1 lata. Confirmar presentación para configurar inventario."],

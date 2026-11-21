@@ -109,6 +109,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
           <button
             type="button"
             onClick={() => onSelectCat(null)}
+            aria-pressed={selectedCat === null}
             className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
               selectedCat === null
                 ? 'bg-slate-900 text-white shadow-md'
@@ -116,7 +117,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
             }`}
           >
             <UtensilsCrossed className="h-4 w-4" />
-            <span>Todo el Menú</span>
+            <span>Menú general</span>
             <span
               className={`rounded-full px-2 py-0.5 text-xs ${
                 selectedCat === null ? 'bg-white/20 text-white' : 'bg-white text-slate-600'
@@ -130,10 +131,13 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
             <button
               type="button"
               onClick={() => onSelectCat('ESPECIAL')}
+              aria-pressed={selectedCat === 'ESPECIAL'}
               className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
                 selectedCat === 'ESPECIAL'
                   ? 'bg-gradient-to-r from-brand-600 to-rose-600 text-white shadow-md'
-                  : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100'
+                  : menu.menuEspecialActivo.esMenuPrincipal
+                    ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 hover:bg-amber-200'
+                    : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100'
               }`}
             >
               <Sparkles className="h-4 w-4" />
@@ -155,6 +159,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                 key={cat.id}
                 type="button"
                 onClick={() => onSelectCat(cat.id)}
+                aria-pressed={active}
                 className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
                   active
                     ? `${visual.pillActive} shadow-md`
@@ -281,7 +286,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
 
                     {disabled ? (
                       <span className="rounded-xl bg-red-100 px-2.5 py-1.5 text-xs font-bold text-red-700">
-                        Agotado
+                        {p.disponible ? 'Agotado' : 'No disponible'}
                       </span>
                     ) : inCartQty > 0 ? (
                       <div

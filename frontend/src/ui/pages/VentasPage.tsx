@@ -58,10 +58,12 @@ export const VentasPage: React.FC = () => {
       if (!data.habilitarMesas && useCartStore.getState().tipoServicio === 'MESA') {
         useCartStore.getState().setTipoServicio('MOSTRADOR');
       }
-      // Si hay un menú especial marcado como principal hoy, destacarlo de entrada
-      if (data.menuEspecialActivo?.esMenuPrincipal && data.menuEspecialActivo.platillosIds.length > 0) {
-        setSelectedCat('ESPECIAL');
-      }
+      setSelectedCat((actual) => {
+        if (actual === 'ESPECIAL') {
+          return data.menuEspecialActivo?.platillosIds.length ? actual : null;
+        }
+        return data.categorias.some((categoria) => categoria.id === actual) ? actual : null;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error cargando el menú');
     } finally {

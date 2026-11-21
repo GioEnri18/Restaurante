@@ -325,6 +325,18 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
     const insumo = producto.receta.find((r) => r.ingredienteNombre === 'Camarón limpio');
     assert.equal(insumo.cantidadOz, 5.1147);
 
+    // El agua (consomé y bebidas naturales) no es un insumo de inventario: si lo fuera, su stock
+    // siempre en 0 haría que esas ventas se rechazaran por "Inventario insuficiente".
+    const conAgua = vista.platillos.filter((p) =>
+      p.receta.some((r) => r.ingredienteNombre.trim().toLowerCase() === 'agua'),
+    );
+    assert.deepEqual(conAgua.map((p) => p.sku), [], 'Ninguna receta BX debe descontar agua del inventario');
+    const jamaica = vista.platillos.find((p) => p.sku === 'BX-23');
+    assert.deepEqual(
+      jamaica.receta.map((r) => r.ingredienteNombre).sort(),
+      ['Azúcar', 'Flor de jamaica seca'],
+    );
+
     await camarones.update({ nombre: 'Camarones editados en la sucursal' });
     assert.equal(await cargarMenuBase(sucursalAjena.codigo), 0);
     assert.equal((await camarones.reload()).nombre, 'Camarones editados en la sucursal');

@@ -535,7 +535,7 @@ export const MenusEspecialesPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, esMenuPrincipal: e.target.checked })}
                   className="h-4 w-4 rounded text-brand-600"
                 />
-                Mostrar como pestaña principal al estar vigente
+                Destacar la pestaña de temporada al estar vigente
               </label>
             </div>
 

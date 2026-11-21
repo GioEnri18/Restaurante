@@ -98,7 +98,7 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
               onClick={onToggleEspecial}
               className="rounded-xl bg-white px-3.5 py-2 text-xs font-extrabold text-brand-700 shadow-sm hover:bg-amber-50"
             >
-              {selectedCat === 'ESPECIAL' ? 'Ver carta completa' : 'Ver solo menú especial'}
+              {selectedCat === 'ESPECIAL' ? 'Ver menú general' : 'Ver menú de temporada'}
             </button>
           )}
         </div>
