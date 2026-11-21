@@ -211,7 +211,7 @@ class MenuService {
       );
       const especial = mapaEspecialHoy.get(p.id);
       const precioBase = Number(p.precioVenta);
-      const precioVigente = especial?.precioEspecial ?? precioBase;
+      const precioVigente = precioBase >= 0.01 ? (especial?.precioEspecial ?? precioBase) : 0;
 
       return {
         id: p.id,
@@ -220,6 +220,7 @@ class MenuService {
         sku: p.sku,
         nombre: p.nombre,
         descripcion: p.descripcion,
+        imagenUrl: p.imagenUrl,
         precioVenta: precioVigente,
         precioRegular: precioBase,
         esEspecialHoy: Boolean(especial),

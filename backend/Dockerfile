@@ -8,7 +8,8 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 # Crear usuario no-root para endurecimiento en contenedor
-RUN addgroup -S posgroup && adduser -S posuser -G posgroup
+RUN addgroup -S posgroup && adduser -S posuser -G posgroup \
+    && mkdir -p /app/media/platillos && chown posuser:posgroup /app/media/platillos
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./

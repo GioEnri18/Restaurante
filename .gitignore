@@ -17,6 +17,7 @@ coverage/
 certs/
 # Respaldos de base de datos
 backups/
+/backend/media/
 
 # Prueba de carga: credenciales generadas y resultados locales
 postman/carga/usuarios.json

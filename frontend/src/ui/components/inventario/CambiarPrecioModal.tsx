@@ -19,7 +19,7 @@ export const CambiarPrecioModal: React.FC<CambiarPrecioModalProps> = ({
 
   useEffect(() => {
     if (target) {
-      setNuevoPrecio(String(target.precioVenta));
+      setNuevoPrecio(target.precioRegular > 0 ? String(target.precioRegular) : '');
       setMotivoPrecio('');
     }
   }, [target]);
@@ -43,7 +43,7 @@ export const CambiarPrecioModal: React.FC<CambiarPrecioModalProps> = ({
     >
       <form onSubmit={handleSubmit} className="space-y-3">
         <p className="text-sm text-slate-600">
-          Precio actual: <strong>{formatCurrency(target?.precioVenta ?? 0)}</strong>
+          Precio actual: <strong>{target && target.precioRegular > 0 ? formatCurrency(target.precioRegular) : 'Pendiente'}</strong>
         </p>
         <input
           required

@@ -55,8 +55,9 @@ async function request<T>(
   const timeout = setTimeout(() => controller.abort(), env.API_TIMEOUT_MS);
 
   try {
+    const formData = options.body instanceof FormData ? options.body : null;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(!formData && { 'Content-Type': 'application/json' }),
       'X-Requested-With': 'XMLHttpRequest',
       ...options.headers,
     };
@@ -65,7 +66,7 @@ async function request<T>(
       method: options.method ?? 'GET',
       credentials: 'include',
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body: formData ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
       signal: controller.signal,
     });
 

@@ -83,6 +83,8 @@ services:
       MIGRATE_ON_START: "false"
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET de al menos 32 caracteres aleatorios en .env}
       DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/Guatemala}
+    volumes:
+      - platillos_media:/app/media/platillos
     # Sin `ports`: la API no es accesible desde fuera de la red de Docker
 
   frontend:
@@ -98,6 +100,9 @@ services:
       - backend
     ports:
       - "${FRONTEND_PORT:-8080}:80"
+    volumes:
+      - platillos_media:/srv/restaurante/media/platillos:ro
 
 volumes:
   postgres_data:
+  platillos_media:

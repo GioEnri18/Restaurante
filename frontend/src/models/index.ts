@@ -62,6 +62,7 @@ export interface PlatilloModel {
   sku: string;
   nombre: string;
   descripcion: string | null;
+  imagenUrl: string | null;
   precioVenta: number;
   precioRegular: number;
   esEspecialHoy: boolean;

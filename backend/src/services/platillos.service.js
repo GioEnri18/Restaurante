@@ -143,7 +143,7 @@ class PlatillosService {
       await validarReferenciasSucursal(user.sucursalId, input, tx);
 
       const prevNombre = actual.nombre;
-      const precioAnterior = Number(actual.precioVenta);
+      const precioAnterior = actual.precioVenta === null ? null : Number(actual.precioVenta);
       const precioNuevo =
         input.precioVenta !== undefined ? round2(input.precioVenta) : precioAnterior;
       if (input.precioVenta !== undefined && !(precioNuevo >= 0.01)) {
@@ -158,7 +158,7 @@ class PlatillosService {
           descripcion:
             input.descripcion !== undefined ? input.descripcion.trim() || null : actual.descripcion,
           precioVenta: precioNuevo,
-          disponible: tieneReceta && (input.disponible ?? actual.disponible),
+          disponible: precioNuevo >= 0.01 && tieneReceta && (input.disponible ?? actual.disponible),
         },
         { transaction: tx },
       );

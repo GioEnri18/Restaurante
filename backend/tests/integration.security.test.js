@@ -1,8 +1,11 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const path = require('node:path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const sharp = require('sharp');
 
 const {
   connectDatabase,
@@ -11,6 +14,8 @@ const {
   withTransaction,
 } = require('../src/config/database');
 const { env } = require('../src/config/env');
+const { PLATILLOS_MEDIA_DIR } = require('../src/config/platillos-media');
+const { cargarMenuBase } = require('../src/database/cargar-menu-base');
 const {
   CajaSesion,
   Categoria,
@@ -216,6 +221,115 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
     assert.equal(pAdmin.costoReceta, 4, 'Admin ve el costo: 2 oz x Q2.00');
     assert.equal(pMesero.costoReceta, null, 'Un rol solo de ventas no debe ver costos');
     assert.equal(pMesero.stockDisponible, true);
+  });
+
+  // ---------------------------------------------------------------------------
+  it('comprime fotos del administrador, publica WebP y limpia el archivo reemplazado', async (t) => {
+    const platillo = await VentasService.crearPlatillo(adminUser, {
+      categoriaId,
+      sku: `QAS-F-${RUN_TAG}`,
+      nombre: `Platillo foto ${RUN_TAG}`,
+      precioVenta: 20,
+    }, CLIENT_META);
+    platillosTemporalesIds.push(platillo.id);
+    const fotos = [];
+    t.after(async () => {
+      await Platillo.update({ imagenUrl: null }, { where: { id: platillo.id } });
+      for (const url of fotos) {
+        await fs.rm(path.join(PLATILLOS_MEDIA_DIR, path.basename(url)), { force: true });
+      }
+    });
+
+    const subir = (archivo, token) => {
+      const body = new FormData();
+      body.set('imagen', new Blob([archivo], { type: 'image/png' }), 'foto.png');
+      return fetch(`${API_BASE_URL}/ventas/platillos/${platillo.id}/imagen`, {
+        method: 'PUT',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body,
+      });
+    };
+    const abrir = (url) => fetch(new URL(url, API_BASE_URL));
+    const verificarSubida = async (archivo, ladoMaximo) => {
+      const response = await subir(archivo, adminJwt);
+      const resultado = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(resultado));
+      const { imagenUrl, bytes } = resultado.data;
+      assert.match(imagenUrl, /^\/media\/platillos\/[a-f0-9-]+\.webp$/);
+      fotos.push(imagenUrl);
+      const foto = await abrir(imagenUrl);
+      assert.equal(foto.status, 200);
+      assert.equal(foto.headers.get('content-type'), 'image/webp');
+      const webp = Buffer.from(await foto.arrayBuffer());
+      assert.equal(webp.length, bytes);
+      assert.ok(bytes <= 10000);
+      const { width, height, format } = await sharp(webp).metadata();
+      assert.equal(format, 'webp');
+      assert.ok(Math.max(width, height) <= ladoMaximo);
+      assert.equal((await Platillo.findByPk(platillo.id)).imagenUrl, imagenUrl);
+      const menu = await apiGet('/ventas/menu');
+      assert.equal(menu.status, 200);
+      assert.equal(menu.json.data.platillos.find((p) => p.id === platillo.id).imagenUrl, imagenUrl);
+      return imagenUrl;
+    };
+
+    const rgb = { width: 1100, height: 800, channels: 3 };
+    const original = await sharp(crypto.randomBytes(rgb.width * rgb.height * rgb.channels), { raw: rgb })
+      .png().toBuffer();
+    assert.equal((await subir(original)).status, 401);
+    const cajero = await Usuario.findOne({
+      where: { sucursalId: adminUser.sucursalId, activo: true },
+      include: [{ model: Rol, as: 'rol', where: { codigo: 'CAJERO' } }],
+    });
+    assert.ok(cajero, 'Debe existir un cajero activo en los datos de prueba');
+    const cajeroJwt = jwt.sign(
+      { sub: cajero.id, ver: cajero.tokenVersion, sucursalId: cajero.sucursalId },
+      env.JWT_SECRET,
+      { expiresIn: '1h', algorithm: 'HS256' },
+    );
+    assert.equal((await subir(original, cajeroJwt)).status, 403);
+    const primerUrl = await verificarSubida(original, 480);
+    assert.equal((await subir(Buffer.from('archivo de texto'), adminJwt)).status, 400);
+    assert.equal((await subir(Buffer.alloc(5000000), adminJwt)).status, 400);
+    assert.equal((await subir(Buffer.alloc(5000001), adminJwt)).status, 413);
+    assert.equal((await abrir(primerUrl)).status, 200);
+
+    const miniatura = await sharp({
+      create: { width: 80, height: 40, channels: 3, background: 'orange' },
+    }).png().toBuffer();
+    assert.notEqual(await verificarSubida(miniatura, 80), primerUrl);
+    assert.equal((await abrir(primerUrl)).status, 404);
+  });
+
+  it('importa el menú base con sus fotos y porciones sin habilitar cobros ni sobrescribir cambios', async () => {
+    assert.equal(await cargarMenuBase(sucursalAjena.codigo), 35);
+    const borradores = await Platillo.findAll({ where: { sucursalId: sucursalAjena.id } });
+    platillosTemporalesIds.push(...borradores.map((p) => p.id));
+    assert.equal(borradores.length, 35);
+    assert.ok(borradores.every((p) => p.precioVenta === null && !p.disponible));
+    const fotos = [...new Set(borradores.map((p) => p.imagenUrl))];
+    assert.equal(fotos.length, 24);
+    for (const url of fotos) {
+      const foto = await fetch(new URL(url, API_BASE_URL));
+      assert.equal(foto.status, 200);
+      assert.equal(foto.headers.get('content-type'), 'image/webp');
+      assert.ok((await foto.arrayBuffer()).byteLength <= 10000);
+    }
+
+    const camarones = borradores.find((p) => p.sku === 'BX-01');
+    const vista = await VentasService.obtenerMenu({
+      ...adminUser, sucursalId: sucursalAjena.id,
+    });
+    const producto = vista.platillos.find((p) => p.id === camarones.id);
+    assert.equal(producto.disponible, false);
+    assert.equal(producto.imagenUrl, camarones.imagenUrl);
+    const insumo = producto.receta.find((r) => r.ingredienteNombre === 'Camarón limpio');
+    assert.equal(insumo.cantidadOz, 5.1147);
+
+    await camarones.update({ nombre: 'Camarones editados en la sucursal' });
+    assert.equal(await cargarMenuBase(sucursalAjena.codigo), 0);
+    assert.equal((await camarones.reload()).nombre, 'Camarones editados en la sucursal');
+    assert.equal(await Platillo.count({ where: { sucursalId: sucursalAjena.id } }), 35);
   });
 
   // ---------------------------------------------------------------------------

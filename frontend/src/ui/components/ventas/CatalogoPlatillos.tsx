@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { MenuDataModel, PlatilloModel } from '../../../models';
+import { FotoPlatillo } from '../common/FotoPlatillo';
 import { formatCurrency } from '../../../utils/formatters';
 
 function getCategoriaVisual(nombre: string) {
@@ -234,6 +235,8 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                   </span>
                 </div>
 
+                <FotoPlatillo ruta={p.imagenUrl} className="h-28 w-full bg-slate-100 object-cover" />
+
                 {inCartQty > 0 && (
                   <div className="absolute right-3 top-11 flex h-8 min-w-[32px] items-center justify-center rounded-full bg-brand-600 px-2 text-sm font-black text-white shadow-lg ring-2 ring-white">
                     {inCartQty}
@@ -256,7 +259,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                     <div>
                       <div className="flex items-baseline gap-1.5">
                         <p className="text-lg font-black text-slate-900">
-                          {formatCurrency(p.precioVenta)}
+                          {p.precioVenta > 0 ? formatCurrency(p.precioVenta) : 'Precio pendiente'}
                         </p>
                         {p.esEspecialHoy && p.precioVenta !== p.precioRegular && (
                           <span className="text-xs text-slate-400 line-through">

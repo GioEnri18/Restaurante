@@ -25,7 +25,7 @@ export const PlatilloRecetaModal: React.FC<PlatilloRecetaModalProps> = ({
             <div>
               <p className="text-xs text-slate-500">Precio vigente</p>
               <p className="text-xl font-black text-brand-700">
-                {formatCurrency(platillo.precioVenta)}
+                {platillo.precioVenta > 0 ? formatCurrency(platillo.precioVenta) : 'Precio pendiente'}
               </p>
             </div>
             <div className="text-right">

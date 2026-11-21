@@ -21,6 +21,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   TRUST_PROXY: z.string().default('false').transform(parseTrustProxy),
   JSON_BODY_LIMIT: z.string().default('2mb'),
+  PLATILLOS_MEDIA_DIR: z.string().min(1).optional(),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL es obligatoria'),

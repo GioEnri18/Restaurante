@@ -76,6 +76,7 @@ interface RawPlatilloJson {
   sku?: string;
   nombre?: string;
   descripcion?: string | null;
+  imagenUrl?: string | null;
   precioVenta?: number | string;
   precioRegular?: number | string;
   esEspecialHoy?: boolean;
@@ -329,6 +330,7 @@ export const ventasAdapter = {
           sku: String(p.sku ?? ''),
           nombre: String(p.nombre ?? ''),
           descripcion: p.descripcion ?? null,
+          imagenUrl: p.imagenUrl ?? null,
           precioVenta: Number(p.precioVenta ?? 0),
           precioRegular: Number(p.precioRegular ?? p.precioVenta ?? 0),
           esEspecialHoy: Boolean(p.esEspecialHoy),

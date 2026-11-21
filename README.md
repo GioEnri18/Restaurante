@@ -123,7 +123,27 @@ docker compose --profile full up -d --build
 - En cada despliegue, el servicio `migrator` aplica las migraciones con el usuario dueño (`POSTGRES_USER`) y crea o actualiza `APP_DB_USER`, miembro de `pos_app_rol`. La API se conecta con ese usuario: sin DDL, sin borrar ventas, facturas ni caja, y la auditoría es de solo `INSERT`/`SELECT`.
 - Al desplegar estos cambios, los JWT emitidos antes de la migración de sesiones quedan inválidos y los usuarios deben volver a iniciar sesión.
 
+### Fotos de platillos
+
+El administrador puede agregar o cambiar fotos en Inventario → Recetas y Precios. La API admite un JPG, PNG o WebP sin animación de hasta 5.000.000 bytes y 20 megapíxeles. Solo conserva una miniatura WebP de hasta 480 px por lado y 10.000 bytes. PostgreSQL guarda la ruta relativa de la foto.
+
+Docker guarda las miniaturas en el volumen `platillos_media`. El backend escribe en el volumen y Nginx lo monta en modo de solo lectura para servir las fotos bajo `/media/platillos/`. Si hay un proxy HTTPS delante de Nginx, configúralo para aceptar solicitudes de al menos 6 MB. Fuera de Docker, la API sirve las fotos desde `backend/media/platillos` por defecto.
+
+### Menú base de Restaurante Exprés BX
+
+Importa el catálogo permanente a una sucursal existente después de aplicar las migraciones. Cambia el código del ejemplo por el de la sucursal de destino.
+
+```bash
+npm --prefix backend run db:cargar-menu-base -- SUC-01
+# En el stack Docker
+docker compose exec backend npm run db:cargar-menu-base -- SUC-01
+```
+
+La importación crea borradores por SKU y copia las miniaturas al volumen. Puedes repetirla sin duplicar productos ni sobrescribir recetas, precios o fotos editadas. Los gramajes son pruebas por porción almacenadas en onzas en el POS. Los insumos nuevos empiezan sin existencias y sin costo registrado. Los combos requieren composición y las bebidas envasadas requieren definir su control por presentación. Antes de habilitar cualquier producto, confirma su receta, registra los costos de compra y asigna el precio de venta. Los menús de temporada se siguen gestionando por fechas desde Menús Especiales.
+
 ### Respaldos
+
+Respalda y restaura el volumen `platillos_media` junto con PostgreSQL para conservar las fotos y sus rutas.
 
 ```bash
 sh scripts/respaldo-bd.sh                                   # genera backups/<base>_<fecha>.dump

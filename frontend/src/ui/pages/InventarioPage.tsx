@@ -26,6 +26,8 @@ import { AjusteStockModal, AjusteStockPayload } from '../components/inventario/A
 import { CambiarPrecioModal } from '../components/inventario/CambiarPrecioModal';
 import { ComprasPanel } from '../components/inventario/ComprasPanel';
 import { Modal } from '../components/common/Modal';
+import { FotoPlatillo } from '../components/common/FotoPlatillo';
+import { SelectorFotoPlatillo } from '../components/common/SelectorFotoPlatillo';
 import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCampos';
 import { ExistenciasTable } from '../components/inventario/ExistenciasTable';
 import { KardexTable } from '../components/inventario/KardexTable';
@@ -45,6 +47,7 @@ type Tab = 'existencias' | 'compras' | 'proveedores' | 'kardex' | 'recetas';
 export const InventarioPage: React.FC = () => {
   const canManage = useAuthStore((s) => s.can('inventario:gestionar'));
   const canManageMenu = useAuthStore((s) => s.can('ventas:gestionar_menu'));
+  const isAdmin = useAuthStore((s) => s.isAdmin());
   const canBuy = useAuthStore((s) => s.can('inventario:comprar'));
   const canAdjust = useAuthStore((s) => s.can('inventario:ajustar'));
 
@@ -67,6 +70,38 @@ export const InventarioPage: React.FC = () => {
   const [recetaLineas, setRecetaLineas] = useState<LineaRecetaForm[]>([]);
   const [habilitarVenta, setHabilitarVenta] = useState(false);
   const [recetaError, setRecetaError] = useState<string | null>(null);
+  const [fotoTarget, setFotoTarget] = useState<PlatilloModel | null>(null);
+  const [foto, setFoto] = useState<File | null>(null);
+  const [fotoError, setFotoError] = useState<string | null>(null);
+  const [guardandoFoto, setGuardandoFoto] = useState(false);
+
+  const abrirFoto = (platillo: PlatilloModel) => {
+    setFoto(null);
+    setFotoError(null);
+    setFotoTarget(platillo);
+  };
+
+  const guardarFoto = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!fotoTarget || !foto || guardandoFoto) return;
+    if (foto.size > 5000000) {
+      setFotoError('La foto debe pesar como máximo 5 MB');
+      return;
+    }
+    setFotoError(null);
+    setGuardandoFoto(true);
+    try {
+      const { data: { imagenUrl } } = await ventasService.subirFotoPlatillo(fotoTarget.id, foto);
+      setPlatillos((actuales) => actuales.map((platillo) =>
+        platillo.id === fotoTarget.id ? { ...platillo, imagenUrl } : platillo));
+      setFotoTarget(null);
+      setSuccess('Foto del platillo actualizada.');
+    } catch (err) {
+      setFotoError(err instanceof Error ? err.message : 'No se pudo guardar la foto');
+    } finally {
+      setGuardandoFoto(false);
+    }
+  };
 
   const cargarTodo = useCallback(async () => {
     setError(null);
@@ -341,6 +376,7 @@ export const InventarioPage: React.FC = () => {
           canEditRecipe={canManage && canManageMenu}
           onCambiarPrecio={setPrecioTarget}
           onEditarReceta={abrirReceta}
+          onCambiarFoto={isAdmin && canManageMenu ? abrirFoto : undefined}
         />
       )}
 
@@ -368,6 +404,24 @@ export const InventarioPage: React.FC = () => {
         onClose={() => setPrecioTarget(null)}
         onGuardar={handleActualizarPrecio}
       />
+      <Modal
+        open={Boolean(fotoTarget)}
+        title={`Foto de ${fotoTarget?.nombre ?? ''}`}
+        onClose={() => { if (!guardandoFoto) setFotoTarget(null); }}
+      >
+        <form onSubmit={guardarFoto} className="space-y-3">
+          <FotoPlatillo ruta={fotoTarget?.imagenUrl ?? null} className="max-h-32 rounded-lg object-contain" />
+          <SelectorFotoPlatillo onChange={setFoto} disabled={guardandoFoto} />
+          {fotoError && <Alert type="error" message={fotoError} />}
+          <button
+            type="submit"
+            disabled={!foto || guardandoFoto}
+            className="min-h-[44px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {guardandoFoto ? 'Guardando…' : 'Guardar foto'}
+          </button>
+        </form>
+      </Modal>
       <Modal
         open={Boolean(recetaTarget)}
         title={`Receta — ${recetaTarget?.nombre ?? ''}`}

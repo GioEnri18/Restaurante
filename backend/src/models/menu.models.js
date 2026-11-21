@@ -23,7 +23,7 @@ Platillo.init({
     sku: { type: DataTypes.STRING(30), allowNull: false },
     nombre: { type: DataTypes.STRING(120), allowNull: false },
     descripcion: { type: DataTypes.STRING(300), allowNull: true },
-    precioVenta: { type: DataTypes.DECIMAL(10, 2), allowNull: false, field: 'precio_venta' },
+    precioVenta: { type: DataTypes.DECIMAL(10, 2), allowNull: true, field: 'precio_venta' },
     imagenUrl: { type: DataTypes.STRING(300), allowNull: true, field: 'imagen_url' },
     disponible: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },

@@ -81,7 +81,13 @@ export const ventasService = {
     precioVenta: number;
     receta?: Array<{ ingredienteId: number; cantidadOz: number }>;
   }) {
-    return httpClient.post('/ventas/platillos', payload);
+    return httpClient.post<{ id: number }>('/ventas/platillos', payload);
+  },
+
+  async subirFotoPlatillo(id: number, archivo: File) {
+    const form = new FormData();
+    form.append('imagen', archivo);
+    return httpClient.put<{ imagenUrl: string; bytes: number }>(`/ventas/platillos/${id}/imagen`, form);
   },
 
   async actualizarPlatillo(

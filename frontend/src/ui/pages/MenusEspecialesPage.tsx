@@ -20,9 +20,11 @@ import { formatCurrency, formatDateOnly, getTodayISO } from '../../utils/formatt
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
+import { SelectorFotoPlatillo } from '../components/common/SelectorFotoPlatillo';
 import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCampos';
 
 export const MenusEspecialesPage: React.FC = () => {
+  const puedeSubirFoto = useAuthStore((s) => s.isAdmin() && s.can('ventas:gestionar_menu'));
   const canManageRecipe = useAuthStore((s) =>
     s.can('inventario:gestionar') && (s.can('inventario:ver') || s.can('mermas:ver')),
   );
@@ -50,6 +52,8 @@ export const MenusEspecialesPage: React.FC = () => {
 
   // Modal rápido para agregar un nuevo platillo al catálogo
   const [platilloModal, setPlatilloModal] = useState(false);
+  const [fotoPlatillo, setFotoPlatillo] = useState<File | null>(null);
+  const [guardandoPlatillo, setGuardandoPlatillo] = useState(false);
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
   const [receta, setReceta] = useState<LineaRecetaForm[]>([]);
   const [platilloError, setPlatilloError] = useState<string | null>(null);
@@ -200,6 +204,7 @@ export const MenusEspecialesPage: React.FC = () => {
         precioVenta: '',
       });
       setReceta([]);
+      setFotoPlatillo(null);
       setPlatilloError(null);
       setPlatilloModal(true);
     } catch (err) {
@@ -209,9 +214,15 @@ export const MenusEspecialesPage: React.FC = () => {
 
   const handleCrearPlatillo = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardandoPlatillo) return;
+    if (fotoPlatillo && fotoPlatillo.size > 5000000) {
+      setPlatilloError('La foto debe pesar como máximo 5 MB');
+      return;
+    }
     setPlatilloError(null);
+    setGuardandoPlatillo(true);
     try {
-      await ventasService.crearPlatillo({
+      const { data: platillo } = await ventasService.crearPlatillo({
         categoriaId: Number(platilloForm.categoriaId),
         sku: platilloForm.sku,
         nombre: platilloForm.nombre,
@@ -222,11 +233,24 @@ export const MenusEspecialesPage: React.FC = () => {
           cantidadOz: Number(cantidadOz),
         })),
       });
+      let errorFoto: string | null = null;
+      if (fotoPlatillo) {
+        try {
+          await ventasService.subirFotoPlatillo(platillo.id, fotoPlatillo);
+        } catch (err) {
+          errorFoto = err instanceof Error ? err.message : 'No se pudo subir la foto';
+        }
+      }
       setPlatilloModal(false);
       setSuccess('Platillo y receta guardados. Las existencias se descuentan al cobrar.');
       await cargar();
+      if (errorFoto) {
+        setError(`El platillo se guardó. Puedes volver a cargar la foto en Inventario, en Recetas y Precios. ${errorFoto}`);
+      }
     } catch (err) {
       setPlatilloError(err instanceof Error ? err.message : 'No se pudo crear el platillo');
+    } finally {
+      setGuardandoPlatillo(false);
     }
   };
 
@@ -600,7 +624,7 @@ export const MenusEspecialesPage: React.FC = () => {
       <Modal
         open={platilloModal}
         title="Agregar Nuevo Platillo al Catálogo"
-        onClose={() => setPlatilloModal(false)}
+        onClose={() => { if (!guardandoPlatillo) setPlatilloModal(false); }}
         maxWidthClass="max-w-lg"
       >
         <form onSubmit={handleCrearPlatillo} className="space-y-3">
@@ -650,13 +674,16 @@ export const MenusEspecialesPage: React.FC = () => {
             className="w-full rounded-xl border border-slate-300 p-3 text-sm"
           />
           <RecetaCampos ingredientes={ingredientes} lineas={receta} onChange={setReceta} />
+          {puedeSubirFoto && (
+            <SelectorFotoPlatillo onChange={setFotoPlatillo} disabled={guardandoPlatillo} />
+          )}
           {platilloError && <Alert type="error" message={platilloError} />}
           <button
             type="submit"
-            disabled={receta.length === 0}
+            disabled={receta.length === 0 || guardandoPlatillo}
             className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
           >
-            Guardar Platillo
+            {guardandoPlatillo ? 'Guardando…' : 'Guardar Platillo'}
           </button>
         </form>
       </Modal>

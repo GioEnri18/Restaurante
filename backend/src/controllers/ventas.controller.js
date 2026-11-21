@@ -1,4 +1,5 @@
 const { VentasService } = require('../services/ventas.service');
+const { guardarFotoPlatillo } = require('../services/fotos-platillos.service');
 class VentasController {
     static async menu(req, res, next) {
         try {
@@ -71,6 +72,15 @@ class VentasController {
         try {
             const platilloId = Number(req.params.id);
             const data = await VentasService.actualizarPlatillo(req.user, platilloId, req.body, req.clientMeta);
+            res.status(200).json({ ok: true, data });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async subirFotoPlatillo(req, res, next) {
+        try {
+            const data = await guardarFotoPlatillo(req.user, Number(req.params.id), req.file.buffer, req.clientMeta);
             res.status(200).json({ ok: true, data });
         }
         catch (error) {

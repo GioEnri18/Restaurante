@@ -5,6 +5,7 @@ const { VentasController } = require('../controllers/ventas.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requireAdmin, requireAllPermissions, requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
+const { recibirFotoPlatillo } = require('../middlewares/recibirFotoPlatillo');
 const {
     enteroPositivoStr,
     idParamsSchema,
@@ -170,6 +171,7 @@ router.put('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gest
 router.delete('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gestionar_menu'), idParams, VentasController.eliminarMenuEspecial);
 router.post('/platillos', requirePermission('ventas:gestionar_menu'), validate(platilloSchema), requirePlatilloPermissions, VentasController.crearPlatillo);
 router.put('/platillos/:id', requirePermission('ventas:gestionar_menu'), idParams, validate(actualizarPlatilloSchema), requirePlatilloPermissions, VentasController.actualizarPlatillo);
+router.put('/platillos/:id/imagen', requireAdmin, requirePermission('ventas:gestionar_menu'), idParams, recibirFotoPlatillo, VentasController.subirFotoPlatillo);
 router.post('/confirmar', requirePermission('ventas:crear'), validate(confirmarVentaSchema), VentasController.confirmar);
 router.get('/:id/comanda', requirePermission('ventas:ver', 'facturas:ver'), idParams, VentasController.obtenerComanda);
 module.exports = router;
