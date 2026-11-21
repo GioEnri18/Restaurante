@@ -5,8 +5,11 @@ const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
 const {
+    cantidadMovimiento,
     enteroPositivoStr,
+    idPositivo,
     idParamsSchema,
+    numeroDecimal,
     paginacionQuery,
     rangoFechasQuery,
     refinarRangoFechas,
@@ -15,23 +18,23 @@ const {
 const crearIngredienteSchema = z.object({
     codigo: z.string().trim().min(2).max(30),
     nombre: z.string().trim().min(2).max(120),
-    proveedorId: z.coerce.number().int().positive().nullable().optional(),
-    stockMinimo: z.coerce.number().min(0),
+    proveedorId: idPositivo.nullable().optional(),
+    stockMinimo: numeroDecimal.pipe(z.number().min(0)),
     unidadStockMinimo: z.enum(['lb', 'oz']).default('lb'),
-    stockInicial: z.coerce.number().min(0).optional(),
+    stockInicial: numeroDecimal.pipe(z.number().min(0)).optional(),
     unidadStockInicial: z.enum(['lb', 'oz']).optional().default('lb'),
-    precioPorLb: z.coerce.number().min(0).optional(),
+    precioPorLb: numeroDecimal.pipe(z.number().min(0).max(99999999.99)).optional(),
 });
 const actualizarIngredienteSchema = z.object({
     nombre: z.string().trim().min(2).max(120).optional(),
-    proveedorId: z.coerce.number().int().positive().nullable().optional(),
-    stockMinimo: z.coerce.number().min(0).optional(),
+    proveedorId: idPositivo.nullable().optional(),
+    stockMinimo: numeroDecimal.pipe(z.number().min(0)).optional(),
     unidadStockMinimo: z.enum(['lb', 'oz']).optional(),
     activo: z.boolean().optional(),
 });
 const ajustarStockSchema = z.object({
     tipoAjuste: z.enum(['ENTRADA', 'SALIDA']),
-    cantidad: z.coerce.number().positive('La cantidad debe ser mayor a 0'),
+    cantidad: cantidadMovimiento,
     unidad: z.enum(['lb', 'oz']).default('oz'),
     motivo: z.string().trim().min(4, 'Indica el motivo del ajuste').max(250),
 });
@@ -43,14 +46,14 @@ const proveedorSchema = z.object({
     contacto: z.string().trim().max(100).optional(),
 });
 const registrarCompraSchema = z.object({
-    proveedorId: z.coerce.number().int().positive('Selecciona un proveedor'),
+    proveedorId: idPositivo,
     numeroDocumento: z.string().trim().max(60).optional(),
     observaciones: z.string().trim().max(300).optional(),
     items: z
         .array(z.object({
-        ingredienteId: z.coerce.number().int().positive(),
-        cantidadLb: z.coerce.number().positive('La cantidad en libras debe ser mayor a 0'),
-        precioPorLb: z.coerce.number().positive('El precio por libra debe ser mayor a 0'),
+        ingredienteId: idPositivo,
+        cantidadLb: cantidadMovimiento,
+        precioPorLb: numeroDecimal.pipe(z.number().min(0.01, 'El precio por libra debe ser de al menos Q0.01').max(99999999.99)),
     }))
         .min(1, 'Agrega al menos un ingrediente a la compra')
         .max(200, 'La compra no puede tener más de 200 ingredientes'),

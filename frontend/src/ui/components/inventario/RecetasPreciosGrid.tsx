@@ -5,13 +5,17 @@ import { formatCurrency } from '../../../utils/formatters';
 interface RecetasPreciosGridProps {
   platillos: PlatilloModel[];
   canManage: boolean;
+  canEditRecipe: boolean;
   onCambiarPrecio: (platillo: PlatilloModel) => void;
+  onEditarReceta: (platillo: PlatilloModel) => void;
 }
 
 export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
   platillos,
   canManage,
+  canEditRecipe,
   onCambiarPrecio,
+  onEditarReceta,
 }) => {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -26,7 +30,9 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
             </div>
             <div className="text-right">
               <p className="font-extrabold text-brand-700">{formatCurrency(p.precioVenta)}</p>
-              <p className="text-xs text-slate-500">Costo receta: {formatCurrency(p.costoReceta)}</p>
+              <p className="text-xs text-slate-500">
+                Costo receta: {p.costoReceta > 0 ? formatCurrency(p.costoReceta) : 'Pendiente'}
+              </p>
             </div>
           </div>
           <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
@@ -44,6 +50,15 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
               className="mt-3 w-full rounded-xl border border-slate-200 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
             >
               Cambiar precio (con auditoría)
+            </button>
+          )}
+          {canEditRecipe && (
+            <button
+              type="button"
+              onClick={() => onEditarReceta(p)}
+              className="mt-3 w-full rounded-xl border border-slate-200 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              {p.receta.length ? 'Editar receta' : 'Configurar receta'}
             </button>
           )}
         </div>

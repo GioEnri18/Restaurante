@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const { DateTime } = require('luxon');
+const { round4 } = require('../utils/tax');
 
 /**
  * Auditoría P1: esquemas reutilizables para validar `req.params` y `req.query`.
@@ -24,6 +25,17 @@ const montoStr = z
   .regex(/^\d{1,9}(\.\d{1,2})?$/, 'Monto inválido (máximo 2 decimales)');
 
 const textoBusqueda = (max = 100) => z.string().trim().max(max);
+
+const numeroDecimal = z.union([
+  z.number(),
+  z.string().trim().regex(/^\d+(\.\d+)?$/).transform(Number),
+]);
+
+const idPositivo = numeroDecimal.pipe(z.number().int().positive().max(2147483647));
+
+const cantidadMovimiento = numeroDecimal
+  .pipe(z.number().positive('La cantidad debe ser mayor a 0'))
+  .refine((cantidad) => round4(cantidad) === cantidad, 'Usa hasta 4 decimales');
 
 const paginacionQuery = {
   page: enteroPositivoStr.optional(),
@@ -65,6 +77,9 @@ module.exports = {
   fechaStr,
   montoStr,
   textoBusqueda,
+  numeroDecimal,
+  idPositivo,
+  cantidadMovimiento,
   paginacionQuery,
   rangoFechasQuery,
   refinarRangoFechas,

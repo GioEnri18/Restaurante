@@ -54,10 +54,15 @@ class InventarioService {
         return withTransaction(async (tx) => {
             const stockMinimoOz = UnitConversionService.toBaseOz(input.stockMinimo, input.unidadStockMinimo);
             const stockInicialOz = input.stockInicial
-                ? UnitConversionService.toBaseOz(input.stockInicial, input.unidadStockInicial ?? UnidadMedida.lb)
+                ? UnitConversionService.toMovimientoOz(input.stockInicial, input.unidadStockInicial ?? UnidadMedida.lb)
                 : 0;
-            const costoPromedioOz = input.precioPorLb
-                ? UnitConversionService.pricePerLbToCostPerOz(input.precioPorLb)
+            UnitConversionService.validarSaldoOz(stockMinimoOz);
+            const precioPorLb = round2(input.precioPorLb ?? 0);
+            if (stockInicialOz > 0 && precioPorLb < 0.01) {
+                throw new BadRequestError('Indica un costo inicial de al menos Q0.01 por libra para ingresar existencias');
+            }
+            const costoPromedioOz = precioPorLb > 0
+                ? UnitConversionService.pricePerLbToCostPerOz(precioPorLb)
                 : 0;
             const ingrediente = await Ingrediente.create({
                 sucursalId: user.sucursalId,
@@ -122,6 +127,7 @@ class InventarioService {
             const nuevoStockMinimoOz = input.stockMinimo !== undefined
                 ? UnitConversionService.toBaseOz(input.stockMinimo, input.unidadStockMinimo ?? UnidadMedida.oz)
                 : prevStockMinimoOz;
+            UnitConversionService.validarSaldoOz(nuevoStockMinimoOz);
             await actual.update({
                 nombre: input.nombre ? input.nombre.trim() : actual.nombre,
                 proveedorId: input.proveedorId !== undefined ? input.proveedorId : actual.proveedorId,
@@ -166,13 +172,17 @@ class InventarioService {
             if (!ingrediente) {
                 throw new NotFoundError('Ingrediente no encontrado');
             }
-            const cantidadOz = UnitConversionService.toBaseOz(input.cantidad, input.unidad);
+            const cantidadOz = UnitConversionService.toMovimientoOz(input.cantidad, input.unidad);
             const deltaOz = input.tipoAjuste === 'ENTRADA' ? cantidadOz : -cantidadOz;
+            if (deltaOz > 0 && Number(ingrediente.costoPromedioOz) <= 0) {
+                throw new BadRequestError('Registra una compra con costo antes de agregar existencias por ajuste');
+            }
             const stockAnteriorOz = Number(ingrediente.stockActualOz);
             const stockNuevoOz = round4(stockAnteriorOz + deltaOz);
             if (stockNuevoOz < 0) {
                 throw new BadRequestError(`El ajuste dejaría el stock negativo (disponible: ${stockAnteriorOz} oz)`);
             }
+            UnitConversionService.validarSaldoOz(stockNuevoOz);
             await ingrediente.update({ stockActualOz: stockNuevoOz }, { transaction: tx });
             const movimiento = await InventarioMovimiento.create({
                 sucursalId: user.sucursalId,
@@ -310,15 +320,22 @@ class InventarioService {
                 if (!estadoIngMap.has(item.ingredienteId)) {
                     throw new NotFoundError(`Ingrediente ID ${item.ingredienteId} no encontrado`);
                 }
-                const cantidadOz = UnitConversionService.lbToOz(item.cantidadLb);
-                const costoPorOz = UnitConversionService.pricePerLbToCostPerOz(item.precioPorLb);
-                const subtotal = round2(item.cantidadLb * item.precioPorLb);
+                const cantidadOz = UnitConversionService.toMovimientoOz(item.cantidadLb, UnidadMedida.lb, true);
+                const precioPorLb = round2(item.precioPorLb);
+                if (!(precioPorLb >= 0.01 && precioPorLb <= 99999999.99)) {
+                    throw new BadRequestError('El precio por libra está fuera del rango permitido');
+                }
+                const costoPorOz = UnitConversionService.pricePerLbToCostPerOz(precioPorLb);
+                const subtotal = round2(item.cantidadLb * precioPorLb);
                 totalCompra = round2(totalCompra + subtotal);
+                if (totalCompra > 9999999999.99) {
+                    throw new BadRequestError('El total de la compra excede el máximo permitido');
+                }
                 detallesPreparados.push({
                     ingredienteId: item.ingredienteId,
                     cantidadLb: round4(item.cantidadLb),
                     cantidadOz,
-                    precioPorLb: round2(item.precioPorLb),
+                    precioPorLb,
                     costoPorOz,
                     subtotal,
                 });
@@ -338,6 +355,7 @@ class InventarioService {
                 const stockAnteriorOz = estado.stockOz;
                 const costoAnteriorOz = estado.costoOz;
                 const stockNuevoOz = round4(stockAnteriorOz + det.cantidadOz);
+                UnitConversionService.validarSaldoOz(stockNuevoOz);
                 const valorAnterior = stockAnteriorOz * costoAnteriorOz;
                 const valorEntrada = det.cantidadOz * det.costoPorOz;
                 const nuevoCostoPromedioOz = stockNuevoOz > 0 ? round4((valorAnterior + valorEntrada) / stockNuevoOz) : det.costoPorOz;

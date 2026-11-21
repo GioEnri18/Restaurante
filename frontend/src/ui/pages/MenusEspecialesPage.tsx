@@ -12,14 +12,20 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { env } from '../../config/env';
-import { CategoriaModel, MenuEspecialModel, PlatilloModel } from '../../models';
+import { CategoriaModel, IngredienteModel, MenuEspecialModel, PlatilloModel } from '../../models';
+import { inventarioService } from '../../services/inventario.service';
 import { ventasService } from '../../services/ventas.service';
+import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateOnly, getTodayISO } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
+import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCampos';
 
 export const MenusEspecialesPage: React.FC = () => {
+  const canManageRecipe = useAuthStore((s) =>
+    s.can('inventario:gestionar') && (s.can('inventario:ver') || s.can('mermas:ver')),
+  );
   const [menus, setMenus] = useState<MenuEspecialModel[]>([]);
   const [platillosCatalogo, setPlatillosCatalogo] = useState<PlatilloModel[]>([]);
   const [categorias, setCategorias] = useState<CategoriaModel[]>([]);
@@ -44,6 +50,9 @@ export const MenusEspecialesPage: React.FC = () => {
 
   // Modal rápido para agregar un nuevo platillo al catálogo
   const [platilloModal, setPlatilloModal] = useState(false);
+  const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
+  const [receta, setReceta] = useState<LineaRecetaForm[]>([]);
+  const [platilloError, setPlatilloError] = useState<string | null>(null);
   const [platilloForm, setPlatilloForm] = useState({
     categoriaId: '',
     sku: '',
@@ -179,9 +188,28 @@ export const MenusEspecialesPage: React.FC = () => {
     }
   };
 
+  const abrirPlatilloNuevo = async () => {
+    setError(null);
+    try {
+      setIngredientes(await inventarioService.listarIngredientes());
+      setPlatilloForm({
+        categoriaId: categorias[0] ? String(categorias[0].id) : '',
+        sku: '',
+        nombre: '',
+        descripcion: '',
+        precioVenta: '',
+      });
+      setReceta([]);
+      setPlatilloError(null);
+      setPlatilloModal(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar los ingredientes');
+    }
+  };
+
   const handleCrearPlatillo = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setPlatilloError(null);
     try {
       await ventasService.crearPlatillo({
         categoriaId: Number(platilloForm.categoriaId),
@@ -189,13 +217,16 @@ export const MenusEspecialesPage: React.FC = () => {
         nombre: platilloForm.nombre,
         descripcion: platilloForm.descripcion || undefined,
         precioVenta: Number(platilloForm.precioVenta),
+        receta: receta.map(({ ingredienteId, cantidadOz }) => ({
+          ingredienteId,
+          cantidadOz: Number(cantidadOz),
+        })),
       });
       setPlatilloModal(false);
-      setPlatilloForm({ categoriaId: '', sku: '', nombre: '', descripcion: '', precioVenta: '' });
-      setSuccess('Nuevo platillo agregado al catálogo. Ahora puedes incluirlo en cualquier menú especial.');
+      setSuccess('Platillo y receta guardados. Las existencias se descuentan al cobrar.');
       await cargar();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear el platillo');
+      setPlatilloError(err instanceof Error ? err.message : 'No se pudo crear el platillo');
     }
   };
 
@@ -233,23 +264,16 @@ export const MenusEspecialesPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setPlatilloForm({
-                categoriaId: categorias[0] ? String(categorias[0].id) : '',
-                sku: '',
-                nombre: '',
-                descripcion: '',
-                precioVenta: '',
-              });
-              setPlatilloModal(true);
-            }}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
-          >
-            <UtensilsCrossed className="h-4 w-4 text-brand-600" />
-            Nuevo Platillo
-          </button>
+          {canManageRecipe && (
+            <button
+              type="button"
+              onClick={() => void abrirPlatilloNuevo()}
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <UtensilsCrossed className="h-4 w-4 text-brand-600" />
+              Nuevo Platillo
+            </button>
+          )}
           <button
             type="button"
             onClick={abrirNuevo}
@@ -625,9 +649,12 @@ export const MenusEspecialesPage: React.FC = () => {
             onChange={(e) => setPlatilloForm({ ...platilloForm, descripcion: e.target.value })}
             className="w-full rounded-xl border border-slate-300 p-3 text-sm"
           />
+          <RecetaCampos ingredientes={ingredientes} lineas={receta} onChange={setReceta} />
+          {platilloError && <Alert type="error" message={platilloError} />}
           <button
             type="submit"
-            className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white"
+            disabled={receta.length === 0}
+            className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
           >
             Guardar Platillo
           </button>

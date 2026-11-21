@@ -25,6 +25,8 @@ import { Alert } from '../components/common/Alert';
 import { AjusteStockModal, AjusteStockPayload } from '../components/inventario/AjusteStockModal';
 import { CambiarPrecioModal } from '../components/inventario/CambiarPrecioModal';
 import { ComprasPanel } from '../components/inventario/ComprasPanel';
+import { Modal } from '../components/common/Modal';
+import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCampos';
 import { ExistenciasTable } from '../components/inventario/ExistenciasTable';
 import { KardexTable } from '../components/inventario/KardexTable';
 import {
@@ -42,6 +44,7 @@ type Tab = 'existencias' | 'compras' | 'proveedores' | 'kardex' | 'recetas';
 
 export const InventarioPage: React.FC = () => {
   const canManage = useAuthStore((s) => s.can('inventario:gestionar'));
+  const canManageMenu = useAuthStore((s) => s.can('ventas:gestionar_menu'));
   const canBuy = useAuthStore((s) => s.can('inventario:comprar'));
   const canAdjust = useAuthStore((s) => s.can('inventario:ajustar'));
 
@@ -60,6 +63,10 @@ export const InventarioPage: React.FC = () => {
   const [provModal, setProvModal] = useState(false);
   const [ajusteTarget, setAjusteTarget] = useState<IngredienteModel | null>(null);
   const [precioTarget, setPrecioTarget] = useState<PlatilloModel | null>(null);
+  const [recetaTarget, setRecetaTarget] = useState<PlatilloModel | null>(null);
+  const [recetaLineas, setRecetaLineas] = useState<LineaRecetaForm[]>([]);
+  const [habilitarVenta, setHabilitarVenta] = useState(false);
+  const [recetaError, setRecetaError] = useState<string | null>(null);
 
   const cargarTodo = useCallback(async () => {
     setError(null);
@@ -188,6 +195,36 @@ export const InventarioPage: React.FC = () => {
     setMovMeta(res.meta);
   };
 
+  const abrirReceta = (platillo: PlatilloModel) => {
+    setRecetaLineas(platillo.receta.map(({ ingredienteId, cantidadOz }) => ({
+      ingredienteId,
+      cantidadOz: String(cantidadOz),
+    })));
+    setHabilitarVenta(platillo.disponible || !platillo.receta.length);
+    setRecetaError(null);
+    setRecetaTarget(platillo);
+  };
+
+  const guardarReceta = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!recetaTarget) return;
+    setRecetaError(null);
+    try {
+      await ventasService.actualizarPlatillo(recetaTarget.id, {
+        receta: recetaLineas.map(({ ingredienteId, cantidadOz }) => ({
+          ingredienteId,
+          cantidadOz: Number(cantidadOz),
+        })),
+        disponible: recetaLineas.length > 0 && habilitarVenta,
+      });
+      setRecetaTarget(null);
+      setSuccess('Receta actualizada. El nuevo consumo se aplica a partir del siguiente cobro.');
+      await cargarTodo();
+    } catch (err) {
+      setRecetaError(err instanceof Error ? err.message : 'No se pudo guardar la receta');
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -300,8 +337,10 @@ export const InventarioPage: React.FC = () => {
       {tab === 'recetas' && (
         <RecetasPreciosGrid
           platillos={platillos}
-          canManage={canManage}
+          canManage={canManageMenu}
+          canEditRecipe={canManage && canManageMenu}
           onCambiarPrecio={setPrecioTarget}
+          onEditarReceta={abrirReceta}
         />
       )}
 
@@ -329,6 +368,28 @@ export const InventarioPage: React.FC = () => {
         onClose={() => setPrecioTarget(null)}
         onGuardar={handleActualizarPrecio}
       />
+      <Modal
+        open={Boolean(recetaTarget)}
+        title={`Receta — ${recetaTarget?.nombre ?? ''}`}
+        onClose={() => setRecetaTarget(null)}
+      >
+        <form onSubmit={guardarReceta} className="space-y-3">
+          <RecetaCampos ingredientes={ingredientes} lineas={recetaLineas} onChange={setRecetaLineas} />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={recetaLineas.length > 0 && habilitarVenta}
+              disabled={!recetaLineas.length}
+              onChange={(event) => setHabilitarVenta(event.target.checked)}
+            />
+            Habilitar en ventas
+          </label>
+          {recetaError && <Alert type="error" message={recetaError} />}
+          <button type="submit" className="min-h-[44px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white">
+            Guardar receta
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 };

@@ -31,12 +31,26 @@ async function validarReferenciasSucursal(sucursalId, { categoriaId, receta }, t
     if (unicos.size !== ids.length) {
       throw new BadRequestError('La receta contiene ingredientes repetidos');
     }
-    const encontrados = await Ingrediente.count({
+    const ingredientes = await Ingrediente.findAll({
       where: { id: { [Op.in]: Array.from(unicos) }, sucursalId, activo: true },
+      attributes: ['id', 'costoPromedioOz'],
       transaction: tx,
     });
-    if (encontrados !== unicos.size) {
+    if (ingredientes.length !== unicos.size) {
       throw new NotFoundError('Uno o más ingredientes de la receta no existen en esta sucursal');
+    }
+    const costos = new Map(ingredientes.map((i) => [i.id, Number(i.costoPromedioOz)]));
+    let costoReceta = 0;
+    for (const item of receta) {
+      const cantidad = round4(item.cantidadOz);
+      const costo = costos.get(item.ingredienteId);
+      if (!(cantidad > 0) || !(costo > 0)) {
+        throw new BadRequestError('Cada ingrediente de la receta debe tener cantidad y costo positivos');
+      }
+      costoReceta = round4(costoReceta + cantidad * costo);
+    }
+    if (round2(costoReceta) < 0.01) {
+      throw new BadRequestError('El costo de la receta debe ser de al menos Q0.01 por porción');
     }
   }
 }
@@ -48,6 +62,8 @@ class PlatillosService {
   static async crearPlatillo(user, input, clientMeta) {
     return withTransaction(async (tx) => {
       await validarReferenciasSucursal(user.sucursalId, input, tx);
+      const precioVenta = round2(input.precioVenta);
+      if (!(precioVenta >= 0.01)) throw new BadRequestError('El precio debe ser de al menos Q0.01');
       const platillo = await Platillo.create(
         {
           sucursalId: user.sucursalId,
@@ -55,8 +71,8 @@ class PlatillosService {
           sku: input.sku.trim().toUpperCase(),
           nombre: input.nombre.trim(),
           descripcion: input.descripcion?.trim() || null,
-          precioVenta: round2(input.precioVenta),
-          disponible: input.disponible ?? true,
+          precioVenta,
+          disponible: Boolean(input.receta?.length) && input.disponible !== false,
         },
         { transaction: tx },
       );
@@ -130,6 +146,10 @@ class PlatillosService {
       const precioAnterior = Number(actual.precioVenta);
       const precioNuevo =
         input.precioVenta !== undefined ? round2(input.precioVenta) : precioAnterior;
+      if (input.precioVenta !== undefined && !(precioNuevo >= 0.01)) {
+        throw new BadRequestError('El precio debe ser de al menos Q0.01');
+      }
+      const tieneReceta = (input.receta ?? actual.receta ?? []).length > 0;
 
       await actual.update(
         {
@@ -138,7 +158,7 @@ class PlatillosService {
           descripcion:
             input.descripcion !== undefined ? input.descripcion.trim() || null : actual.descripcion,
           precioVenta: precioNuevo,
-          disponible: input.disponible ?? actual.disponible,
+          disponible: tieneReceta && (input.disponible ?? actual.disponible),
         },
         { transaction: tx },
       );
@@ -155,6 +175,22 @@ class PlatillosService {
             { transaction: tx },
           );
         }
+        await AuditService.registrar({
+          sucursalId: user.sucursalId,
+          usuarioId: user.id,
+          accion: ACCIONES_AUDITORIA.CAMBIO_RECETA,
+          entidad: 'Platillo',
+          entidadId: platilloId,
+          valorAnterior: (actual.receta ?? []).map((r) => ({
+            ingredienteId: r.ingredienteId, cantidadOz: Number(r.cantidadOz),
+          })),
+          valorNuevo: input.receta.map((r) => ({
+            ingredienteId: r.ingredienteId, cantidadOz: round4(r.cantidadOz),
+          })),
+          motivo: 'Actualización de receta en menú',
+          ipAddress: clientMeta.ipAddress,
+          userAgent: clientMeta.userAgent,
+        }, tx);
       }
 
       const actualizado = await Platillo.findByPk(platilloId, {

@@ -121,7 +121,7 @@ class MenuService {
                 model: Ingrediente,
                 as: 'ingrediente',
                 // Aislamiento: solo se leen existencias y costos de la sucursal del usuario
-                where: { sucursalId },
+                where: { sucursalId, activo: true },
                 required: false,
                 attributes: ['id', 'codigo', 'nombre', 'stockActualOz', 'costoPromedioOz'],
               },
@@ -202,10 +202,11 @@ class MenuService {
           0,
         ),
       );
-      // Un ingrediente ausente en la sucursal (null) cuenta como sin existencias
-      const stockDisponible = receta.every(
+      const recetaValida = receta.length > 0 && costoReceta >= 0.01 && receta.every(
+        (item) => Number(item.cantidadOz) > 0 && Number(item.ingrediente?.costoPromedioOz) > 0,
+      );
+      const stockDisponible = recetaValida && receta.every(
         (item) =>
-          item.ingrediente !== null &&
           Number(item.ingrediente?.stockActualOz ?? 0) >= Number(item.cantidadOz),
       );
       const especial = mapaEspecialHoy.get(p.id);
@@ -223,7 +224,7 @@ class MenuService {
         precioRegular: precioBase,
         esEspecialHoy: Boolean(especial),
         costoReceta: puedeVerCostos ? costoReceta : null,
-        disponible: p.disponible,
+        disponible: p.disponible && recetaValida && precioVigente >= 0.01,
         stockDisponible,
         receta: receta.map((r) => ({
           ingredienteId: r.ingredienteId,

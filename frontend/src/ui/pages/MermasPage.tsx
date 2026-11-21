@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Trash2 } from 'lucide-react';
 import { IngredienteModel, MermasListadoModel, MotivoMerma, UnidadMedida } from '../../models';
 import { inventarioService } from '../../services/inventario.service';
 import { mermasService } from '../../services/mermas.service';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime, lbToOzPreview } from '../../utils/formatters';
+import { generarUuid } from '../../utils/idempotency';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Pagination } from '../components/common/Pagination';
@@ -24,6 +25,8 @@ export const MermasPage: React.FC = () => {
   const [filtroMotivo, setFiltroMotivo] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const intento = useRef<{ datos: string; clave: string } | null>(null);
 
   const [form, setForm] = useState({
     ingredienteId: '',
@@ -56,16 +59,24 @@ export const MermasPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardando) return;
+    setGuardando(true);
     setError(null);
     setSuccess(null);
     try {
-      await mermasService.registrar({
+      const payload = {
         ingredienteId: Number(form.ingredienteId),
         cantidad: Number(form.cantidad),
         unidad: form.unidad,
         motivo: form.motivo,
-        observacion: form.observacion || undefined,
-      });
+        observacion: form.observacion.trim() || undefined,
+      };
+      const datos = JSON.stringify(payload);
+      if (intento.current?.datos !== datos) {
+        intento.current = { datos, clave: generarUuid() };
+      }
+      await mermasService.registrar({ ...payload, idempotencyKey: intento.current.clave });
+      intento.current = null;
       setSuccess('Merma registrada: se descontó del inventario y se generó movimiento en Kardex + auditoría.');
       setForm({
         ingredienteId: '',
@@ -77,6 +88,8 @@ export const MermasPage: React.FC = () => {
       await cargar(1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la merma');
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -151,8 +164,8 @@ export const MermasPage: React.FC = () => {
                 <input
                   required
                   type="number"
-                  step="0.01"
-                  min="0.01"
+                  step="0.0001"
+                  min="0.0001"
                   value={form.cantidad}
                   onChange={(e) => setForm({ ...form, cantidad: e.target.value })}
                   className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
@@ -172,7 +185,7 @@ export const MermasPage: React.FC = () => {
             </div>
 
             <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              Se descontarán <strong>{cantidadOzPreview.toFixed(2)} oz</strong> del inventario.
+              Se descontarán <strong>{cantidadOzPreview.toFixed(4)} oz</strong> del inventario.
             </p>
 
             <div>
@@ -203,9 +216,10 @@ export const MermasPage: React.FC = () => {
 
             <button
               type="submit"
-              className="min-h-[48px] w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700"
+              disabled={guardando}
+              className="min-h-[48px] w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
             >
-              Registrar Merma y Descontar Stock
+              {guardando ? 'Registrando merma...' : 'Registrar Merma y Descontar Stock'}
             </button>
           </form>
         )}
@@ -252,7 +266,7 @@ export const MermasPage: React.FC = () => {
                       <td className="py-2.5 px-2 text-xs text-slate-500">{formatDateTime(m.fecha)}</td>
                       <td className="py-2.5 px-2 font-bold text-slate-900">{m.ingredienteNombre}</td>
                       <td className="py-2.5 px-2">
-                        {m.cantidadOriginal} {m.unidadOriginal} ({m.cantidadOz.toFixed(1)} oz)
+                        {m.cantidadOriginal} {m.unidadOriginal} ({m.cantidadOz} oz)
                       </td>
                       <td className="py-2.5 px-2">
                         <Badge variant="warning">{m.motivo}</Badge>

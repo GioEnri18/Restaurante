@@ -1,6 +1,8 @@
 const { OZ_PER_LB } = require('../../config/constants');
 const { BadRequestError } = require('../errors/AppError');
 const { round4 } = require('../utils/tax');
+const MAX_STOCK_OZ = 99999999.9999;
+const MAX_CANTIDAD_DOCUMENTADA = 999999.9999;
 /**
  * Servicio centralizado y ÚNICO para todas las conversiones de unidades (libras ↔ onzas).
  * Regla de negocio: 1 libra (lb) = 16 onzas (oz) — valor leído desde env.UNIT_OZ_PER_LB.
@@ -28,6 +30,22 @@ class UnitConversionService {
         if (unidad === 'oz')
             return round4(cantidad);
         throw new BadRequestError(`Unidad de medida no soportada: ${String(unidad)}`);
+    }
+    static toMovimientoOz(cantidad, unidad, documentada = false) {
+        const maximo = documentada ? MAX_CANTIDAD_DOCUMENTADA : MAX_STOCK_OZ;
+        if (!Number.isFinite(cantidad) || cantidad <= 0 || cantidad > maximo || round4(cantidad) !== cantidad) {
+            throw new BadRequestError('La cantidad debe ser positiva, estar dentro del rango permitido y tener hasta 4 decimales');
+        }
+        const onzas = this.toBaseOz(cantidad, unidad);
+        if (onzas < 0.0001 || onzas > MAX_STOCK_OZ) {
+            throw new BadRequestError('La cantidad convertida a onzas excede la precisión o el rango de inventario');
+        }
+        return onzas;
+    }
+    static validarSaldoOz(saldo) {
+        if (!Number.isFinite(saldo) || saldo < 0 || saldo > MAX_STOCK_OZ) {
+            throw new BadRequestError('El saldo en onzas está fuera del rango permitido para inventario');
+        }
     }
     static pricePerLbToCostPerOz(precioPorLb) {
         if (!Number.isFinite(precioPorLb) || precioPorLb < 0) {

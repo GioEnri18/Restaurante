@@ -112,12 +112,12 @@ const platilloSchema = z.object({
     sku: z.string().trim().min(2).max(30),
     nombre: z.string().trim().min(2).max(120),
     descripcion: z.string().trim().max(300).optional(),
-    precioVenta: z.coerce.number().positive('El precio debe ser mayor a 0'),
+    precioVenta: z.coerce.number().min(0.01, 'El precio debe ser de al menos Q0.01'),
     disponible: z.boolean().optional(),
     receta: z
         .array(z.object({
         ingredienteId: z.coerce.number().int().positive(),
-        cantidadOz: z.coerce.number().positive('La cantidad en onzas debe ser mayor a 0'),
+        cantidadOz: z.coerce.number().min(0.0001, 'La cantidad mínima es 0.0001 oz'),
     }))
         .max(50, 'La receta no puede tener más de 50 ingredientes')
         .optional(),
@@ -136,7 +136,7 @@ const menuEspecialSchema = z.object({
     platillos: z
         .array(z.object({
         platilloId: z.coerce.number().int().positive(),
-        precioEspecial: z.coerce.number().positive().nullable().optional(),
+        precioEspecial: z.coerce.number().min(0.01, 'El precio especial debe ser de al menos Q0.01').nullable().optional(),
     }))
         .max(300, 'El menú especial no puede tener más de 300 platillos')
         .optional(),

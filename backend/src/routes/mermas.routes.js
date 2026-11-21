@@ -5,24 +5,23 @@ const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
 const {
+    cantidadMovimiento,
     enteroPositivoStr,
+    fechaStr,
+    idPositivo,
     paginacionQuery,
     rangoFechasQuery,
     refinarRangoFechas,
     textoBusqueda,
 } = require('../shared/validators/common.validators');
 const registrarMermaSchema = z.object({
-    ingredienteId: z.coerce.number().int().positive('Selecciona un ingrediente'),
-    cantidad: z.coerce.number().positive('La cantidad debe ser mayor a 0'),
+    ingredienteId: idPositivo,
+    cantidad: cantidadMovimiento,
+    idempotencyKey: z.uuid().optional(),
     unidad: z.enum(['lb', 'oz']).default('oz'),
     motivo: z.enum(['VENCIMIENTO', 'DANO', 'ERROR_PREPARACION', 'ACCIDENTE', 'OTRO']),
     observacion: z.string().trim().max(300).optional(),
-    // Auditoría P1: fecha ISO válida y no futura (antes aceptaba cualquier texto)
-    fecha: z
-        .string()
-        .refine((v) => !Number.isNaN(Date.parse(v)), 'Fecha de merma inválida')
-        .refine((v) => Date.parse(v) <= Date.now() + 60_000, 'La fecha de la merma no puede ser futura')
-        .optional(),
+    fecha: z.union([fechaStr, z.iso.datetime({ offset: true })]).optional(),
 });
 const listarMermasQuerySchema = z
     .object({

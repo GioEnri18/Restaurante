@@ -4,15 +4,18 @@ const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const { connectDatabase, disconnectDatabase } = require('../src/config/database');
+const { connectDatabase, disconnectDatabase, getPgErrorCode, sequelize } = require('../src/config/database');
 const { env } = require('../src/config/env');
 const {
   Categoria,
+  AuditoriaLog,
   EstadoCaja,
   EstadoFactura,
   EstadoMesa,
   Ingrediente,
+  InventarioMovimiento,
   Mesa,
+  Merma,
   MetodoPago,
   MotivoMerma,
   Platillo,
@@ -29,6 +32,7 @@ const { FacturasService } = require('../src/services/facturas.service');
 const { InventarioService } = require('../src/services/inventario.service');
 const { MermasService } = require('../src/services/mermas.service');
 const { VentasService } = require('../src/services/ventas.service');
+const { AuditService } = require('../src/shared/services/audit.service');
 const {
   BadRequestError,
   ConflictError,
@@ -224,6 +228,74 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
   // =========================================================================
   // 1. No vender más stock del existente + rollback intacto
   // =========================================================================
+  it('vende solo platillos con receta valorizada y descuenta las onzas por unidad al cobrar', async () => {
+    async function enviar(path, body, method = 'POST') {
+      const res = await fetch(`${API_BASE_URL}${path}`, {
+        method,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminJwt}` },
+        body: JSON.stringify(body),
+      });
+      return { status: res.status, body: await res.json() };
+    }
+
+    const ingredienteBase = {
+      codigo: `QAI-SINCOSTO-${RUN_TAG}`.slice(0, 30),
+      nombre: 'Ingrediente sin costo',
+      stockMinimo: 0,
+      unidadStockMinimo: UnidadMedida.oz,
+      unidadStockInicial: UnidadMedida.oz,
+      precioPorLb: 0,
+    };
+    assert.equal((await enviar('/inventario/ingredientes', { ...ingredienteBase, stockInicial: 5 })).status, 400);
+    const sinCosto = await enviar('/inventario/ingredientes', ingredienteBase);
+    assert.equal(sinCosto.status, 201);
+    ingredientesTemporalesIds.push(sinCosto.body.data.id);
+    assert.equal((await enviar(`/inventario/ingredientes/${sinCosto.body.data.id}/ajustar`, {
+      tipoAjuste: 'ENTRADA', cantidad: 2, unidad: UnidadMedida.oz, motivo: 'Prueba sin costo',
+    })).status, 400);
+
+    const entrada = { categoriaId, sku: `QA-RECETA-${RUN_TAG}`.slice(0, 30), nombre: 'Platillo QA con receta' };
+    assert.equal((await enviar('/ventas/platillos', { ...entrada, precioVenta: 0.001 })).status, 400);
+    const sinReceta = await enviar('/ventas/platillos', { ...entrada, precioVenta: 25 });
+    assert.equal(sinReceta.status, 201);
+    const platillo = sinReceta.body.data;
+    platillosTemporalesIds.push(platillo.id);
+    assert.equal(platillo.disponible, false);
+
+    const pedido = {
+      idempotencyKey: crypto.randomUUID(),
+      tipoServicio: TipoServicio.MOSTRADOR,
+      metodoPago: MetodoPago.EFECTIVO,
+      montoRecibido: 100,
+      items: [{ platilloId: platillo.id, cantidad: 2 }],
+    };
+    assert.equal((await enviar('/ventas/confirmar', pedido)).status, 400);
+    assert.equal((await enviar(`/ventas/platillos/${platillo.id}`, {
+      disponible: true, receta: [{ ingredienteId: sinCosto.body.data.id, cantidadOz: 3 }],
+    }, 'PUT')).status, 400);
+
+    const ingrediente = await crearIngredienteTemporal('PRECIO', 20);
+    const configurado = await enviar(`/ventas/platillos/${platillo.id}`, {
+      disponible: true, receta: [{ ingredienteId: ingrediente.id, cantidadOz: 3 }],
+    }, 'PUT');
+    assert.equal(configurado.status, 200);
+    const antes = await Ingrediente.findByPk(ingrediente.id);
+    assert.equal(Number(antes.stockActualOz), 20, 'Configurar una receta no consume existencias');
+
+    const confirmado = await enviar('/ventas/confirmar', pedido);
+    assert.equal(confirmado.status, 201, JSON.stringify(confirmado.body.error));
+    const venta = confirmado.body.data.venta;
+    assert.equal(Number(venta.total), 50);
+    assert.equal(Number(venta.costoTotalReceta), 12);
+    assert.equal((await enviar('/ventas/confirmar', pedido)).body.data.venta.id, venta.id);
+    const despues = await Ingrediente.findByPk(ingrediente.id);
+    assert.equal(Number(despues.stockActualOz), 14, 'Dos porciones consumen seis onzas una sola vez');
+    const movimiento = await InventarioMovimiento.findOne({
+      where: { referenciaTipo: 'VENTA', referenciaId: venta.id, ingredienteId: ingrediente.id },
+    });
+    assert.equal(Number(movimiento.cantidadOz), -6);
+  });
+
   it('impide vender más stock del existente (ConflictError 409) y mantiene el stock intacto tras rollback', async () => {
     const ing = await crearIngredienteTemporal('STK', 10);
     const platillo = await crearPlatilloTemporal('STK', ing.id, 6, 56);
@@ -572,6 +644,76 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
   // =========================================================================
   // 8. Merma y ajuste de salida no pueden superar el stock disponible
   // =========================================================================
+  it('valida y registra mermas concurrentes sin duplicar el descuento ni perder el Kardex', async (t) => {
+    const ingrediente = await crearIngredienteTemporal('MERMA-TX', 10);
+    const datos = {
+      ingredienteId: ingrediente.id,
+      unidad: UnidadMedida.oz,
+      cantidad: 4,
+      motivo: MotivoMerma.DANO,
+    };
+    const enviar = (payload) => fetch(`${API_BASE_URL}/mermas`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminJwt}` },
+      body: JSON.stringify(payload),
+    });
+    for (const cantidad of [true, 0, -1, 0.00001, 1000000]) {
+      const res = await enviar({ ...datos, cantidad });
+      assert.equal(res.status, 400, `Cantidad inválida: ${cantidad}`);
+    }
+    assert.equal((await enviar({ ...datos, ingredienteId: true })).status, 400);
+    assert.equal((await enviar({ ...datos, fecha: '2026-02-30' })).status, 400);
+
+    const auditoria = t.mock.method(AuditService, 'registrar', async () => {
+      throw new Error('Fallo controlado al escribir auditoría');
+    });
+    try {
+      await assert.rejects(
+        MermasService.registrar(adminUser, datos, CLIENT_META),
+        /Fallo controlado al escribir auditoría/,
+      );
+    } finally {
+      auditoria.mock.restore();
+    }
+    assert.equal(Number((await Ingrediente.findByPk(ingrediente.id)).stockActualOz), 10);
+    assert.equal(await Merma.count({ where: { ingredienteId: ingrediente.id } }), 0);
+    assert.equal(await InventarioMovimiento.count({
+      where: { ingredienteId: ingrediente.id, referenciaTipo: 'MERMA' },
+    }), 0);
+
+    const idempotencyKey = crypto.randomUUID();
+    const duplicadas = await Promise.all([
+      enviar({ ...datos, idempotencyKey }),
+      enviar({ ...datos, idempotencyKey }),
+    ]);
+    assert.deepEqual(duplicadas.map((res) => res.status), [201, 201]);
+    const [primera, repetida] = await Promise.all(duplicadas.map((res) => res.json()));
+    assert.equal(primera.data.id, repetida.data.id);
+    assert.equal((await enviar({ ...datos, cantidad: 1, idempotencyKey })).status, 409);
+
+    const salidas = await Promise.all([enviar(datos), enviar(datos)]);
+    assert.deepEqual(salidas.map((res) => res.status).sort(), [201, 400]);
+    const mermas = await Merma.findAll({ where: { ingredienteId: ingrediente.id } });
+    const movimientos = await InventarioMovimiento.findAll({
+      where: { ingredienteId: ingrediente.id, referenciaTipo: 'MERMA' },
+      order: [['id', 'ASC']],
+    });
+    assert.equal(mermas.length, 2);
+    assert.equal(movimientos.length, 2);
+    assert.deepEqual(movimientos.map((m) => [m.cantidadOz, m.stockAnteriorOz, m.stockNuevoOz].map(Number)),
+      [[-4, 10, 6], [-4, 6, 2]]);
+    assert.equal(Number((await Ingrediente.findByPk(ingrediente.id)).stockActualOz), 2);
+    assert.equal(await AuditoriaLog.count({
+      where: { entidad: 'Merma', entidadId: mermas.map((m) => String(m.id)) },
+    }), 2);
+    await assert.rejects(
+      sequelize.query('UPDATE inventario_movimientos SET stock_nuevo_oz = stock_anterior_oz WHERE id = :id', {
+        replacements: { id: movimientos[0].id },
+      }),
+      (error) => getPgErrorCode(error) === '23514',
+    );
+  });
+
   it('impide registrar merma o ajuste de salida mayor al stock disponible (BadRequestError 400)', async () => {
     const ing = await crearIngredienteTemporal('MRM', 5);
 

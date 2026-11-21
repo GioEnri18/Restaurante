@@ -25,6 +25,7 @@ export const mermasService = {
     unidad: UnidadMedida;
     motivo: MotivoMerma;
     observacion?: string;
+    idempotencyKey?: string;
   }): Promise<MermaModel> {
     const res = await httpClient.post<unknown>('/mermas', payload);
     return mermasAdapter.fromMermaJson(res.data);

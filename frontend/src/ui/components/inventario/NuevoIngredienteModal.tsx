@@ -38,6 +38,7 @@ export const NuevoIngredienteModal: React.FC<NuevoIngredienteModalProps> = ({
   onGuardar,
 }) => {
   const [ingForm, setIngForm] = useState(INITIAL_FORM);
+  const tieneExistenciasIniciales = Number(ingForm.stockInicial) > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,11 +88,13 @@ export const NuevoIngredienteModal: React.FC<NuevoIngredienteModalProps> = ({
             </option>
           ))}
         </select>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <input
             required
             type="number"
+            min="0"
             step="0.01"
+            aria-label="Stock mínimo"
             placeholder="Stock mínimo"
             value={ingForm.stockMinimo}
             onChange={(e) => setIngForm({ ...ingForm, stockMinimo: e.target.value })}
@@ -107,15 +110,45 @@ export const NuevoIngredienteModal: React.FC<NuevoIngredienteModalProps> = ({
             <option value="lb">Libras (lb)</option>
             <option value="oz">Onzas (oz)</option>
           </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="space-y-1 text-sm">
+            <span>Stock inicial</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={ingForm.stockInicial}
+              onChange={(e) => setIngForm({ ...ingForm, stockInicial: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </label>
+          <label className="space-y-1 text-sm">
+            <span>Unidad del stock inicial</span>
+            <select
+              value={ingForm.unidadStockInicial}
+              onChange={(e) =>
+                setIngForm({ ...ingForm, unidadStockInicial: e.target.value as UnidadMedida })
+              }
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            >
+              <option value="lb">Libras (lb)</option>
+              <option value="oz">Onzas (oz)</option>
+            </select>
+          </label>
+        </div>
+        <label className="block space-y-1 text-sm">
+          <span>Costo inicial por libra (Q)</span>
           <input
             type="number"
+            min={tieneExistenciasIniciales ? '0.01' : '0'}
+            required={tieneExistenciasIniciales}
             step="0.01"
-            placeholder="Precio ref / lb (Q)"
             value={ingForm.precioPorLb}
             onChange={(e) => setIngForm({ ...ingForm, precioPorLb: e.target.value })}
-            className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
           />
-        </div>
+        </label>
         <button
           type="submit"
           className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white"

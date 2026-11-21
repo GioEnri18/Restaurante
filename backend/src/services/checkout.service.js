@@ -203,6 +203,9 @@ class CheckoutService {
             if (!platillo.disponible) {
               throw new BadRequestError(`El platillo "${platillo.nombre}" no está disponible`);
             }
+            if (!platillo.receta?.length) {
+              throw new BadRequestError(`Configura la receta de "${platillo.nombre}" antes de venderlo`);
+            }
             for (const r of platillo.receta ?? []) {
               ingredienteIdsSet.add(r.ingredienteId);
             }
@@ -216,7 +219,7 @@ class CheckoutService {
             const filasBloqueadas = await sequelize.query(
               `SELECT id, nombre, stock_actual_oz, costo_promedio_oz
                FROM ingredientes
-               WHERE id IN (:ids) AND sucursal_id = :sucursalId
+               WHERE id IN (:ids) AND sucursal_id = :sucursalId AND activo = true
                ORDER BY id ASC
                FOR UPDATE`,
               {
@@ -246,6 +249,9 @@ class CheckoutService {
             const platillo = platillosMap.get(item.platilloId);
             const precioUnitario =
               preciosEspeciales.get(platillo.id) ?? Number(platillo.precioVenta);
+            if (precioUnitario < 0.01) {
+              throw new BadRequestError(`Configura un precio de venta válido para "${platillo.nombre}"`);
+            }
             const subtotalItem = round2(precioUnitario * item.cantidad);
             totalConIva = round2(totalConIva + subtotalItem);
 
@@ -259,6 +265,11 @@ class CheckoutService {
               }
               const ozPorUnidad = Number(r.cantidadOz);
               const costoOz = ingBloqueado.costoPromedioOz;
+              if (ozPorUnidad <= 0 || costoOz <= 0) {
+                throw new BadRequestError(
+                  `Revisa la cantidad y el costo de "${ingBloqueado.nombre}" en la receta de "${platillo.nombre}"`,
+                );
+              }
               costoUnitarioReceta = round4(costoUnitarioReceta + ozPorUnidad * costoOz);
 
               const consumoTotalItemOz = round4(ozPorUnidad * item.cantidad);
@@ -275,6 +286,9 @@ class CheckoutService {
               }
             }
 
+            if (round2(costoUnitarioReceta) < 0.01) {
+              throw new BadRequestError(`Configura un costo de receta válido para "${platillo.nombre}"`);
+            }
             costoTotalReceta = round2(costoTotalReceta + costoUnitarioReceta * item.cantidad);
             detallesData.push({
               platilloId: platillo.id,

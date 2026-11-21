@@ -4,6 +4,7 @@ import { MenuDataModel, PlatilloModel, TicketImprimibleModel } from '../../model
 import { ventasService } from '../../services/ventas.service';
 import { useAuthStore } from '../../store/auth.store';
 import { useCartStore } from '../../store/cart.store';
+import { generarUuid } from '../../utils/idempotency';
 import { Alert } from '../components/common/Alert';
 import { PrintTicketsModal } from '../components/print/PrintTicketsModal';
 import { CarritoOrdenPanel } from '../components/ventas/CarritoOrdenPanel';
@@ -11,17 +12,6 @@ import { CatalogoPlatillos } from '../components/ventas/CatalogoPlatillos';
 import { CobroModal } from '../components/ventas/CobroModal';
 import { PlatilloRecetaModal } from '../components/ventas/PlatilloRecetaModal';
 import { VentasStatusHeader } from '../components/ventas/VentasStatusHeader';
-
-function generarUuid() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
 
 export const VentasPage: React.FC = () => {
   const canCreate = useAuthStore((s) => s.can('ventas:crear'));

@@ -90,7 +90,7 @@ export const AccesosPage: React.FC = () => {
       username: '',
       email: '',
       password: '',
-      rolId: roles[0] ? String(roles[0].id) : '',
+      rolId: '',
     });
     setUserModal(true);
   };
@@ -437,6 +437,7 @@ export const AccesosPage: React.FC = () => {
             onChange={(e) => setUserForm({ ...userForm, rolId: e.target.value })}
             className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
           >
+            <option value="" disabled>Selecciona el rol del usuario</option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.nombre} ({r.codigo})
