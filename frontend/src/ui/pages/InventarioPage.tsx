@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   Plus,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 import { env } from '../../config/env';
 import {
+  CategoriaModel,
   CompraModel,
   IngredienteModel,
   InventarioMovimientoModel,
@@ -32,6 +34,11 @@ import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCa
 import { ExistenciasTable } from '../components/inventario/ExistenciasTable';
 import { KardexTable } from '../components/inventario/KardexTable';
 import {
+  NuevaCategoriaModal,
+  NuevaCategoriaPayload,
+} from '../components/inventario/NuevaCategoriaModal';
+import { NuevoPlatilloModal } from '../components/inventario/NuevoPlatilloModal';
+import {
   NuevoIngredienteModal,
   NuevoIngredientePayload,
 } from '../components/inventario/NuevoIngredienteModal';
@@ -51,19 +58,39 @@ export const InventarioPage: React.FC = () => {
   const canBuy = useAuthStore((s) => s.can('inventario:comprar'));
   const canAdjust = useAuthStore((s) => s.can('inventario:ajustar'));
 
-  const [tab, setTab] = useState<Tab>('existencias');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const validTabs: Tab[] = ['existencias', 'compras', 'proveedores', 'kardex', 'recetas'];
+  const [tab, setTab] = useState<Tab>(
+    initialTab && validTabs.includes(initialTab as Tab) ? (initialTab as Tab) : 'existencias',
+  );
+
+  useEffect(() => {
+    const paramTab = searchParams.get('tab');
+    if (paramTab && validTabs.includes(paramTab as Tab)) {
+      setTab(paramTab as Tab);
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const cambiarTab = (next: Tab) => {
+    setTab(next);
+    setSearchParams(next === 'existencias' ? {} : { tab: next }, { replace: true });
+  };
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorModel[]>([]);
   const [compras, setCompras] = useState<CompraModel[]>([]);
   const [movimientos, setMovimientos] = useState<InventarioMovimientoModel[]>([]);
   const [movMeta, setMovMeta] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [platillos, setPlatillos] = useState<PlatilloModel[]>([]);
+  const [categorias, setCategorias] = useState<CategoriaModel[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Modales Ingrediente / Proveedor / Ajuste / Precio
+  // Modales Ingrediente / Proveedor / Ajuste / Precio / Categoría / Platillo
   const [ingModal, setIngModal] = useState(false);
   const [provModal, setProvModal] = useState(false);
+  const [catModal, setCatModal] = useState(false);
+  const [platilloModal, setPlatilloModal] = useState(false);
   const [ajusteTarget, setAjusteTarget] = useState<IngredienteModel | null>(null);
   const [precioTarget, setPrecioTarget] = useState<PlatilloModel | null>(null);
   const [recetaTarget, setRecetaTarget] = useState<PlatilloModel | null>(null);
@@ -118,7 +145,10 @@ export const InventarioPage: React.FC = () => {
       setCompras(comp.items);
       setMovimientos(movs.items);
       setMovMeta(movs.meta);
-      if (menu) setPlatillos(menu.platillos);
+      if (menu) {
+        setPlatillos(menu.platillos);
+        setCategorias(menu.categorias);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar inventario');
     }
@@ -224,6 +254,20 @@ export const InventarioPage: React.FC = () => {
     }
   };
 
+  const handleCrearCategoria = async (payload: NuevaCategoriaPayload): Promise<boolean> => {
+    setError(null);
+    try {
+      await ventasService.crearCategoria(payload);
+      setCatModal(false);
+      setSuccess(`Categoría "${payload.nombre}" creada correctamente.`);
+      await cargarTodo();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo crear la categoría');
+      return false;
+    }
+  };
+
   const cargarMovimientosPagina = async (page: number) => {
     const res = await inventarioService.listarMovimientos({ page });
     setMovimientos(res.items);
@@ -322,13 +366,13 @@ export const InventarioPage: React.FC = () => {
           { id: 'existencias', label: 'Existencias', Icon: Scale },
           { id: 'compras', label: 'Compras (lb → oz)', Icon: ShoppingBag },
           { id: 'proveedores', label: 'Proveedores', Icon: Truck },
-          { id: 'kardex', label: 'Movimientos (Kardex)', Icon: History },
+          { id: 'kardex', label: 'Historial de entradas y salidas', Icon: History },
           { id: 'recetas', label: 'Recetas y Precios', Icon: BookOpen },
         ].map(({ id, label, Icon }) => (
           <button
             key={id}
             type="button"
-            onClick={() => setTab(id as Tab)}
+            onClick={() => cambiarTab(id as Tab)}
             className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 text-sm font-bold transition ${
               tab === id
                 ? 'bg-slate-900 text-white shadow'
@@ -374,9 +418,12 @@ export const InventarioPage: React.FC = () => {
           platillos={platillos}
           canManage={canManageMenu}
           canEditRecipe={canManage && canManageMenu}
+          canCreateMenu={isAdmin && canManageMenu}
           onCambiarPrecio={setPrecioTarget}
           onEditarReceta={abrirReceta}
           onCambiarFoto={isAdmin && canManageMenu ? abrirFoto : undefined}
+          onNuevoPlatillo={isAdmin && canManageMenu ? () => setPlatilloModal(true) : undefined}
+          onNuevaCategoria={isAdmin && canManageMenu ? () => setCatModal(true) : undefined}
         />
       )}
 
@@ -444,6 +491,27 @@ export const InventarioPage: React.FC = () => {
           </button>
         </form>
       </Modal>
+      {isAdmin && canManageMenu && (
+        <>
+          <NuevoPlatilloModal
+            open={platilloModal}
+            categorias={categorias}
+            ingredientes={ingredientes}
+            onNuevaCategoria={() => setCatModal(true)}
+            onClose={() => setPlatilloModal(false)}
+            onCreated={async (msg, avisoFoto) => {
+              setSuccess(msg);
+              if (avisoFoto) setError(avisoFoto);
+              await cargarTodo();
+            }}
+          />
+          <NuevaCategoriaModal
+            open={catModal}
+            onClose={() => setCatModal(false)}
+            onGuardar={handleCrearCategoria}
+          />
+        </>
+      )}
     </div>
   );
 };

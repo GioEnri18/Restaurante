@@ -73,6 +73,10 @@ export const ventasService = {
     return httpClient.delete(`/ventas/menus-especiales/${id}`);
   },
 
+  async crearCategoria(payload: { nombre: string; descripcion?: string; orden?: number }) {
+    return httpClient.post('/ventas/categorias', payload);
+  },
+
   async crearPlatillo(payload: {
     categoriaId: number;
     sku: string;

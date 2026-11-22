@@ -1,11 +1,17 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { env } from '../../config/env';
-import { MenuDataModel, PlatilloModel, TicketImprimibleModel } from '../../models';
+import { IngredienteModel, MenuDataModel, PlatilloModel, TicketImprimibleModel } from '../../models';
+import { inventarioService } from '../../services/inventario.service';
 import { ventasService } from '../../services/ventas.service';
 import { useAuthStore } from '../../store/auth.store';
 import { useCartStore } from '../../store/cart.store';
 import { generarUuid } from '../../utils/idempotency';
 import { Alert } from '../components/common/Alert';
+import {
+  NuevaCategoriaModal,
+  NuevaCategoriaPayload,
+} from '../components/inventario/NuevaCategoriaModal';
+import { NuevoPlatilloModal } from '../components/inventario/NuevoPlatilloModal';
 import { PrintTicketsModal } from '../components/print/PrintTicketsModal';
 import { CarritoOrdenPanel } from '../components/ventas/CarritoOrdenPanel';
 import { CatalogoPlatillos } from '../components/ventas/CatalogoPlatillos';
@@ -16,6 +22,8 @@ import { VentasStatusHeader } from '../components/ventas/VentasStatusHeader';
 export const VentasPage: React.FC = () => {
   const canCreate = useAuthStore((s) => s.can('ventas:crear'));
   const canOpenCaja = useAuthStore((s) => s.can('caja:abrir'));
+  // Creación de categorías y platillos reservada exclusivamente al Administrador
+  const isAdminMenu = useAuthStore((s) => s.isAdmin() && s.can('ventas:gestionar_menu'));
   const {
     items,
     tipoServicio,
@@ -33,11 +41,16 @@ export const VentasPage: React.FC = () => {
   } = useCartStore();
 
   const [menu, setMenu] = useState<MenuDataModel | null>(null);
+  const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState<number | 'ESPECIAL' | null>(null);
+  const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [infoPlatillo, setInfoPlatillo] = useState<PlatilloModel | null>(null);
+  const [platilloModalOpen, setPlatilloModalOpen] = useState(false);
+  const [catModalOpen, setCatModalOpen] = useState(false);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState<string>('');
@@ -89,9 +102,17 @@ export const VentasPage: React.FC = () => {
     return map;
   }, [menu]);
 
+  const pendientesConfigCount = useMemo(
+    () => (menu?.platillos ?? []).filter((p) => !p.disponible || p.precioVenta <= 0).length,
+    [menu],
+  );
+
   const platillosFiltrados = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (menu?.platillos ?? []).filter((p) => {
+      if (onlyAvailable && (!p.disponible || !p.stockDisponible || p.precioVenta <= 0)) {
+        return false;
+      }
       const matchCat =
         selectedCat === 'ESPECIAL'
           ? p.esEspecialHoy
@@ -105,7 +126,7 @@ export const VentasPage: React.FC = () => {
         : true;
       return matchCat && matchSearch;
     });
-  }, [menu, selectedCat, search]);
+  }, [menu, selectedCat, search, onlyAvailable]);
 
   const mesaSeleccionada = useMemo(
     () => (menu?.mesas ?? []).find((m) => m.id === mesaId) ?? null,
@@ -122,6 +143,31 @@ export const VentasPage: React.FC = () => {
     setError(null);
     setIdempotencyKey(generarUuid());
     setCheckoutOpen(true);
+  };
+
+  const abrirNuevoPlatillo = async () => {
+    setError(null);
+    setSuccess(null);
+    try {
+      setIngredientes(await inventarioService.listarIngredientes());
+    } catch {
+      setIngredientes([]);
+    }
+    setPlatilloModalOpen(true);
+  };
+
+  const handleCrearCategoria = async (payload: NuevaCategoriaPayload): Promise<boolean> => {
+    setError(null);
+    try {
+      await ventasService.crearCategoria(payload);
+      setCatModalOpen(false);
+      setSuccess(`Categoría "${payload.nombre}" creada correctamente.`);
+      await cargarMenu();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo crear la categoría');
+      return false;
+    }
   };
 
   const handleVentaConfirmada = async (ticket: TicketImprimibleModel) => {
@@ -146,6 +192,7 @@ export const VentasPage: React.FC = () => {
       />
 
       {error && <Alert type="error" message={error} />}
+      {success && <Alert type="success" message={success} />}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
         <CatalogoPlatillos
@@ -153,14 +200,20 @@ export const VentasPage: React.FC = () => {
           loading={loading}
           search={search}
           selectedCat={selectedCat}
+          onlyAvailable={onlyAvailable}
+          pendientesConfigCount={pendientesConfigCount}
           countByCategoria={countByCategoria}
           platillosFiltrados={platillosFiltrados}
           qtyByPlatillo={qtyByPlatillo}
+          canCreatePlatillo={isAdminMenu}
           onSearchChange={setSearch}
           onSelectCat={setSelectedCat}
+          onToggleOnlyAvailable={() => setOnlyAvailable((prev) => !prev)}
           onAddItem={addItem}
           onUpdateQty={updateQty}
           onVerReceta={setInfoPlatillo}
+          onNuevoPlatillo={() => void abrirNuevoPlatillo()}
+          onNuevaCategoria={() => setCatModalOpen(true)}
         />
 
         <CarritoOrdenPanel
@@ -173,6 +226,7 @@ export const VentasPage: React.FC = () => {
           habilitarMesas={habilitarMesas}
           totals={totals}
           canCreate={canCreate}
+          canOpenCaja={canOpenCaja}
           cajaAbierta={Boolean(menu?.cajaAbierta)}
           onSetTipoServicio={setTipoServicio}
           onSetMesaId={setMesaId}
@@ -207,6 +261,28 @@ export const VentasPage: React.FC = () => {
         autoPrint
         onClose={() => setTicketImprimir(null)}
       />
+
+      {isAdminMenu && (
+        <>
+          <NuevoPlatilloModal
+            open={platilloModalOpen}
+            categorias={menu?.categorias ?? []}
+            ingredientes={ingredientes}
+            onNuevaCategoria={() => setCatModalOpen(true)}
+            onClose={() => setPlatilloModalOpen(false)}
+            onCreated={async (msg, avisoFoto) => {
+              setSuccess(msg);
+              if (avisoFoto) setError(avisoFoto);
+              await cargarMenu();
+            }}
+          />
+          <NuevaCategoriaModal
+            open={catModalOpen}
+            onClose={() => setCatModalOpen(false)}
+            onGuardar={handleCrearCategoria}
+          />
+        </>
+      )}
     </div>
   );
 };

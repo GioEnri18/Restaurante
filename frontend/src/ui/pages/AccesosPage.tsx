@@ -116,18 +116,27 @@ export const AccesosPage: React.FC = () => {
     });
   }, [cargarTodo]);
 
-  const abrirNuevoUsuario = () => {
+  const abrirNuevoUsuario = (rolCodigoPreseleccionado?: string) => {
     setErrorUsuario(null);
     setEditingUser(null);
+    const rolEncontrado = rolCodigoPreseleccionado
+      ? roles.find((r) => r.codigo.toUpperCase() === rolCodigoPreseleccionado.toUpperCase())
+      : undefined;
     setUserForm({
       nombreCompleto: '',
       username: '',
       email: '',
       password: '',
-      rolId: '',
+      rolId: rolEncontrado ? String(rolEncontrado.id) : '',
     });
     setUserModal(true);
   };
+
+  const rolesAccesoRapido = ['CAJERO', 'MESERO', 'AUDITOR']
+    .map((codigo) => roles.find((r) => r.codigo.toUpperCase() === codigo))
+    .filter((r): r is RolModel => Boolean(r));
+
+  const rolSeleccionadoEnModal = roles.find((r) => String(r.id) === userForm.rolId) ?? null;
 
   const abrirEditarUsuario = (u: UsuarioAdminModel) => {
     setErrorUsuario(null);
@@ -249,7 +258,7 @@ export const AccesosPage: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={abrirNuevoUsuario}
+            onClick={() => abrirNuevoUsuario()}
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
           >
             <UserPlus className="h-4 w-4" />
@@ -287,7 +296,29 @@ export const AccesosPage: React.FC = () => {
 
       {/* TAB USUARIOS */}
       {tab === 'usuarios' && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm overflow-x-auto">
+        <div className="space-y-4">
+          {rolesAccesoRapido.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-xs font-bold text-slate-600">
+                Alta rápida por perfil:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {rolesAccesoRapido.map((rol) => (
+                  <button
+                    key={rol.id}
+                    type="button"
+                    onClick={() => abrirNuevoUsuario(rol.codigo)}
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3.5 text-xs font-bold text-brand-800 hover:bg-brand-100"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" />
+                    Nuevo {rol.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm overflow-x-auto">
           <table className="w-full min-w-[740px] text-left text-sm">
             <thead>
               <tr className="border-b text-xs uppercase text-slate-500">
@@ -341,6 +372,7 @@ export const AccesosPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -491,6 +523,18 @@ export const AccesosPage: React.FC = () => {
               </option>
             ))}
           </select>
+          {rolSeleccionadoEnModal && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <p className="font-bold text-slate-800">
+                Perfil {rolSeleccionadoEnModal.nombre} · Inicio: {rolSeleccionadoEnModal.vistaInicial}
+              </p>
+              <p className="mt-0.5">
+                {rolSeleccionadoEnModal.permisos.length > 0
+                  ? `${rolSeleccionadoEnModal.permisos.length} permiso(s): ${rolSeleccionadoEnModal.permisos.map((p) => p.codigo).join(', ')}`
+                  : 'Sin permisos asignados todavía (puedes configurarlos en la pestaña Roles y Permisos).'}
+              </p>
+            </div>
+          )}
           {errorUsuario && <div role="alert"><Alert type="error" message={errorUsuario} /></div>}
           <button
             type="submit"

@@ -144,49 +144,71 @@ export const CobroModal: React.FC<CobroModalProps> = ({
           <span className="text-3xl font-black text-brand-400">{formatCurrency(totals.total)}</span>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">NIT del cliente</label>
-            <input
-              type="text"
-              value={clienteNit}
-              onChange={(e) => setClienteNit(e.target.value)}
-              placeholder="CF o NIT"
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
-            />
+        <div className="space-y-2.5 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-extrabold uppercase tracking-wider text-slate-600">
+              1. Datos de la factura (opcional)
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setClienteNit('CF');
+                setClienteNombre('Consumidor Final');
+                setClienteDireccion('Ciudad');
+              }}
+              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-brand-700 ring-1 ring-slate-200 hover:bg-brand-50"
+            >
+              Usar Consumidor Final (CF)
+            </button>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">Nombre en factura</label>
-            <input
-              type="text"
-              value={clienteNombre}
-              onChange={(e) => setClienteNombre(e.target.value)}
-              placeholder="Consumidor Final"
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-xs font-bold text-slate-600">Dirección</label>
-            <input
-              type="text"
-              value={clienteDireccion}
-              onChange={(e) => setClienteDireccion(e.target.value)}
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
+          <p className="text-[11px] text-slate-500">
+            Si el cliente no pide factura con NIT, puedes dejar «Consumidor Final» y pasar directo al cobro.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-600">NIT del cliente</label>
+              <input
+                type="text"
+                value={clienteNit}
+                onChange={(e) => setClienteNit(e.target.value)}
+                placeholder="CF o número de NIT"
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold text-slate-600">Nombre en factura</label>
+              <input
+                type="text"
+                value={clienteNombre}
+                onChange={(e) => setClienteNombre(e.target.value)}
+                placeholder="Consumidor Final"
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-bold text-slate-600">Dirección</label>
+              <input
+                type="text"
+                value={clienteDireccion}
+                onChange={(e) => setClienteDireccion(e.target.value)}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+              />
+            </div>
           </div>
         </div>
 
         <div>
-          <label className="mb-2 block text-xs font-bold text-slate-600">Forma de pago</label>
+          <label className="mb-2 block text-xs font-extrabold uppercase tracking-wider text-slate-600">
+            2. ¿Cómo paga el cliente?
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setMetodoPago('EFECTIVO')}
-              className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border-2 text-sm font-extrabold transition ${
-                metodoPago === 'EFECTIVO'
+              className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border-2 text-sm font-extrabold transition ${metodoPago === 'EFECTIVO'
                   ? 'border-brand-600 bg-brand-50 text-brand-700'
                   : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
+                }`}
             >
               <Banknote className="h-5 w-5" />
               Efectivo
@@ -195,11 +217,10 @@ export const CobroModal: React.FC<CobroModalProps> = ({
             <button
               type="button"
               onClick={() => setMetodoPago('TARJETA')}
-              className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border-2 text-sm font-extrabold transition ${
-                metodoPago === 'TARJETA'
+              className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border-2 text-sm font-extrabold transition ${metodoPago === 'TARJETA'
                   ? 'border-brand-600 bg-brand-50 text-brand-700'
                   : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
+                }`}
             >
               <CreditCard className="h-5 w-5" />
               Tarjeta
@@ -235,9 +256,20 @@ export const CobroModal: React.FC<CobroModalProps> = ({
                 </button>
               ))}
             </div>
-            <div className="flex items-center justify-between rounded-xl bg-emerald-100 px-4 py-3 text-emerald-950">
-              <span className="text-sm font-bold">Vuelto / Cambio:</span>
-              <span className="text-2xl font-black">{formatCurrency(cambioCalculado)}</span>
+            <div
+              className={`flex items-center justify-between rounded-xl px-4 py-3 ${recibidoNum < totals.total
+                  ? 'bg-red-100 text-red-900'
+                  : 'bg-emerald-100 text-emerald-950'
+                }`}
+            >
+              <span className="text-sm font-bold">
+                {recibidoNum < totals.total ? 'Falta por recibir:' : 'Vuelto a entregar:'}
+              </span>
+              <span className="text-2xl font-black">
+                {formatCurrency(
+                  recibidoNum < totals.total ? totals.total - recibidoNum : cambioCalculado,
+                )}
+              </span>
             </div>
           </div>
         ) : (

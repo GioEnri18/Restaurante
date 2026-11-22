@@ -59,6 +59,15 @@ class VentasController {
             next(error);
         }
     }
+    static async crearCategoria(req, res, next) {
+        try {
+            const data = await VentasService.crearCategoria(req.user, req.body, req.clientMeta);
+            res.status(201).json({ ok: true, data });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
     static async crearPlatillo(req, res, next) {
         try {
             const data = await VentasService.crearPlatillo(req.user, req.body, req.clientMeta);

@@ -21,6 +21,10 @@ import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
 import { SelectorFotoPlatillo } from '../components/common/SelectorFotoPlatillo';
+import {
+  NuevaCategoriaModal,
+  NuevaCategoriaPayload,
+} from '../components/inventario/NuevaCategoriaModal';
 import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCampos';
 
 export const MenusEspecialesPage: React.FC = () => {
@@ -50,8 +54,9 @@ export const MenusEspecialesPage: React.FC = () => {
   // Platillos seleccionados con precio especial opcional: platilloId -> precio string ('' = precio regular)
   const [selectedPlatillos, setSelectedPlatillos] = useState<Record<number, string>>({});
 
-  // Modal rápido para agregar un nuevo platillo al catálogo
+  // Modal rápido para agregar un nuevo platillo o categoría al catálogo (solo Administrador)
   const [platilloModal, setPlatilloModal] = useState(false);
+  const [catModal, setCatModal] = useState(false);
   const [fotoPlatillo, setFotoPlatillo] = useState<File | null>(null);
   const [guardandoPlatillo, setGuardandoPlatillo] = useState(false);
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
@@ -212,6 +217,20 @@ export const MenusEspecialesPage: React.FC = () => {
     }
   };
 
+  const handleCrearCategoria = async (payload: NuevaCategoriaPayload): Promise<boolean> => {
+    setError(null);
+    try {
+      await ventasService.crearCategoria(payload);
+      setCatModal(false);
+      setSuccess(`Categoría "${payload.nombre}" creada correctamente.`);
+      await cargar();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo crear la categoría');
+      return false;
+    }
+  };
+
   const handleCrearPlatillo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (guardandoPlatillo) return;
@@ -288,7 +307,7 @@ export const MenusEspecialesPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {canManageRecipe && (
+          {puedeSubirFoto && canManageRecipe && (
             <button
               type="button"
               onClick={() => void abrirPlatilloNuevo()}
@@ -628,18 +647,32 @@ export const MenusEspecialesPage: React.FC = () => {
         maxWidthClass="max-w-lg"
       >
         <form onSubmit={handleCrearPlatillo} className="space-y-3">
-          <select
-            required
-            value={platilloForm.categoriaId}
-            onChange={(e) => setPlatilloForm({ ...platilloForm, categoriaId: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
-          >
-            {categorias.map((c) => (
-              <option key={c.id} value={c.id}>
-                Categoría: {c.nombre}
-              </option>
-            ))}
-          </select>
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-600">Categoría</label>
+              {puedeSubirFoto && (
+                <button
+                  type="button"
+                  onClick={() => setCatModal(true)}
+                  className="text-xs font-bold text-brand-600 hover:underline"
+                >
+                  + Nueva categoría
+                </button>
+              )}
+            </div>
+            <select
+              required
+              value={platilloForm.categoriaId}
+              onChange={(e) => setPlatilloForm({ ...platilloForm, categoriaId: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
+            >
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Categoría: {c.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <input
               required
@@ -687,6 +720,14 @@ export const MenusEspecialesPage: React.FC = () => {
           </button>
         </form>
       </Modal>
+
+      {puedeSubirFoto && (
+        <NuevaCategoriaModal
+          open={catModal}
+          onClose={() => setCatModal(false)}
+          onGuardar={handleCrearCategoria}
+        />
+      )}
     </div>
   );
 };

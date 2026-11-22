@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { ChefHat, Lock, User, LogIn } from 'lucide-react';
+import { ChefHat, Lock, User, LogIn, Eye, EyeOff } from 'lucide-react';
 import { env } from '../../config/env';
 import { useAuthStore } from '../../store/auth.store';
 import { Alert } from '../components/common/Alert';
@@ -10,7 +10,9 @@ export const LoginPage: React.FC = () => {
   const { usuario, login, loading } = useAuthStore();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isDev = import.meta.env.DEV;
 
   if (usuario) {
     return <Navigate to={usuario.rol.vistaInicial || '/ventas'} replace />;
@@ -76,13 +78,21 @@ export const LoginPage: React.FC = () => {
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Escribe tu contraseña"
                 autoComplete="current-password"
-                className="min-h-[48px] w-full rounded-xl border border-slate-300 pl-11 pr-4 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+                className="min-h-[48px] w-full rounded-xl border border-slate-300 pl-11 pr-12 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
             </div>
           </div>
 
@@ -92,39 +102,45 @@ export const LoginPage: React.FC = () => {
             className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-base font-bold text-white shadow-lg shadow-brand-600/25 transition hover:bg-brand-700 disabled:opacity-60"
           >
             <LogIn className="h-5 w-5" />
-            {loading ? 'Ingresando...' : 'Iniciar sesión'}
+            {loading ? 'Ingresando...' : 'Entrar al sistema'}
           </button>
         </form>
 
-        {/* Accesos rápidos de prueba */}
-        <div className="mt-6 border-t border-slate-200 pt-5">
-          <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Credenciales de prueba rápida
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => fillDemo('admin', 'Admin123!')}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
-            >
-              Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => fillDemo('cajero', 'Cajero123!')}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
-            >
-              Cajero
-            </button>
-            <button
-              type="button"
-              onClick={() => fillDemo('mesero', 'Mesero123!')}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
-            >
-              Mesero
-            </button>
+        <p className="mt-5 text-center text-xs text-slate-500">
+          ¿No tienes usuario o olvidaste tu clave? Solicítala al Administrador de tu sucursal.
+        </p>
+
+        {/* Accesos rápidos de prueba únicamente en desarrollo local */}
+        {isDev && (
+          <div className="mt-5 border-t border-slate-200 pt-4">
+            <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Pruebas locales (desarrollo)
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => fillDemo('admin', 'Admin123!')}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
+              >
+                Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemo('cajero', 'Cajero123!')}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
+              >
+                Cajero
+              </button>
+              <button
+                type="button"
+                onClick={() => fillDemo('mesero', 'Mesero123!')}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
+              >
+                Mesero
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

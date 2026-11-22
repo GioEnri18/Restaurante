@@ -36,6 +36,10 @@ class VentasService {
     return MenusEspecialesService.eliminarMenuEspecial(user, menuId, clientMeta);
   }
 
+  static crearCategoria(user, input, clientMeta) {
+    return PlatillosService.crearCategoria(user, input, clientMeta);
+  }
+
   static crearPlatillo(user, input, clientMeta) {
     return PlatillosService.crearPlatillo(user, input, clientMeta);
   }

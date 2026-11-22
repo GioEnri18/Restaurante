@@ -16,6 +16,7 @@
     "format": "prettier --write \"src/**/*.js\" \"tests/**/*.js\"",
     "db:migrate": "node src/database/migrate.js",
     "db:seed": "node src/database/seed.js",
+    "db:bootstrap-prod": "node src/database/bootstrapProd.js",
     "db:cargar-menu-base": "node src/database/cargar-menu-base.js",
     "test:unit": "node --test tests/unit.business.test.js",
     "test": "node --test tests/*.test.js",
