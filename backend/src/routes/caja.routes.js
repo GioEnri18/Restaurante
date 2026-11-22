@@ -5,9 +5,18 @@ const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
 const { paginacionQuery } = require('../shared/validators/common.validators');
+// Control dual: credenciales del supervisor (Administrador/Auditor) que autoriza abrir o cerrar.
+// Obligatorias para quien no tiene el permiso caja:autorizar (el servicio lo verifica).
+const autorizacionSchema = z
+    .object({
+    identifier: z.string().trim().min(2, 'Ingresa el usuario del supervisor').max(120),
+    password: z.string().min(1, 'Ingresa la contraseña del supervisor').max(128),
+})
+    .optional();
 const abrirCajaSchema = z.object({
     montoInicial: z.coerce.number().min(0, 'El monto inicial no puede ser negativo'),
     observaciones: z.string().trim().max(300).optional(),
+    autorizacion: autorizacionSchema,
 });
 const movimientoCajaSchema = z.object({
     tipo: z.enum(['INGRESO_MANUAL', 'EGRESO_MANUAL']),
@@ -18,6 +27,7 @@ const movimientoCajaSchema = z.object({
 const cerrarCajaSchema = z.object({
     montoContadoEfectivo: z.coerce.number().min(0, 'El monto contado no puede ser negativo'),
     observacionesCierre: z.string().trim().max(300).optional(),
+    autorizacion: autorizacionSchema,
 });
 const router = Router();
 router.use(authenticate);

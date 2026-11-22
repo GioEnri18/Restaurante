@@ -66,6 +66,35 @@ function correr(coleccion, usuario, iteraciones, jar, registros) {
     console.log(`  ${rol}: ${peticiones.filter((r) => r.rol === rol).length}`);
   }
   console.log(`Fallos de tests Postman: ${registros.filter((r) => r.fallo).length}`);
+
+  // Cierre de caja por un CAJERO con autorización de un AUDITOR (control dual). Se cuenta
+  // exactamente el efectivo esperado, así que la diferencia del arqueo debe ser 0.
+  const cajero = usuarios.find((u) => u.username === 'cajero1');
+  const auditor = usuarios.find((u) => u.rol === 'auditor');
+  let cookie = '';
+  const api = async (method, ruta, body) => {
+    const r = await fetch(BASE + ruta, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(cookie ? { Cookie: cookie } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const set = r.headers.get('set-cookie');
+    if (set) cookie = set.split(';')[0];
+    const json = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(`${method} ${ruta} -> ${r.status} ${JSON.stringify(json?.error)}`);
+    return json.data;
+  };
+  await api('POST', '/auth/login', { identifier: cajero.username, password: cajero.password });
+  const actual = await api('GET', '/caja/actual');
+  const cerrada = await api('POST', '/caja/cerrar', {
+    montoContadoEfectivo: actual.montoEsperadoEfectivo,
+    observacionesCierre: 'Cierre de la prueba de carga',
+    autorizacion: { identifier: auditor.username, password: auditor.password },
+  });
+  console.log(
+    `Caja #${cerrada.id} cerrada por ${cajero.username}, autorizada por ${auditor.username}: ` +
+      `esperado Q${cerrada.montoEsperadoEfectivo} | contado Q${cerrada.montoContadoEfectivo} | diferencia Q${cerrada.diferencia}`,
+  );
 })().catch((e) => {
   console.error('Falló la ejecución:', e);
   process.exit(1);

@@ -9,6 +9,9 @@ CajaSesion.init({
     sucursalId: { type: DataTypes.INTEGER, allowNull: false, field: 'sucursal_id' },
     usuarioAperturaId: { type: DataTypes.INTEGER, allowNull: false, field: 'usuario_apertura_id' },
     usuarioCierreId: { type: DataTypes.INTEGER, allowNull: true, field: 'usuario_cierre_id' },
+    // Control dual: supervisor (Administrador/Auditor) que autorizó la apertura y el cierre
+    usuarioAutorizaAperturaId: { type: DataTypes.INTEGER, allowNull: true, field: 'usuario_autoriza_apertura_id' },
+    usuarioAutorizaCierreId: { type: DataTypes.INTEGER, allowNull: true, field: 'usuario_autoriza_cierre_id' },
     estado: { type: DataTypes.STRING(20), allowNull: false, defaultValue: EstadoCaja.ABIERTA },
     montoInicial: { type: DataTypes.DECIMAL(12, 2), allowNull: false, field: 'monto_inicial' },
     totalVentasEfectivo: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: 'total_ventas_efectivo' },

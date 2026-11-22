@@ -24,6 +24,7 @@ const ACCIONES_AUDITORIA = {
     APERTURA_CAJA: 'APERTURA_CAJA',
     MOVIMIENTO_CAJA: 'MOVIMIENTO_CAJA',
     CIERRE_CAJA: 'CIERRE_CAJA',
+    AUTORIZACION_CAJA_RECHAZADA: 'AUTORIZACION_CAJA_RECHAZADA',
     CAMBIO_PERMISOS: 'CAMBIO_PERMISOS',
     GESTION_USUARIO: 'GESTION_USUARIO',
     GESTION_ROL: 'GESTION_ROL',
@@ -52,6 +53,7 @@ const PERMISOS_CATALOGO = [
     { codigo: 'caja:abrir', vista: 'caja', accion: 'abrir', descripcion: 'Abrir sesión de caja con monto inicial' },
     { codigo: 'caja:movimiento', vista: 'caja', accion: 'movimiento', descripcion: 'Registrar ingresos y egresos manuales de caja' },
     { codigo: 'caja:cerrar', vista: 'caja', accion: 'cerrar', descripcion: 'Ejecutar cierre diario y cuadre de caja' },
+    { codigo: 'caja:autorizar', vista: 'caja', accion: 'autorizar', descripcion: 'Autorizar con usuario y contraseña la apertura y el cierre de caja de otros usuarios' },
     // Reportes
     { codigo: 'reportes:ver', vista: 'reportes', accion: 'ver', descripcion: 'Ver reportes de ventas, costos y estadísticas' },
     { codigo: 'reportes:exportar', vista: 'reportes', accion: 'exportar', descripcion: 'Exportar reportes a PDF y Excel' },

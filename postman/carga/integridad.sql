@@ -1,4 +1,4 @@
--- Verificaciones de integridad tras la carga concurrente (cada fila debe decir OK)
+-- Verificaciones de integridad tras la carga concurrente (cada fila debe decir OK). Revisa la última caja.
 WITH
 v AS (SELECT count(*) total, count(*) FILTER (WHERE estado='COMPLETADA') completadas,
              count(*) FILTER (WHERE estado='ANULADA') anuladas FROM ventas),
@@ -12,7 +12,7 @@ caja AS (
          cs.total_egresos AS egresos,
          (SELECT COALESCE(sum(monto),0) FROM caja_movimientos m
            WHERE m.caja_sesion_id = cs.id AND m.tipo IN ('EGRESO_ANULACION','EGRESO_MANUAL')) AS egresos_mov
-  FROM caja_sesiones cs WHERE cs.estado = 'ABIERTA'
+  FROM caja_sesiones cs WHERE cs.id = (SELECT max(id) FROM caja_sesiones)
 ),
 kardex AS (
   SELECT i.id, i.stock_actual_oz,
@@ -61,4 +61,27 @@ SELECT 'Auditoría: una entrada por venta y por anulación',
        format('VENTA_CONFIRMADA %s | ANULACION_FACTURA %s | MERMA %s',
          (SELECT count(*) FROM auditoria_logs WHERE accion='VENTA_CONFIRMADA'),
          (SELECT count(*) FROM auditoria_logs WHERE accion='ANULACION_FACTURA'),
-         (SELECT count(*) FROM auditoria_logs WHERE accion='REGISTRO_MERMA'));
+         (SELECT count(*) FROM auditoria_logs WHERE accion='REGISTRO_MERMA'))
+UNION ALL
+SELECT 'Ventas del menú BX registradas',
+       CASE WHEN count(*) > 0 THEN 'OK' ELSE 'FALLA' END,
+       format('%s líneas de venta de platillos BX', count(*))
+FROM venta_detalles d JOIN platillos p ON p.id = d.platillo_id WHERE p.sku LIKE 'BX-%'
+UNION ALL
+SELECT 'Inventario nuevo con código único',
+       CASE WHEN count(*) = 4 AND count(DISTINCT codigo) = 4 THEN 'OK' ELSE 'FALLA' END,
+       string_agg(codigo || ' ' || nombre, ', ' ORDER BY codigo)
+FROM ingredientes WHERE codigo LIKE 'INV-%'
+UNION ALL
+SELECT 'Caja: apertura y cierre autorizados por un supervisor distinto del cajero',
+       CASE WHEN cs.estado = 'CERRADA' AND cs.diferencia = 0
+             AND cs.usuario_autoriza_apertura_id IS NOT NULL AND cs.usuario_autoriza_cierre_id IS NOT NULL
+             AND cs.usuario_autoriza_apertura_id <> cs.usuario_apertura_id
+             AND cs.usuario_autoriza_cierre_id <> cs.usuario_cierre_id
+            THEN 'OK' ELSE 'FALLA' END,
+       format('abrió %s (autorizó %s) | cerró %s (autorizó %s) | diferencia Q%s',
+         (SELECT username FROM usuarios WHERE id = cs.usuario_apertura_id),
+         (SELECT username FROM usuarios WHERE id = cs.usuario_autoriza_apertura_id),
+         (SELECT username FROM usuarios WHERE id = cs.usuario_cierre_id),
+         (SELECT username FROM usuarios WHERE id = cs.usuario_autoriza_cierre_id), cs.diferencia)
+FROM caja_sesiones cs WHERE cs.id = (SELECT max(id) FROM caja_sesiones);

@@ -307,7 +307,12 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
     assert.equal(borradores.length, 35);
     assert.ok(borradores.every((p) => p.precioVenta === null && !p.disponible));
     const fotos = [...new Set(borradores.map((p) => p.imagenUrl))];
-    assert.equal(fotos.length, 24);
+    // Una foto propia por platillo (migración 20261122000007)
+    assert.equal(fotos.length, 35);
+    const fotoDe = (sku) => borradores.find((p) => p.sku === sku).imagenUrl;
+    assert.match(fotoDe('BX-23'), /000000000032\.webp$/, 'Jamaica con su propia foto');
+    assert.match(fotoDe('BX-29'), /000000000038\.webp$/, 'Coca-Cola lata con su propia foto');
+    assert.match(fotoDe('BX-18-P'), /000000000022\.webp$/, 'La cajita de deditos conserva la foto del documento');
     for (const url of fotos) {
       const foto = await fetch(new URL(url, API_BASE_URL));
       assert.equal(foto.status, 200);
@@ -559,6 +564,92 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
       algorithm: 'HS512',
     });
     assert.equal((await apiGet('/auth/me', otroAlgoritmo)).status, 401, 'Solo se acepta HS256');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Control dual de caja: el cajero no abre ni cierra solo
+  // ---------------------------------------------------------------------------
+  it('un cajero abre y cierra caja solo con usuario y contraseña de un supervisor', async () => {
+    // Sucursal propia para no tocar la caja de las otras pruebas
+    const sucursal = await Sucursal.create({
+      codigo: `QA-CJ-${RUN_TAG}`.slice(0, 20),
+      nombre: `Sucursal QA caja dual ${RUN_TAG}`,
+      nit: 'CF',
+      direccion: 'Prueba de control dual',
+      serieFactura: 'QC',
+    });
+    const rolCajero = await Rol.findOne({ where: { codigo: 'CAJERO' } });
+    assert.ok(rolCajero, 'El seed debe crear el rol CAJERO');
+    const hash = await bcrypt.hash(CLAVE_QA, 10);
+    const crear = async (sufijo, rolId) => {
+      const u = await Usuario.create({
+        sucursalId: sucursal.id,
+        rolId,
+        nombreCompleto: `QA caja dual ${sufijo} ${RUN_TAG}`,
+        username: `qa_cd_${sufijo}_${RUN_TAG}`.toLowerCase(),
+        email: `qa_cd_${sufijo}_${RUN_TAG}@pos.local`.toLowerCase(),
+        passwordHash: hash,
+      });
+      usuariosTemporalesIds.push(u.id);
+      return u;
+    };
+    const cajeroDb = await crear('cajero', rolCajero.id);
+    const otroCajero = await crear('cajero2', rolCajero.id);
+    const supervisor = await crear('admin', adminUser.rolId);
+    const cajero = {
+      id: cajeroDb.id,
+      username: cajeroDb.username,
+      sucursalId: sucursal.id,
+      permisos: await obtenerPermisosEfectivos(cajeroDb.id, rolCajero.id),
+    };
+    assert.ok(!cajero.permisos.includes('caja:autorizar'), 'El cajero no puede autorizarse');
+
+    const abrir = (autorizacion) => CajaService.abrirCaja(cajero, { montoInicial: 300, autorizacion }, CLIENT_META);
+
+    // Sin supervisor -> 400
+    await assert.rejects(() => abrir(undefined), (e) => e.statusCode === 400 && /administrador o auditor/i.test(e.message));
+    // Contraseña incorrecta -> 403 y suma intento fallido al supervisor
+    await assert.rejects(
+      () => abrir({ identifier: supervisor.username, password: 'ClaveIncorrecta99' }),
+      (e) => e.statusCode === 403,
+    );
+    assert.equal((await Usuario.findByPk(supervisor.id)).intentosFallidos, 1);
+    // Otro cajero no puede autorizar -> 403
+    await assert.rejects(
+      () => abrir({ identifier: otroCajero.username, password: CLAVE_QA }),
+      (e) => e.statusCode === 403 && /no puede autorizar/i.test(e.message),
+    );
+    assert.equal(await CajaSesion.count({ where: { sucursalId: sucursal.id } }), 0, 'Ningún intento rechazado abre caja');
+
+    // Con el administrador -> abre y registra quién autorizó
+    const abierta = await abrir({ identifier: supervisor.username.toUpperCase(), password: CLAVE_QA });
+    assert.equal(abierta.usuarioAutorizaAperturaId, supervisor.id);
+    assert.equal(abierta.usuarioAperturaId, cajero.id);
+    assert.equal((await Usuario.findByPk(supervisor.id)).intentosFallidos, 0, 'Un acierto reinicia los intentos');
+
+    // Cierre: también exige supervisor
+    await assert.rejects(
+      () => CajaService.cerrarCaja(cajero, { montoContadoEfectivo: 300 }, CLIENT_META),
+      (e) => e.statusCode === 400,
+    );
+    const cerrada = await CajaService.cerrarCaja(
+      cajero,
+      { montoContadoEfectivo: 300, autorizacion: { identifier: supervisor.email, password: CLAVE_QA } },
+      CLIENT_META,
+    );
+    assert.equal(cerrada.usuarioAutorizaCierreId, supervisor.id);
+    assert.equal(cerrada.estado, EstadoCaja.CERRADA);
+
+    // Auditoría: rechazos registrados y apertura/cierre con el nombre del supervisor
+    const { AuditoriaLog } = require('../src/models');
+    const rechazos = await AuditoriaLog.count({
+      where: { sucursalId: sucursal.id, accion: 'AUTORIZACION_CAJA_RECHAZADA' },
+    });
+    assert.equal(rechazos, 2, 'Contraseña incorrecta y cajero sin permiso quedan en auditoría');
+    const apertura = await AuditoriaLog.findOne({ where: { sucursalId: sucursal.id, accion: 'APERTURA_CAJA' } });
+    assert.equal(apertura.valorNuevo.autorizadoPor, supervisor.username);
+
+    await Sucursal.update({ activa: false }, { where: { id: sucursal.id } });
   });
 
   // ---------------------------------------------------------------------------

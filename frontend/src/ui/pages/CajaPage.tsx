@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { AperturaCajaPanel } from '../components/caja/AperturaCajaPanel';
 import { ArqueoCierreModal } from '../components/caja/ArqueoCierreModal';
+import { AutorizacionSupervisor } from '../components/caja/AutorizacionSupervisorFields';
 import { HistorialCierresTable } from '../components/caja/HistorialCierresTable';
 import { MovimientoManualModal } from '../components/caja/MovimientoManualModal';
 import { MovimientosTurnoPanel } from '../components/caja/MovimientosTurnoPanel';
@@ -16,6 +17,8 @@ export const CajaPage: React.FC = () => {
   const canOpen = useAuthStore((s) => s.can('caja:abrir'));
   const canMove = useAuthStore((s) => s.can('caja:movimiento'));
   const canClose = useAuthStore((s) => s.can('caja:cerrar'));
+  // Control dual: sin caja:autorizar (p. ej. un cajero) se piden credenciales de un supervisor
+  const requiereAutorizacion = !useAuthStore((s) => s.can('caja:autorizar'));
 
   const [actual, setActual] = useState<CajaSesionModel | null>(null);
   const [historial, setHistorial] = useState<CajaSesionModel[]>([]);
@@ -49,11 +52,15 @@ export const CajaPage: React.FC = () => {
     void cargar(1);
   }, [cargar]);
 
-  const handleAbrirCaja = async (montoInicial: number, observaciones?: string): Promise<boolean> => {
+  const handleAbrirCaja = async (
+    montoInicial: number,
+    observaciones?: string,
+    autorizacion?: AutorizacionSupervisor,
+  ): Promise<boolean> => {
     setError(null);
     setSuccess(null);
     try {
-      await cajaService.abrir(montoInicial, observaciones);
+      await cajaService.abrir(montoInicial, observaciones, autorizacion);
       setSuccess('Turno de caja abierto correctamente. El punto de venta ya está habilitado.');
       await cargar(1);
       return true;
@@ -82,11 +89,15 @@ export const CajaPage: React.FC = () => {
     }
   };
 
-  const handleCerrarCaja = async (montoContado: number, observaciones?: string) => {
+  const handleCerrarCaja = async (
+    montoContado: number,
+    observaciones?: string,
+    autorizacion?: AutorizacionSupervisor,
+  ) => {
     setError(null);
     setSuccess(null);
     try {
-      const cerrada = await cajaService.cerrar(montoContado, observaciones);
+      const cerrada = await cajaService.cerrar(montoContado, observaciones, autorizacion);
       setCloseModal(false);
       setSuccess(
         `Turno #${cerrada.id} cerrado. Esperado: ${formatCurrency(cerrada.montoEsperadoEfectivo)} | Contado: ${formatCurrency(cerrada.montoContadoEfectivo ?? 0)} | Diferencia: ${formatCurrency(cerrada.diferencia ?? 0)}.`,
@@ -171,7 +182,11 @@ export const CajaPage: React.FC = () => {
       {loading ? (
         <div className="rounded-2xl bg-white p-12 text-center text-slate-400">Cargando estado de caja...</div>
       ) : !actual ? (
-        <AperturaCajaPanel canOpen={canOpen} onAbrirCaja={handleAbrirCaja} />
+        <AperturaCajaPanel
+          canOpen={canOpen}
+          requiereAutorizacion={requiereAutorizacion}
+          onAbrirCaja={handleAbrirCaja}
+        />
       ) : (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
           <ResumenCajaTurno actual={actual} />
@@ -194,6 +209,7 @@ export const CajaPage: React.FC = () => {
       <ArqueoCierreModal
         open={closeModal}
         actual={actual}
+        requiereAutorizacion={requiereAutorizacion}
         onClose={() => setCloseModal(false)}
         onConfirmarCierre={handleCerrarCaja}
       />

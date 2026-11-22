@@ -9,8 +9,13 @@ export const cajaService = {
     return res.data ? cajaAdapter.fromSesionJson(res.data) : null;
   },
 
-  async abrir(montoInicial: number, observaciones?: string): Promise<CajaSesionModel> {
-    const res = await httpClient.post<unknown>('/caja/abrir', { montoInicial, observaciones });
+  // autorizacion: usuario y contraseña del supervisor (Administrador/Auditor) cuando quien opera no puede autorizarse
+  async abrir(
+    montoInicial: number,
+    observaciones?: string,
+    autorizacion?: { identifier: string; password: string },
+  ): Promise<CajaSesionModel> {
+    const res = await httpClient.post<unknown>('/caja/abrir', { montoInicial, observaciones, autorizacion });
     return cajaAdapter.fromSesionJson(res.data);
   },
 
@@ -23,10 +28,15 @@ export const cajaService = {
     return httpClient.post('/caja/movimientos', payload);
   },
 
-  async cerrar(montoContadoEfectivo: number, observacionesCierre?: string): Promise<CajaSesionModel> {
+  async cerrar(
+    montoContadoEfectivo: number,
+    observacionesCierre?: string,
+    autorizacion?: { identifier: string; password: string },
+  ): Promise<CajaSesionModel> {
     const res = await httpClient.post<unknown>('/caja/cerrar', {
       montoContadoEfectivo,
       observacionesCierre,
+      autorizacion,
     });
     return cajaAdapter.fromSesionJson(res.data);
   },

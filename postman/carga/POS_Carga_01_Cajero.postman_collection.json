@@ -15,7 +15,10 @@
               "pm.test('GET Menú POS: HTTP 200', () => pm.expect([200]).to.include(pm.response.code));",
               "const d = pm.response.json().data;",
               "const vendibles = d.platillos.filter((p) => p.disponible && p.stockDisponible);",
-              "const p = vendibles[Math.floor(Math.random() * vendibles.length)];",
+              "// Se prefieren los platillos del menú BX que ya tienen precio",
+              "const bx = vendibles.filter((x) => (x.sku || '').startsWith('BX-'));",
+              "const lista = bx.length ? bx : vendibles;",
+              "const p = lista[Math.floor(Math.random() * lista.length)];",
               "pm.variables.set('platilloId', p.id);",
               "pm.variables.set('cantidad', 1 + Math.floor(Math.random() * 3));"
             ]

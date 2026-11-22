@@ -4,6 +4,7 @@ const { getPgErrorCode, withTransaction } = require('../config/database');
 const { CajaMovimiento, CajaSesion, EstadoCaja, MetodoPago, TipoMovimientoCaja, Usuario, Venta } = require('../models');
 const { BadRequestError, ConflictError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
+const { verificarAutorizacionCaja } = require('./autorizacion-supervisor.service');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { round2 } = require('../shared/utils/tax');
 function isUniqueCajaAbiertaError(error) {
@@ -82,6 +83,8 @@ class CajaService {
         };
     }
     static async abrirCaja(user, input, clientMeta) {
+        // Control dual: se valida al supervisor antes de abrir la transacción (bcrypt es lento)
+        const autorizador = await verificarAutorizacionCaja(user, input.autorizacion, 'abrir', clientMeta);
         try {
             return await withTransaction(async (tx) => {
                 const abierta = await CajaSesion.findOne({
@@ -95,6 +98,7 @@ class CajaService {
                 const sesion = await CajaSesion.create({
                     sucursalId: user.sucursalId,
                     usuarioAperturaId: user.id,
+                    usuarioAutorizaAperturaId: autorizador.id,
                     estado: EstadoCaja.ABIERTA,
                     montoInicial,
                     observacionesCierre: input.observaciones ?? null,
@@ -120,6 +124,7 @@ class CajaService {
                         estado: sesion.estado,
                         montoInicial,
                         fechaApertura: sesion.fechaApertura,
+                        autorizadoPor: autorizador.username,
                     },
                     ipAddress: clientMeta.ipAddress,
                     userAgent: clientMeta.userAgent,
@@ -215,6 +220,8 @@ class CajaService {
         });
     }
     static async cerrarCaja(user, input, clientMeta) {
+        // Control dual: el cuadre lo valida un supervisor distinto de quien maneja el efectivo
+        const autorizador = await verificarAutorizacionCaja(user, input.autorizacion, 'cerrar', clientMeta);
         return withTransaction(async (tx) => {
             const sesion = await CajaSesion.findOne({
                 where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
@@ -230,6 +237,7 @@ class CajaService {
             await sesion.update({
                 estado: EstadoCaja.CERRADA,
                 usuarioCierreId: user.id,
+                usuarioAutorizaCierreId: autorizador.id,
                 montoEsperadoEfectivo: desglose.montoEsperadoEfectivo,
                 montoContadoEfectivo,
                 diferencia,
@@ -264,6 +272,7 @@ class CajaService {
                     totalEgresosTarjeta: desglose.totalEgresosTarjeta,
                     totalTarjetaNeto: desglose.totalTarjetaNeto,
                     observacionesCierre: sesion.observacionesCierre,
+                    autorizadoPor: autorizador.username,
                 },
                 ipAddress: clientMeta.ipAddress,
                 userAgent: clientMeta.userAgent,

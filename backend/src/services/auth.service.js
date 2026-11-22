@@ -245,4 +245,6 @@ module.exports = {
   AuthService,
   sanitizarIdentificadorAuditoria,
   revocarSesionesUsuario,
+  registrarIntentoFallido,
+  DUMMY_PASSWORD_HASH,
 };

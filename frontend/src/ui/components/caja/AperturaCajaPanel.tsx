@@ -2,21 +2,44 @@ import React, { useState } from 'react';
 import { LockOpen } from 'lucide-react';
 import { formatCurrency } from '../../../utils/formatters';
 import { Alert } from '../common/Alert';
+import {
+  AUTORIZACION_VACIA,
+  AutorizacionSupervisor,
+  AutorizacionSupervisorFields,
+} from './AutorizacionSupervisorFields';
 
 interface AperturaCajaPanelProps {
   canOpen: boolean;
-  onAbrirCaja: (montoInicial: number, observaciones?: string) => Promise<boolean>;
+  /** true cuando el usuario no tiene caja:autorizar (p. ej. un cajero): pide credenciales de supervisor */
+  requiereAutorizacion: boolean;
+  onAbrirCaja: (
+    montoInicial: number,
+    observaciones?: string,
+    autorizacion?: AutorizacionSupervisor,
+  ) => Promise<boolean>;
 }
 
-export const AperturaCajaPanel: React.FC<AperturaCajaPanelProps> = ({ canOpen, onAbrirCaja }) => {
+export const AperturaCajaPanel: React.FC<AperturaCajaPanelProps> = ({
+  canOpen,
+  requiereAutorizacion,
+  onAbrirCaja,
+}) => {
   const [montoInicial, setMontoInicial] = useState('500.00');
   const [obsApertura, setObsApertura] = useState('');
+  const [autorizacion, setAutorizacion] = useState<AutorizacionSupervisor>(AUTORIZACION_VACIA);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await onAbrirCaja(Number(montoInicial), obsApertura || undefined);
+    const ok = await onAbrirCaja(
+      Number(montoInicial),
+      obsApertura || undefined,
+      requiereAutorizacion ? autorizacion : undefined,
+    );
+    // La contraseña del supervisor no se conserva, salió bien o mal
+    setAutorizacion((a) => ({ ...a, password: '' }));
     if (ok) {
       setObsApertura('');
+      setAutorizacion(AUTORIZACION_VACIA);
     }
   };
 
@@ -75,6 +98,10 @@ export const AperturaCajaPanel: React.FC<AperturaCajaPanelProps> = ({ canOpen, o
               className="min-h-[46px] w-full rounded-xl border border-slate-300 px-3.5 text-sm"
             />
           </div>
+
+          {requiereAutorizacion && (
+            <AutorizacionSupervisorFields value={autorizacion} onChange={setAutorizacion} operacion="abrir" />
+          )}
 
           <button
             type="submit"

@@ -3,18 +3,30 @@ import { Calculator, CheckCircle2, AlertCircle, Coins } from 'lucide-react';
 import { CajaSesionModel } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Modal } from '../common/Modal';
+import {
+  AUTORIZACION_VACIA,
+  AutorizacionSupervisor,
+  AutorizacionSupervisorFields,
+} from './AutorizacionSupervisorFields';
 import { ContadorBilletesGTQ, DENOMINACIONES_GTQ } from './ContadorBilletesGTQ';
 
 interface ArqueoCierreModalProps {
   open: boolean;
   actual: CajaSesionModel | null;
+  /** true cuando el usuario no tiene caja:autorizar (p. ej. un cajero): pide credenciales de supervisor */
+  requiereAutorizacion: boolean;
   onClose: () => void;
-  onConfirmarCierre: (montoContado: number, observaciones?: string) => Promise<void>;
+  onConfirmarCierre: (
+    montoContado: number,
+    observaciones?: string,
+    autorizacion?: AutorizacionSupervisor,
+  ) => Promise<void>;
 }
 
 export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
   open,
   actual,
+  requiereAutorizacion,
   onClose,
   onConfirmarCierre,
 }) => {
@@ -22,6 +34,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
   const [conteoBilletes, setConteoBilletes] = useState<Record<string, string>>({});
   const [montoContadoDirecto, setMontoContadoDirecto] = useState('');
   const [obsCierre, setObsCierre] = useState('');
+  const [autorizacion, setAutorizacion] = useState<AutorizacionSupervisor>(AUTORIZACION_VACIA);
 
   useEffect(() => {
     if (open && actual) {
@@ -29,6 +42,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
       setMontoContadoDirecto(actual.montoEsperadoEfectivo.toFixed(2));
       setObsCierre('');
       setModoArqueo('denominaciones');
+      setAutorizacion(AUTORIZACION_VACIA);
     }
   }, [open, actual]);
 
@@ -51,7 +65,13 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onConfirmarCierre(montoContadoFinal, obsCierre || undefined);
+    await onConfirmarCierre(
+      montoContadoFinal,
+      obsCierre || undefined,
+      requiereAutorizacion ? autorizacion : undefined,
+    );
+    // La contraseña del supervisor no se conserva en pantalla
+    setAutorizacion((a) => ({ ...a, password: '' }));
   };
 
   return (
@@ -192,6 +212,10 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
               className="w-full rounded-xl border border-slate-300 p-3 text-sm"
             />
           </div>
+
+          {requiereAutorizacion && (
+            <AutorizacionSupervisorFields value={autorizacion} onChange={setAutorizacion} operacion="cerrar" />
+          )}
 
           <div className="flex justify-end gap-2">
             <button
