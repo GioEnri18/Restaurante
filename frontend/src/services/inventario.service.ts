@@ -72,7 +72,7 @@ export const inventarioService = {
     proveedorId: number;
     numeroDocumento?: string;
     observaciones?: string;
-    items: Array<{ ingredienteId: number; cantidadLb: number; precioPorLb: number }>;
+    items: Array<{ ingredienteId: number; cantidad: number; unidad: UnidadMedida; precioUnitario: number }>;
   }): Promise<CompraModel> {
     const res = await httpClient.post<unknown>('/inventario/compras', payload);
     return inventarioAdapter.fromCompraJson(res.data);

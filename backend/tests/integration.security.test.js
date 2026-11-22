@@ -839,6 +839,10 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
       body: JSON.stringify(body),
     });
     assert.equal((await guardar('/accesos/usuarios', usuario)).status, 400);
+    const rolMesero = await Rol.findOne({ where: { codigo: 'MESERO', activo: true } });
+    assert.ok(rolMesero);
+    assert.equal((await guardar('/accesos/usuarios', { ...usuario, rolId: rolMesero.id, fechaIngreso: '2026-01-03', sueldoMensual: 3200 })).status, 400);
+    assert.ok(await Rol.findOne({ where: { codigo: 'CHEF', activo: true } }));
     const respuesta = await guardar('/accesos/usuarios', { ...usuario, fechaIngreso: '2026-01-03', sueldoMensual: 3200 });
     assert.equal(respuesta.status, 201);
     const { data: { id } } = await respuesta.json();

@@ -141,6 +141,17 @@ docker compose exec backend npm run db:cargar-menu-base -- SUC-01
 
 La carga crea borradores por SKU y puede repetirse sin duplicar productos ni sobrescribir recetas, precios o fotos editadas. Las fotos iniciales WebP se sirven desde la aplicación y las que suba el administrador se guardan en el volumen. Los gramajes son pruebas por porción almacenadas en onzas en el POS. Los insumos nuevos empiezan sin existencias y sin costo registrado. Los combos requieren composición y las bebidas envasadas requieren definir su control por presentación. Antes de habilitar cualquier producto, confirma su receta, registra los costos de compra y asigna el precio de venta. Los menús de temporada se siguen gestionando por fechas desde Menús Especiales.
 
+### Demostración BX en una sucursal aislada
+
+Ejecuta el comando desde el backend después de migrar. Configura `BX_DEMO_PASSWORD` en el entorno del proceso con una contraseña de al menos 16 caracteres, letras y números. El usuario `cajero_demo_bx` entra a la sucursal `QA-BX-DEMO` con los permisos necesarios para probar caja y ventas. La primera activación carga precios, existencias, una compra y recetas ficticias en esa sucursal. Reactivar conserva los movimientos que ya se hicieron y cambia la contraseña de la cuenta de prueba.
+
+```bash
+npm run db:demo-bx -- activar
+npm run db:demo-bx -- desactivar
+```
+
+Al desactivar se revocan las sesiones del cajero y se retira la sucursal de uso. Su historial queda disponible para una futura reactivación y sus datos quedan separados de las sucursales operativas.
+
 ### Respaldos
 
 Respalda y restaura el volumen `platillos_media` junto con PostgreSQL para conservar las fotos y sus rutas.

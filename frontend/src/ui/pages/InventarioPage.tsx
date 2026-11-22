@@ -16,6 +16,7 @@ import {
   PaginationMeta,
   PlatilloModel,
   ProveedorModel,
+  UnidadMedida,
 } from '../../models';
 import { inventarioService } from '../../services/inventario.service';
 import { ventasService } from '../../services/ventas.service';
@@ -197,8 +198,9 @@ export const InventarioPage: React.FC = () => {
     numeroDocumento?: string;
     observaciones?: string;
     ingredienteId: number;
-    cantidadLb: number;
-    precioPorLb: number;
+    cantidad: number;
+    unidad: UnidadMedida;
+    precioUnitario: number;
   }): Promise<boolean> => {
     setError(null);
     try {
@@ -209,13 +211,14 @@ export const InventarioPage: React.FC = () => {
         items: [
           {
             ingredienteId: payload.ingredienteId,
-            cantidadLb: payload.cantidadLb,
-            precioPorLb: payload.precioPorLb,
+            cantidad: payload.cantidad,
+            unidad: payload.unidad,
+            precioUnitario: payload.precioUnitario,
           },
         ],
       });
       setSuccess(
-        `Compra registrada: ${payload.cantidadLb} lb convertidas automáticamente a ${lbToOzPreview(payload.cantidadLb)} oz en inventario.`,
+        `Compra registrada. Se sumaron ${payload.unidad === 'lb' ? lbToOzPreview(payload.cantidad) : payload.cantidad} oz al inventario.`,
       );
       await cargarTodo();
       return true;
@@ -367,6 +370,7 @@ export const InventarioPage: React.FC = () => {
       )}
 
       {tab === 'compras' && (
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
         <ComprasPanel
           key={ingredienteCompra?.id ?? 'compras'}
           canBuy={canBuy}
@@ -378,6 +382,8 @@ export const InventarioPage: React.FC = () => {
           compras={compras}
           onRegistrarCompra={handleRegistrarCompra}
         />
+        <AlertasStockPanel ingredientes={ingredientes} onComprar={canBuy ? abrirCompra : undefined} />
+        </div>
       )}
 
       {tab === 'proveedores' && <ProveedoresGrid proveedores={proveedores} />}

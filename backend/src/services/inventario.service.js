@@ -290,8 +290,8 @@ class InventarioService {
      * bloqueando ingredientes en orden ascendente (FOR UPDATE), recalculando costo promedio ponderado por onza
      * y registrando entradas en Kardex.
      */
-    static async registrarCompra(user, input, clientMeta) {
-        return withTransaction(async (tx) => {
+    static async registrarCompra(user, input, clientMeta, transaction) {
+        const registrar = async (tx) => {
             const proveedor = await Proveedor.findOne({
                 where: { id: input.proveedorId, sucursalId: user.sucursalId, activo: true },
                 transaction: tx,
@@ -320,24 +320,32 @@ class InventarioService {
                 if (!estadoIngMap.has(item.ingredienteId)) {
                     throw new NotFoundError(`Ingrediente ID ${item.ingredienteId} no encontrado`);
                 }
-                const cantidadOz = UnitConversionService.toMovimientoOz(item.cantidadLb, UnidadMedida.lb, true);
-                const precioPorLb = round2(item.precioPorLb);
+                const unidad = item.unidad ?? UnidadMedida.lb;
+                const cantidad = item.cantidad ?? item.cantidadLb;
+                const costoUnitario = round2(item.precioUnitario ?? item.precioPorLb);
+                const cantidadOz = UnitConversionService.toMovimientoOz(cantidad, unidad, true);
+                const precioPorLb = unidad === UnidadMedida.oz
+                    ? round2(costoUnitario * UnitConversionService.FACTOR_LB_A_OZ)
+                    : costoUnitario;
                 if (!(precioPorLb >= 0.01 && precioPorLb <= 99999999.99)) {
                     throw new BadRequestError('El precio por libra está fuera del rango permitido');
                 }
                 const costoPorOz = UnitConversionService.pricePerLbToCostPerOz(precioPorLb);
-                const subtotal = round2(item.cantidadLb * precioPorLb);
+                const subtotal = round2(cantidad * costoUnitario);
                 totalCompra = round2(totalCompra + subtotal);
                 if (totalCompra > 9999999999.99) {
                     throw new BadRequestError('El total de la compra excede el máximo permitido');
                 }
                 detallesPreparados.push({
                     ingredienteId: item.ingredienteId,
-                    cantidadLb: round4(item.cantidadLb),
+                    cantidadLb: UnitConversionService.ozToLb(cantidadOz),
                     cantidadOz,
                     precioPorLb,
                     costoPorOz,
                     subtotal,
+                    unidad,
+                    cantidad,
+                    costoUnitario,
                 });
             }
             const compra = await Compra.create({
@@ -380,7 +388,7 @@ class InventarioService {
                     costoUnitarioOz: det.costoPorOz,
                     referenciaTipo: 'COMPRA',
                     referenciaId: compra.id,
-                    motivo: `Compra #${compra.id} (${det.cantidadLb} lb = ${det.cantidadOz} oz @ Q ${det.precioPorLb.toFixed(2)}/lb)`,
+                    motivo: `Compra #${compra.id} (${det.cantidad} ${det.unidad} @ Q ${det.costoUnitario.toFixed(2)}/${det.unidad})`,
                 }, { transaction: tx });
             }
             await AuditService.registrar({
@@ -398,6 +406,9 @@ class InventarioService {
                         cantidadLb: d.cantidadLb,
                         cantidadOz: d.cantidadOz,
                         precioPorLb: d.precioPorLb,
+                        unidadOriginal: d.unidad,
+                        cantidadOriginal: d.cantidad,
+                        costoUnitarioOriginal: d.costoUnitario,
                         stockAnteriorOz: d.stockAnteriorOz,
                         stockNuevoOz: d.stockNuevoOz,
                         costoPromedioAnteriorOz: d.costoPromedioAnteriorOz,
@@ -419,7 +430,8 @@ class InventarioService {
                 transaction: tx,
             });
             return (compraCompleta ?? compra).get({ plain: true });
-        });
+        };
+        return transaction ? registrar(transaction) : withTransaction(registrar);
     }
     static async listarCompras(sucursalId, rawPage, rawLimit) {
         const { page, limit, skip } = parsePagination(rawPage, rawLimit, 10);

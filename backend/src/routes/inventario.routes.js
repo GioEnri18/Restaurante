@@ -50,11 +50,19 @@ const registrarCompraSchema = z.object({
     numeroDocumento: z.string().trim().max(60).optional(),
     observaciones: z.string().trim().max(300).optional(),
     items: z
-        .array(z.object({
-        ingredienteId: idPositivo,
-        cantidadLb: cantidadMovimiento,
-        precioPorLb: numeroDecimal.pipe(z.number().min(0.01, 'El precio por libra debe ser de al menos Q0.01').max(99999999.99)),
-    }))
+        .array(z.union([
+        z.object({
+            ingredienteId: idPositivo,
+            cantidad: cantidadMovimiento,
+            unidad: z.enum(['lb', 'oz']),
+            precioUnitario: numeroDecimal.pipe(z.number().min(0.01, 'El costo unitario debe ser de al menos Q0.01').max(99999999.99)),
+        }),
+        z.object({
+            ingredienteId: idPositivo,
+            cantidadLb: cantidadMovimiento,
+            precioPorLb: numeroDecimal.pipe(z.number().min(0.01, 'El precio por libra debe ser de al menos Q0.01').max(99999999.99)),
+        }),
+    ]))
         .min(1, 'Agrega al menos un ingrediente a la compra')
         .max(200, 'La compra no puede tener más de 200 ingredientes'),
 });

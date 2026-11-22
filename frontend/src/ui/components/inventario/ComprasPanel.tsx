@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { env } from '../../../config/env';
-import { CompraModel, IngredienteModel, ProveedorModel } from '../../../models';
+import { CompraModel, IngredienteModel, ProveedorModel, UnidadMedida } from '../../../models';
 import { formatCurrency, formatDateTime, lbToOzPreview } from '../../../utils/formatters';
 
 interface ComprasPanelProps {
@@ -16,8 +16,9 @@ interface ComprasPanelProps {
     numeroDocumento?: string;
     observaciones?: string;
     ingredienteId: number;
-    cantidadLb: number;
-    precioPorLb: number;
+    cantidad: number;
+    unidad: UnidadMedida;
+    precioUnitario: number;
   }) => Promise<boolean>;
 }
 
@@ -26,8 +27,9 @@ const INITIAL_COMPRA_FORM = {
   numeroDocumento: '',
   observaciones: '',
   ingredienteId: '',
-  cantidadLb: '',
-  precioPorLb: '',
+  cantidad: '',
+  unidad: 'lb' as UnidadMedida,
+  precioUnitario: '',
 };
 
 export const ComprasPanel: React.FC<ComprasPanelProps> = ({
@@ -55,8 +57,11 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
     }
   }, [proveedorCompraNuevo]);
 
-  const previewOz = lbToOzPreview(Number(compraForm.cantidadLb || 0));
-  const previewSubtotal = Number(compraForm.cantidadLb || 0) * Number(compraForm.precioPorLb || 0);
+  const cantidad = Number(compraForm.cantidad || 0);
+  const precio = Number(compraForm.precioUnitario || 0);
+  const enLibras = compraForm.unidad === 'lb';
+  const previewOz = enLibras ? lbToOzPreview(cantidad) : cantidad;
+  const previewSubtotal = cantidad * precio;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,10 +73,11 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
         numeroDocumento: compraForm.numeroDocumento || undefined,
         observaciones: compraForm.observaciones || undefined,
         ingredienteId: Number(compraForm.ingredienteId),
-        cantidadLb: Number(compraForm.cantidadLb),
-        precioPorLb: Number(compraForm.precioPorLb),
+        cantidad,
+        unidad: compraForm.unidad,
+        precioUnitario: precio,
       });
-      if (ok) setCompraForm((actual) => ({ ...actual, numeroDocumento: '', cantidadLb: '', precioPorLb: '' }));
+      if (ok) setCompraForm((actual) => ({ ...actual, numeroDocumento: '', cantidad: '', precioUnitario: '' }));
     } finally {
       setGuardando(false);
     }
@@ -82,10 +88,10 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
       {canBuy && (
         <form
           onSubmit={handleSubmit}
-          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-5"
+          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-12 2xl:col-span-6"
         >
           <h2 className="text-lg font-bold text-slate-900">Ingresar una compra</h2>
-          <p className="text-sm text-slate-600">Ingresa la cantidad recibida y lo que pagaste por libra.</p>
+          <p className="text-sm text-slate-600">Elige la unidad en que compraste e ingresa la cantidad y el costo por esa unidad.</p>
           <div>
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
               <label htmlFor="compra-proveedor" className="text-sm font-bold text-slate-700">Proveedor</label>
@@ -127,9 +133,21 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
               ))}
             </select>
           </div>
+          <fieldset>
+            <legend className="mb-2 text-sm font-bold text-slate-700">Unidad de compra</legend>
+            <div className="flex flex-wrap gap-2">
+              {(['lb', 'oz'] as const).map((unidad) => (
+                <label key={unidad} className={`flex min-h-[44px] items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${compraForm.unidad === unidad ? 'border-teal-400 bg-teal-50 text-teal-950' : 'border-slate-200 text-slate-700'}`}>
+                  <input type="radio" name="compra-unidad" checked={compraForm.unidad === unidad}
+                    onChange={() => setCompraForm((actual) => ({ ...actual, unidad, cantidad: '', precioUnitario: '' }))} />
+                  {unidad === 'lb' ? 'Libras (lb)' : 'Onzas (oz)'}
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="compra-cantidad" className="mb-1 block text-sm font-bold text-slate-700">Cantidad recibida (lb)</label>
+              <label htmlFor="compra-cantidad" className="mb-1 block text-sm font-bold text-slate-700">Cantidad recibida ({compraForm.unidad})</label>
               <input
                 id="compra-cantidad"
                 required
@@ -137,22 +155,22 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
                 step="0.0001"
                 min="0.0001"
                 max="999999.9999"
-                value={compraForm.cantidadLb}
-                onChange={(e) => setCompraForm({ ...compraForm, cantidadLb: e.target.value })}
+                value={compraForm.cantidad}
+                onChange={(e) => setCompraForm({ ...compraForm, cantidad: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
               />
             </div>
             <div>
-              <label htmlFor="compra-precio" className="mb-1 block text-sm font-bold text-slate-700">Costo por libra (Q)</label>
+              <label htmlFor="compra-precio" className="mb-1 block text-sm font-bold text-slate-700">Costo por {enLibras ? 'libra' : 'onza'} (Q)</label>
               <input
                 id="compra-precio"
                 required
                 type="number"
                 step="0.01"
                 min="0.01"
-                max="99999999.99"
-                value={compraForm.precioPorLb}
-                onChange={(e) => setCompraForm({ ...compraForm, precioPorLb: e.target.value })}
+                max={enLibras ? 99999999.99 : Math.floor(99999999.99 * 100 / env.OZ_PER_LB) / 100}
+                value={compraForm.precioUnitario}
+                onChange={(e) => setCompraForm({ ...compraForm, precioUnitario: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
               />
             </div>
@@ -166,12 +184,10 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
               </p>
             )}
             <p>
-              Conversión automática: <strong>{compraForm.cantidadLb || 0} lb</strong> ={' '}
-              <strong>{previewOz.toFixed(2)} oz</strong>
+              Se sumarán <strong>{previewOz.toLocaleString(env.LOCALE, { maximumFractionDigits: 4 })} oz</strong>
             </p>
             <p className="mt-1">
-              Total de compra: <strong>{formatCurrency(previewSubtotal)}</strong> (
-              {formatCurrency(Number(compraForm.precioPorLb || 0) / env.OZ_PER_LB)} / oz)
+              Total de compra <strong>{formatCurrency(previewSubtotal)}</strong>
             </p>
           </div>
 
@@ -193,7 +209,7 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
         </form>
       )}
 
-      <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${canBuy ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
+      <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${canBuy ? 'lg:col-span-12 2xl:col-span-6' : 'lg:col-span-12'}`}>
         <h2 className="mb-4 text-lg font-bold text-slate-900">Compras recientes</h2>
         <div className="space-y-3">
           {compras.length === 0 ? (
@@ -216,8 +232,7 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
                 <div className="mt-2 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
                   {c.detalles.map((d, idx) => (
                     <p key={idx}>
-                      • <strong>{d.ingredienteNombre}</strong>: {d.cantidadLb} lb →{' '}
-                      <strong>{d.cantidadOz} oz</strong> ({formatCurrency(d.precioPorLb)}/lb)
+                      <strong>{d.ingredienteNombre}</strong> · {d.cantidadOz} oz · {formatCurrency(d.subtotal)}
                     </p>
                   ))}
                 </div>

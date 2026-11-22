@@ -138,11 +138,12 @@ export const AccesosPage: React.FC = () => {
     setUserModal(true);
   };
 
-  const rolesAccesoRapido = ['CAJERO', 'MESERO', 'AUDITOR']
+  const rolesAccesoRapido = ['CAJERO', 'AUDITOR', 'CHEF', 'ADMIN']
     .map((codigo) => roles.find((r) => r.codigo.toUpperCase() === codigo))
     .filter((r): r is RolModel => Boolean(r));
 
   const rolSeleccionadoEnModal = roles.find((r) => String(r.id) === userForm.rolId) ?? null;
+  const rolesAsignables = roles.filter((rol) => rol.codigo.toUpperCase() !== 'MESERO' || rol.id === editingUser?.rol.id);
 
   const abrirEditarUsuario = (u: UsuarioAdminModel) => {
     setErrorUsuario(null);
@@ -543,7 +544,7 @@ export const AccesosPage: React.FC = () => {
             className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
           >
             <option value="" disabled>Selecciona el rol del usuario</option>
-            {roles.map((r) => (
+            {rolesAsignables.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.nombre} ({r.codigo})
               </option>

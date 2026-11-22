@@ -16,6 +16,15 @@ function datosNomina(usuario) {
     };
 }
 
+async function obtenerRolParaAlta(rolId, transaction) {
+    const rol = await Rol.findOne({ where: { id: rolId, activo: true }, transaction });
+    if (!rol) throw new NotFoundError('El rol seleccionado no existe o está inactivo');
+    if (rol.codigo.toUpperCase() === 'MESERO') {
+        throw new BadRequestError('El rol Mesero está reservado para cuentas históricas de esta operación exprés');
+    }
+    return rol;
+}
+
 async function auditarNomina(admin, usuario, anterior, clientMeta, tx) {
     const nuevo = datosNomina(usuario);
     if (anterior && nuevo.fechaIngreso === anterior.fechaIngreso && nuevo.sueldoMensual === anterior.sueldoMensual) return;
@@ -100,10 +109,7 @@ class AccesosService {
     }
     static async crearUsuario(adminUser, input, clientMeta) {
         return withTransaction(async (tx) => {
-            const rol = await Rol.findByPk(input.rolId, { transaction: tx });
-            if (!rol) {
-                throw new NotFoundError('El rol seleccionado no existe');
-            }
+            const rol = await obtenerRolParaAlta(input.rolId, tx);
             const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_SALT_ROUNDS);
             const usuario = await Usuario.create({
                 sucursalId: adminUser.sucursalId,
@@ -170,6 +176,9 @@ class AccesosService {
             }
             if (input.rolId && targetUserId === adminUser.id && input.rolId !== actual.rolId) {
                 throw new BadRequestError('No puedes cambiar tu propio rol de Administrador');
+            }
+            if (input.rolId !== undefined && input.rolId !== actual.rolId) {
+                await obtenerRolParaAlta(input.rolId, tx);
             }
             const prevNombre = actual.nombreCompleto;
             const prevEmail = actual.email;

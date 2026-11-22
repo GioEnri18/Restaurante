@@ -293,6 +293,15 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     const comprado = await Ingrediente.findByPk(idCompraIngrediente);
     assert.equal(Number(comprado.stockActualOz), 32);
     assert.equal(Number(comprado.costoPromedioOz), 1.5);
+    const compraEnOnzas = await enviar('/inventario/compras', {
+      proveedorId: proveedor.id,
+      items: [{ ingredienteId: idCompraIngrediente, cantidad: 3.125, unidad: UnidadMedida.oz, precioUnitario: 2 }],
+    });
+    assert.equal(compraEnOnzas.status, 201);
+    assert.equal(Number(compraEnOnzas.body.data.total), 6.25);
+    await comprado.reload();
+    assert.equal(Number(comprado.stockActualOz), 35.125);
+    assert.equal(Number(comprado.costoPromedioOz), 1.5445);
 
     const borrador = await enviar('/ventas/platillos', {
       categoriaId,
@@ -307,7 +316,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     assert.equal(borrador.body.data.disponible, false);
     assert.equal(borrador.body.data.receta[0].ingredienteId, idCompraIngrediente);
     assert.equal(Number(borrador.body.data.receta[0].cantidadOz), 4);
-    assert.equal(Number((await comprado.reload()).stockActualOz), 32);
+    assert.equal(Number((await comprado.reload()).stockActualOz), 35.125);
 
     const ingrediente = await crearIngredienteTemporal('PRECIO', 20);
     const configurado = await enviar(`/ventas/platillos/${platillo.id}`, {
