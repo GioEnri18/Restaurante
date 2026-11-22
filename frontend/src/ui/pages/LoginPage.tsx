@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { ChefHat, Lock, User, LogIn, Eye, EyeOff } from 'lucide-react';
+import { CREDENCIALES_DEMO } from '../../config/demoCredentials';
 import { env } from '../../config/env';
 import { useAuthStore } from '../../store/auth.store';
 import { Alert } from '../components/common/Alert';
+
+// Evaluación estática para que Vite elimine por tree-shaking las credenciales demo en producción
+const MOSTRAR_LOGIN_DEMO =
+  import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_LOGIN === 'true';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,7 +17,6 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isDev = import.meta.env.DEV;
 
   if (usuario) {
     return <Navigate to={usuario.rol.vistaInicial || '/ventas'} replace />;
@@ -110,34 +114,23 @@ export const LoginPage: React.FC = () => {
           ¿No tienes usuario o olvidaste tu clave? Solicítala al Administrador de tu sucursal.
         </p>
 
-        {/* Accesos rápidos de prueba únicamente en desarrollo local */}
-        {isDev && (
+        {/* Accesos rápidos de prueba únicamente en desarrollo local o con VITE_SHOW_DEMO_LOGIN=true */}
+        {MOSTRAR_LOGIN_DEMO && (
           <div className="mt-5 border-t border-slate-200 pt-4">
             <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
               Pruebas locales (desarrollo)
             </p>
             <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => fillDemo('admin', 'Admin123!')}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo('cajero', 'Cajero123!')}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
-              >
-                Cajero
-              </button>
-              <button
-                type="button"
-                onClick={() => fillDemo('mesero', 'Mesero123!')}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-brand-50 hover:border-brand-300"
-              >
-                Mesero
-              </button>
+              {CREDENCIALES_DEMO.map((demo) => (
+                <button
+                  key={demo.usuario}
+                  type="button"
+                  onClick={() => fillDemo(demo.usuario, demo.clave)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:bg-brand-50"
+                >
+                  {demo.etiqueta}
+                </button>
+              ))}
             </div>
           </div>
         )}
