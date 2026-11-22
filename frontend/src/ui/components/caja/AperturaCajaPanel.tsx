@@ -24,22 +24,28 @@ export const AperturaCajaPanel: React.FC<AperturaCajaPanelProps> = ({
   requiereAutorizacion,
   onAbrirCaja,
 }) => {
-  const [montoInicial, setMontoInicial] = useState('500.00');
+  const [montoInicial, setMontoInicial] = useState('');
+  const [guardando, setGuardando] = useState(false);
   const [obsApertura, setObsApertura] = useState('');
   const [autorizacion, setAutorizacion] = useState<AutorizacionSupervisor>(AUTORIZACION_VACIA);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await onAbrirCaja(
-      Number(montoInicial),
-      obsApertura || undefined,
-      requiereAutorizacion ? autorizacion : undefined,
-    );
-    // La contraseña del supervisor no se conserva, salió bien o mal
-    setAutorizacion((a) => ({ ...a, password: '' }));
-    if (ok) {
-      setObsApertura('');
-      setAutorizacion(AUTORIZACION_VACIA);
+    if (guardando) return;
+    setGuardando(true);
+    try {
+      const ok = await onAbrirCaja(
+        Number(montoInicial),
+        obsApertura || undefined,
+        requiereAutorizacion ? autorizacion : undefined,
+      );
+      if (ok) {
+        setObsApertura('');
+        setAutorizacion(AUTORIZACION_VACIA);
+      }
+    } finally {
+      setAutorizacion((a) => ({ ...a, password: '' }));
+      setGuardando(false);
     }
   };
 
@@ -60,14 +66,16 @@ export const AperturaCajaPanel: React.FC<AperturaCajaPanelProps> = ({
       {canOpen ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-bold text-slate-700">
-              Fondo inicial en efectivo (GTQ)
+            <label htmlFor="caja-efectivo-inicial" className="mb-1.5 block text-sm font-bold text-slate-700">
+              Efectivo contado al abrir (Q)
             </label>
             <input
+              id="caja-efectivo-inicial"
               required
               type="number"
               step="0.01"
               min="0"
+              placeholder="0.00"
               value={montoInicial}
               onChange={(e) => setMontoInicial(e.target.value)}
               className="min-h-[54px] w-full rounded-xl border border-slate-300 px-4 text-2xl font-black text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
@@ -87,10 +95,11 @@ export const AperturaCajaPanel: React.FC<AperturaCajaPanelProps> = ({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-bold text-slate-700">
+            <label htmlFor="caja-nota-apertura" className="mb-1.5 block text-sm font-bold text-slate-700">
               Nota de apertura (opcional)
             </label>
             <input
+              id="caja-nota-apertura"
               type="text"
               value={obsApertura}
               onChange={(e) => setObsApertura(e.target.value)}
@@ -105,10 +114,11 @@ export const AperturaCajaPanel: React.FC<AperturaCajaPanelProps> = ({
 
           <button
             type="submit"
-            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 text-base font-extrabold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
+            disabled={guardando}
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-teal-700 text-base font-extrabold text-white transition hover:bg-teal-800 disabled:opacity-50"
           >
             <LockOpen className="h-5 w-5" />
-            Abrir Caja con {formatCurrency(Number(montoInicial || 0))}
+            {guardando ? 'Abriendo caja…' : montoInicial === '' ? 'Abrir caja' : `Abrir caja con ${formatCurrency(Number(montoInicial))}`}
           </button>
         </form>
       ) : (

@@ -29,6 +29,7 @@ const {
   TipoServicio,
   UnidadMedida,
   Usuario,
+  UsuarioPermiso,
   Venta,
 } = require('../src/models');
 const { obtenerPermisosEfectivos } = require('../src/services/permisos.service');
@@ -821,5 +822,52 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
     const json = await response.json();
     assert.equal(response.status, 400);
     assert.ok(json.error.details.some((d) => d.campo === 'password'));
+  });
+
+  it('registra la nómina del personal y reserva importes e historial para administración', async () => {
+    const rolCajero = await Rol.findOne({ where: { codigo: 'CAJERO', activo: true } });
+    assert.ok(rolCajero);
+    const usuario = {
+      nombreCompleto: 'Cajero QA nómina',
+      username: `qa_nom_${RUN_TAG}`.toLowerCase(),
+      email: `qa_nom_${RUN_TAG}@example.test`.toLowerCase(),
+      password: CLAVE_QA,
+      rolId: rolCajero.id,
+    };
+    const guardar = (path, body, method = 'POST') => fetch(`${API_BASE_URL}${path}`, {
+      method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminJwt}` },
+      body: JSON.stringify(body),
+    });
+    assert.equal((await guardar('/accesos/usuarios', usuario)).status, 400);
+    const respuesta = await guardar('/accesos/usuarios', { ...usuario, fechaIngreso: '2026-01-03', sueldoMensual: 3200 });
+    assert.equal(respuesta.status, 201);
+    const { data: { id } } = await respuesta.json();
+    usuariosTemporalesIds.push(id);
+    assert.equal((await guardar(`/accesos/usuarios/${id}`, { sueldoMensual: 3350.75 }, 'PUT')).status, 200);
+
+    const nomina = await apiGet('/auditoria/nomina');
+    assert.equal(nomina.status, 200);
+    const persona = nomina.json.data.find((item) => item.id === id);
+    assert.equal(persona.fechaIngreso, '2026-01-03');
+    assert.equal(persona.sueldoMensual, 3350.75);
+    const historial = await apiGet('/auditoria?accion=GESTION_NOMINA');
+    const actualizacion = historial.json.data.find((registro) => String(registro.entidadId) === String(id)
+      && registro.valorNuevo?.sueldoMensual === 3350.75);
+    assert.equal(actualizacion?.valorAnterior.sueldoMensual, 3200);
+
+    const permisoAuditoria = await Permiso.findOne({ where: { codigo: 'auditoria:ver' } });
+    assert.ok(permisoAuditoria);
+    const auditor = await crearUsuarioTemporal('nomina_aud');
+    await auditor.update({ rolId: rolCajero.id });
+    await UsuarioPermiso.create({ usuarioId: auditor.id, permisoId: permisoAuditoria.id, permitido: true });
+    const auditorJwt = jwt.sign(
+      { sub: auditor.id, ver: auditor.tokenVersion, sucursalId: auditor.sucursalId },
+      env.JWT_SECRET,
+      { expiresIn: '1h', algorithm: 'HS256' },
+    );
+    assert.equal((await apiGet('/auditoria/nomina', auditorJwt)).status, 403);
+    const oculto = await apiGet('/auditoria?accion=GESTION_NOMINA', auditorJwt);
+    assert.equal(oculto.status, 200);
+    assert.equal(oculto.json.data.length, 0);
   });
 });

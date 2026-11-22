@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { mensajeErrorFormulario } from '../../../services/httpClient';
+import { Alert } from '../common/Alert';
 import { Modal } from '../common/Modal';
 
 export interface NuevoProveedorPayload {
@@ -12,7 +14,7 @@ export interface NuevoProveedorPayload {
 interface NuevoProveedorModalProps {
   open: boolean;
   onClose: () => void;
-  onGuardar: (payload: NuevoProveedorPayload) => Promise<boolean>;
+  onGuardar: (payload: NuevoProveedorPayload) => Promise<void>;
 }
 
 const INITIAL_FORM: NuevoProveedorPayload = {
@@ -29,20 +31,40 @@ export const NuevoProveedorModal: React.FC<NuevoProveedorModalProps> = ({
   onGuardar,
 }) => {
   const [provForm, setProvForm] = useState<NuevoProveedorPayload>(INITIAL_FORM);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cerrar = () => {
+    setProvForm(INITIAL_FORM);
+    setError(null);
+    onClose();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await onGuardar(provForm);
-    if (ok) {
-      setProvForm(INITIAL_FORM);
+    if (guardando) return;
+    if (provForm.nombre.trim().length < 2) {
+      setError('Escribe el nombre del proveedor con al menos dos caracteres.');
+      return;
+    }
+    setGuardando(true);
+    setError(null);
+    try {
+      await onGuardar(provForm);
+      cerrar();
+    } catch (err) {
+      setError(mensajeErrorFormulario(err, 'No se pudo guardar el proveedor'));
+    } finally {
+      setGuardando(false);
     }
   };
 
   return (
-    <Modal open={open} title="Nuevo Proveedor" onClose={onClose}>
+    <Modal open={open} title="Nuevo proveedor" onClose={() => { if (!guardando) cerrar(); }}>
       <form onSubmit={handleSubmit} className="space-y-3">
         <input
           required
+          maxLength={120}
           placeholder="Nombre comercial"
           value={provForm.nombre}
           onChange={(e) => setProvForm({ ...provForm, nombre: e.target.value })}
@@ -51,12 +73,15 @@ export const NuevoProveedorModal: React.FC<NuevoProveedorModalProps> = ({
         <div className="grid grid-cols-2 gap-3">
           <input
             placeholder="NIT"
+            maxLength={25}
             value={provForm.nit}
             onChange={(e) => setProvForm({ ...provForm, nit: e.target.value })}
             className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
           />
           <input
             placeholder="Teléfono"
+            type="tel"
+            maxLength={30}
             value={provForm.telefono}
             onChange={(e) => setProvForm({ ...provForm, telefono: e.target.value })}
             className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
@@ -64,15 +89,21 @@ export const NuevoProveedorModal: React.FC<NuevoProveedorModalProps> = ({
         </div>
         <input
           placeholder="Persona de contacto"
+          maxLength={100}
           value={provForm.contacto}
           onChange={(e) => setProvForm({ ...provForm, contacto: e.target.value })}
           className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
         />
+        <input type="email" maxLength={120} placeholder="Correo del proveedor (opcional)" value={provForm.email}
+          onChange={(e) => setProvForm({ ...provForm, email: e.target.value })}
+          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm" />
+        {error && <div role="alert"><Alert type="error" message={error} /></div>}
         <button
           type="submit"
-          className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white"
+          disabled={guardando}
+          className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
         >
-          Guardar Proveedor
+          {guardando ? 'Guardando…' : 'Guardar proveedor'}
         </button>
       </form>
     </Modal>

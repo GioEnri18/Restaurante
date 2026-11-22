@@ -4,7 +4,7 @@ import { PermisoModel, RolModel, UsuarioAdminModel } from '../../models';
 import { accesosService } from '../../services/accesos.service';
 import { ApiError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
-import { formatDateTime } from '../../utils/formatters';
+import { formatDateTime, getTodayISO } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
@@ -26,6 +26,8 @@ const ETIQUETAS_USUARIO: Record<string, string> = {
   email: 'Correo electrónico',
   password: 'Contraseña',
   rolId: 'Rol',
+  fechaIngreso: 'Fecha de ingreso',
+  sueldoMensual: 'Sueldo mensual',
 };
 
 function mensajeErrorUsuario(error: unknown): string {
@@ -67,6 +69,8 @@ export const AccesosPage: React.FC = () => {
     email: '',
     password: '',
     rolId: '',
+    fechaIngreso: '',
+    sueldoMensual: '',
   });
 
   // Edición de matriz de permisos de un Rol
@@ -125,6 +129,8 @@ export const AccesosPage: React.FC = () => {
       email: '',
       password: '',
       rolId: '',
+      fechaIngreso: getTodayISO(),
+      sueldoMensual: '',
     });
     setUserModal(true);
   };
@@ -138,6 +144,8 @@ export const AccesosPage: React.FC = () => {
       email: u.email,
       password: '',
       rolId: String(u.rol.id),
+      fechaIngreso: u.fechaIngreso ?? '',
+      sueldoMensual: u.sueldoMensual == null ? '' : String(u.sueldoMensual),
     });
     setUserModal(true);
   };
@@ -156,6 +164,8 @@ export const AccesosPage: React.FC = () => {
           email: userForm.email,
           rolId: Number(userForm.rolId),
           password: userForm.password || undefined,
+          fechaIngreso: userForm.fechaIngreso || undefined,
+          sueldoMensual: userForm.sueldoMensual ? Number(userForm.sueldoMensual) : undefined,
         });
         setSuccess('Usuario actualizado y registrado en auditoría.');
       } else {
@@ -165,6 +175,8 @@ export const AccesosPage: React.FC = () => {
           email: userForm.email,
           password: userForm.password,
           rolId: Number(userForm.rolId),
+          fechaIngreso: userForm.fechaIngreso,
+          sueldoMensual: Number(userForm.sueldoMensual),
         });
         setSuccess('Usuario creado correctamente.');
       }
@@ -232,10 +244,10 @@ export const AccesosPage: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">
-            Administración de Accesos (Solo Administrador)
+            Personal y accesos
           </h1>
           <p className="text-sm text-slate-500">
-            Gestión de usuarios, roles configurables y permisos granulares por vista
+            Registra al personal y elige qué puede hacer cada rol.
           </p>
         </div>
         <div className="flex gap-2">
@@ -253,7 +265,7 @@ export const AccesosPage: React.FC = () => {
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
           >
             <UserPlus className="h-4 w-4" />
-            Nuevo Usuario
+            Agregar persona
           </button>
         </div>
       </div>
@@ -271,7 +283,7 @@ export const AccesosPage: React.FC = () => {
           }`}
         >
           <Users className="h-4 w-4" />
-          Usuarios ({usuarios.length})
+          Personal ({usuarios.length})
         </button>
         <button
           type="button"
@@ -294,6 +306,7 @@ export const AccesosPage: React.FC = () => {
                 <th className="py-3 px-2">Usuario</th>
                 <th className="py-3 px-2">Correo</th>
                 <th className="py-3 px-2">Rol</th>
+                <th className="py-3 px-2">Fecha de ingreso</th>
                 <th className="py-3 px-2">Último acceso</th>
                 <th className="py-3 px-2">Estado</th>
                 <th className="py-3 px-2 text-right">Acciones</th>
@@ -310,6 +323,7 @@ export const AccesosPage: React.FC = () => {
                   <td className="py-3 px-2">
                     <Badge variant="info">{u.rol.nombre}</Badge>
                   </td>
+                  <td className="py-3 px-2 text-xs text-slate-600">{u.fechaIngreso ? u.fechaIngreso.split('-').reverse().join('/') : 'Pendiente'}</td>
                   <td className="py-3 px-2 text-xs text-slate-500">{formatDateTime(u.ultimoAcceso)}</td>
                   <td className="py-3 px-2">
                     <Badge variant={u.activo ? 'success' : 'danger'}>
@@ -503,6 +517,21 @@ export const AccesosPage: React.FC = () => {
               </option>
             ))}
           </select>
+          <fieldset className="grid gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3 sm:grid-cols-2">
+            <legend className="px-1 text-sm font-bold text-teal-900">Datos laborales</legend>
+            <label className="block space-y-1 text-sm font-semibold text-slate-700">
+              <span>Fecha de ingreso</span>
+              <input type="date" required={!editingUser} max={getTodayISO()} value={userForm.fechaIngreso}
+                onChange={(e) => setUserForm({ ...userForm, fechaIngreso: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" />
+            </label>
+            <label className="block space-y-1 text-sm font-semibold text-slate-700">
+              <span>Sueldo mensual acordado (Q)</span>
+              <input type="number" required={!editingUser} min="0.01" max="9999999999.99" step="0.01"
+                value={userForm.sueldoMensual} onChange={(e) => setUserForm({ ...userForm, sueldoMensual: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" />
+            </label>
+          </fieldset>
           {errorUsuario && <div role="alert"><Alert type="error" message={errorUsuario} /></div>}
           <button
             type="submit"

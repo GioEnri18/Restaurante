@@ -8,6 +8,31 @@ const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { PermisosCache } = require('../shared/services/permisosCache');
 const { revocarSesionesUsuario } = require('./auth.service');
+
+function datosNomina(usuario) {
+    return {
+        fechaIngreso: usuario.fechaIngreso ?? null,
+        sueldoMensual: usuario.sueldoMensual ? Number(usuario.sueldoMensual) : null,
+    };
+}
+
+async function auditarNomina(admin, usuario, anterior, clientMeta, tx) {
+    const nuevo = datosNomina(usuario);
+    if (anterior && nuevo.fechaIngreso === anterior.fechaIngreso && nuevo.sueldoMensual === anterior.sueldoMensual) return;
+    await AuditService.registrar({
+        sucursalId: admin.sucursalId,
+        usuarioId: admin.id,
+        accion: ACCIONES_AUDITORIA.GESTION_NOMINA,
+        entidad: 'Usuario',
+        entidadId: usuario.id,
+        valorAnterior: anterior,
+        valorNuevo: nuevo,
+        motivo: 'Registro de sueldo y fecha de ingreso',
+        ipAddress: clientMeta.ipAddress,
+        userAgent: clientMeta.userAgent,
+    }, tx);
+}
+
 class AccesosService {
     static async listarUsuarios(sucursalId) {
         const usuarios = await Usuario.findAll({
@@ -54,6 +79,7 @@ class AccesosService {
                 email: u.email,
                 activo: u.activo,
                 ultimoAcceso: u.ultimoAcceso,
+                ...datosNomina(u),
                 createdAt: u.createdAt,
                 rol: u.rol
                     ? {
@@ -86,6 +112,8 @@ class AccesosService {
                 username: input.username.trim().toLowerCase(),
                 email: input.email.trim().toLowerCase(),
                 passwordHash,
+                fechaIngreso: input.fechaIngreso,
+                sueldoMensual: input.sueldoMensual,
             }, { transaction: tx });
             if (input.permisosPersonalizados?.length) {
                 await UsuarioPermiso.bulkCreate(input.permisosPersonalizados.map((p) => ({
@@ -111,6 +139,7 @@ class AccesosService {
                 ipAddress: clientMeta.ipAddress,
                 userAgent: clientMeta.userAgent,
             }, tx);
+            await auditarNomina(adminUser, usuario, null, clientMeta, tx);
             return {
                 id: usuario.id,
                 nombreCompleto: usuario.nombreCompleto,
@@ -134,6 +163,7 @@ class AccesosService {
                     },
                 ],
                 transaction: tx,
+                lock: { level: tx.LOCK.UPDATE, of: Usuario },
             });
             if (!actual || !actual.rol) {
                 throw new NotFoundError('Usuario no encontrado');
@@ -145,6 +175,7 @@ class AccesosService {
             const prevEmail = actual.email;
             const prevRolCodigo = actual.rol.codigo;
             const prevRolId = actual.rolId;
+            const nominaAnterior = datosNomina(actual);
             const prevOverrides = (actual.usuarioPermisos ?? []).map((up) => ({
                 permiso: up.permiso?.codigo ?? '',
                 permitido: up.permitido,
@@ -157,8 +188,11 @@ class AccesosService {
                 nombreCompleto: input.nombreCompleto ? input.nombreCompleto.trim() : actual.nombreCompleto,
                 email: input.email ? input.email.trim().toLowerCase() : actual.email,
                 rolId: input.rolId ?? actual.rolId,
+                fechaIngreso: input.fechaIngreso ?? actual.fechaIngreso,
+                sueldoMensual: input.sueldoMensual ?? actual.sueldoMensual,
                 ...(passwordHash ? { passwordHash } : {}),
             }, { transaction: tx });
+            await auditarNomina(adminUser, actual, nominaAnterior, clientMeta, tx);
             // Auditoría P0.3: cambiar contraseña o rol cierra todas las sesiones activas del usuario
             const cambioRol = input.rolId !== undefined && input.rolId !== prevRolId;
             if (passwordHash || cambioRol) {

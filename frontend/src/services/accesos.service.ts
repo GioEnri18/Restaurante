@@ -18,6 +18,8 @@ export const accesosService = {
     username: string;
     email: string;
     password: string;
+    fechaIngreso: string;
+    sueldoMensual: number;
     rolId: number;
     permisosPersonalizados?: Array<{ permisoId: number; permitido: boolean }>;
   }) {
@@ -30,6 +32,8 @@ export const accesosService = {
       nombreCompleto?: string;
       email?: string;
       password?: string;
+      fechaIngreso?: string;
+      sueldoMensual?: number;
       rolId?: number;
       permisosPersonalizados?: Array<{ permisoId: number; permitido: boolean }>;
     },

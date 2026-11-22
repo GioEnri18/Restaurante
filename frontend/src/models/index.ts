@@ -431,6 +431,8 @@ export interface UsuarioAdminModel {
   email: string;
   activo: boolean;
   ultimoAcceso: string | null;
+  fechaIngreso: string | null;
+  sueldoMensual: number | null;
   rol: {
     id: number;
     codigo: string;
@@ -439,4 +441,13 @@ export interface UsuarioAdminModel {
   };
   permisosEfectivos: string[];
   permisosPersonalizados: Array<{ permisoId: number; codigo: string; permitido: boolean }>;
+}
+
+export interface PersonaNominaModel {
+  id: number;
+  nombreCompleto: string;
+  rol: string;
+  activo: boolean;
+  fechaIngreso: string | null;
+  sueldoMensual: number | null;
 }

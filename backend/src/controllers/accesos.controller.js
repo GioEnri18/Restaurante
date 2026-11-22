@@ -7,7 +7,7 @@ class AccesosController {
     static async listarUsuarios(req, res, next) {
         try {
             const data = await AccesosService.listarUsuarios(req.user.sucursalId);
-            res.status(200).json({ ok: true, data });
+            res.set('Cache-Control', 'no-store').json({ ok: true, data });
         }
         catch (error) {
             next(error);

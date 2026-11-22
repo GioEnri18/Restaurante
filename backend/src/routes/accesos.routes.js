@@ -5,7 +5,12 @@ const { AccesosController } = require('../controllers/accesos.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requireAdmin, requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
-const { idParamsSchema } = require('../shared/validators/common.validators');
+const { fechaStr, idParamsSchema, numeroDecimal } = require('../shared/validators/common.validators');
+const { toIsoDateInTimezone } = require('../shared/utils/dates');
+const { round2 } = require('../shared/utils/tax');
+const fechaIngreso = fechaStr.refine((fecha) => fecha <= toIsoDateInTimezone(), 'La fecha de ingreso no puede estar en el futuro');
+const sueldoMensual = numeroDecimal.pipe(z.number().min(0.01, 'Ingresa un sueldo mayor a cero').max(9999999999.99))
+    .refine((sueldo) => round2(sueldo) === sueldo, 'Usa hasta dos decimales para el sueldo');
 // Auditoría P1: política de contraseñas (longitud configurable, letras y números, tope por bcrypt)
 const passwordSchema = z
     .string()
@@ -27,6 +32,8 @@ const crearUsuarioSchema = z.object({
         .regex(/^[a-zA-Z0-9._-]+$/, 'El usuario solo puede contener letras, números, punto, guion o guion bajo'),
     email: z.string().trim().email('Correo electrónico inválido').max(120),
     password: passwordSchema,
+    fechaIngreso,
+    sueldoMensual,
     rolId: z.coerce.number().int().positive(),
     permisosPersonalizados: z.array(permisoOverrideSchema).max(200).optional(),
 });
@@ -34,6 +41,8 @@ const actualizarUsuarioSchema = z.object({
     nombreCompleto: z.string().trim().min(3).max(120).optional(),
     email: z.string().trim().email('Correo electrónico inválido').max(120).optional(),
     password: passwordSchema.optional().or(z.literal('')),
+    fechaIngreso: fechaIngreso.optional(),
+    sueldoMensual: sueldoMensual.optional(),
     rolId: z.coerce.number().int().positive().optional(),
     permisosPersonalizados: z.array(permisoOverrideSchema).max(200).optional(),
 });

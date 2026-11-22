@@ -23,7 +23,7 @@ const crearIngredienteSchema = z.object({
     unidadStockMinimo: z.enum(['lb', 'oz']).default('lb'),
     stockInicial: numeroDecimal.pipe(z.number().min(0)).optional(),
     unidadStockInicial: z.enum(['lb', 'oz']).optional().default('lb'),
-    precioPorLb: numeroDecimal.pipe(z.number().min(0).max(99999999.99)).optional(),
+    precioPorLb: numeroDecimal.pipe(z.number().min(0.01, 'Indica un costo por libra mayor que cero').max(99999999.99)),
 });
 const actualizarIngredienteSchema = z.object({
     nombre: z.string().trim().min(2).max(120).optional(),

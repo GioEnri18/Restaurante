@@ -1,9 +1,13 @@
 import { auditoriaAdapter } from '../adapters/auditoria.adapter';
 import { env } from '../config/env';
-import { AuditoriaLogModel, PaginationMeta } from '../models';
+import { AuditoriaLogModel, PaginationMeta, PersonaNominaModel } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
 export const auditoriaService = {
+  async listarNomina(): Promise<PersonaNominaModel[]> {
+    const res = await httpClient.get<PersonaNominaModel[]>('/auditoria/nomina');
+    return res.data;
+  },
   async listar(params: {
     page?: number;
     usuarioId?: string;

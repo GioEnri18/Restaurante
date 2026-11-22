@@ -130,7 +130,7 @@ export const FacturasPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Historial de Facturas</h1>
           <p className="text-sm text-slate-500">
-            Paginación de {env.FACTURAS_PAGE_SIZE} registros por página · Documentos inmutables (solo anulación con motivo)
+            Busca una factura para consultar sus datos, reimprimirla o anularla con un motivo.
           </p>
         </div>
       </div>
@@ -146,6 +146,7 @@ export const FacturasPage: React.FC = () => {
             value={numero}
             onChange={(e) => setNumero(e.target.value)}
             placeholder="Número (ej. A-000001)"
+            aria-label="Número de factura"
             className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
           />
           <input
@@ -153,26 +154,26 @@ export const FacturasPage: React.FC = () => {
             value={cliente}
             onChange={(e) => setCliente(e.target.value)}
             placeholder="Cliente o NIT"
+            aria-label="Nombre del cliente o NIT"
             className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
           />
-          <input
-            type="date"
-            value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
+          <label className="space-y-1 text-sm font-semibold text-slate-700">
+            <span>Fecha inicial</span>
+            <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm" />
+          </label>
+          <label className="space-y-1 text-sm font-semibold text-slate-700">
+            <span>Fecha final</span>
+            <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm" />
+          </label>
           <input
             type="number"
             step="0.01"
             value={montoMin}
             onChange={(e) => setMontoMin(e.target.value)}
             placeholder="Monto mínimo (Q)"
+            aria-label="Monto mínimo en quetzales"
             className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
           />
           <input
@@ -181,9 +182,11 @@ export const FacturasPage: React.FC = () => {
             value={montoMax}
             onChange={(e) => setMontoMax(e.target.value)}
             placeholder="Monto máximo (Q)"
+            aria-label="Monto máximo en quetzales"
             className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
           />
           <select
+            aria-label="Estado de la factura"
             value={estado}
             onChange={(e) => setEstado(e.target.value)}
             className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
@@ -206,6 +209,7 @@ export const FacturasPage: React.FC = () => {
               onClick={limpiarFiltros}
               className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-slate-300 px-3 text-slate-600 hover:bg-slate-100"
               title="Limpiar filtros"
+              aria-label="Limpiar filtros"
             >
               <RotateCcw className="h-4 w-4" />
             </button>

@@ -72,9 +72,9 @@ export const ReportesPage: React.FC = () => {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Reportes y Rentabilidad</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">Ventas y ganancias</h1>
           <p className="text-sm text-slate-500">
-            Ingresos, costos calculados según recetas e inventario, utilidad bruta y exportación PDF/Excel
+            Elige un período para ver cuánto vendiste, cuánto costó y qué margen quedó.
           </p>
         </div>
 
@@ -105,8 +105,9 @@ export const ReportesPage: React.FC = () => {
       {/* Filtros de fecha */}
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div>
-          <label className="mb-1 block text-xs font-bold text-slate-500">Desde</label>
+          <label htmlFor="reporte-desde" className="mb-1 block text-sm font-bold text-slate-700">Fecha inicial</label>
           <input
+            id="reporte-desde"
             type="date"
             value={fechaDesde}
             onChange={(e) => setFechaDesde(e.target.value)}
@@ -114,8 +115,9 @@ export const ReportesPage: React.FC = () => {
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-bold text-slate-500">Hasta</label>
+          <label htmlFor="reporte-hasta" className="mb-1 block text-sm font-bold text-slate-700">Fecha final</label>
           <input
+            id="reporte-hasta"
             type="date"
             value={fechaHasta}
             onChange={(e) => setFechaHasta(e.target.value)}
@@ -128,7 +130,7 @@ export const ReportesPage: React.FC = () => {
           className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
         >
           <Filter className="h-4 w-4" />
-          Aplicar
+          Actualizar reporte
         </button>
         <div className="flex gap-1.5">
           {[

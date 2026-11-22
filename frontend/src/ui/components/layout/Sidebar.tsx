@@ -32,7 +32,7 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    title: 'Operación POS',
+    title: 'Ventas y caja',
     items: [
       { to: '/ventas', label: 'Menú / Ventas', permiso: 'ventas:ver', Icon: UtensilsCrossed },
       { to: '/caja', label: 'Caja', permiso: 'caja:ver', Icon: Wallet },
@@ -40,14 +40,14 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: 'Cocina y Stock',
+    title: 'Cocina e inventario',
     items: [
       { to: '/inventario', label: 'Inventario', permiso: 'inventario:ver', Icon: Package },
-      { to: '/mermas', label: 'Mermas', permiso: 'mermas:ver', Icon: Trash2 },
+      { to: '/mermas', label: 'Mermas y pérdidas', permiso: 'mermas:ver', Icon: Trash2 },
     ],
   },
   {
-    title: 'Gestión y Control',
+    title: 'Administración',
     items: [
       {
         to: '/menus-especiales',
@@ -58,7 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { to: '/reportes', label: 'Reportes', permiso: 'reportes:ver', Icon: BarChart3 },
       { to: '/auditoria', label: 'Auditoría', permiso: 'auditoria:ver', Icon: ShieldCheck },
-      { to: '/accesos', label: 'Accesos', permiso: 'accesos:ver', adminOnly: true, Icon: Users },
+      { to: '/accesos', label: 'Personal y accesos', permiso: 'accesos:ver', adminOnly: true, Icon: Users },
     ],
   },
 ];

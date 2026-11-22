@@ -99,9 +99,9 @@ export const MermasPage: React.FC = () => {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-900">Control de Mermas y Desperdicios</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900">Mermas y pérdidas</h1>
         <p className="text-sm text-slate-500">
-          Cada merma descuenta automáticamente del inventario y registra salida en Kardex y Auditoría
+          Registra ingredientes dañados, vencidos o desperdiciados. La cantidad se descuenta del inventario.
         </p>
       </div>
 
@@ -111,7 +111,7 @@ export const MermasPage: React.FC = () => {
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Costo total mermado</p>
+          <p className="text-xs font-semibold uppercase text-slate-500">Costo de las pérdidas</p>
           <p className="mt-1 text-2xl font-black text-red-600">
             {formatCurrency(listado?.resumen.costoTotalMermas ?? 0)}
           </p>
@@ -138,12 +138,13 @@ export const MermasPage: React.FC = () => {
           >
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
               <Trash2 className="h-5 w-5 text-red-600" />
-              Registrar Merma
+              Registrar una pérdida
             </h2>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Ingrediente</label>
+              <label htmlFor="merma-ingrediente" className="mb-1 block text-sm font-bold text-slate-700">Ingrediente</label>
               <select
+                id="merma-ingrediente"
                 required
                 value={form.ingredienteId}
                 onChange={(e) => setForm({ ...form, ingredienteId: e.target.value })}
@@ -160,8 +161,9 @@ export const MermasPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-600">Cantidad</label>
+                <label htmlFor="merma-cantidad" className="mb-1 block text-sm font-bold text-slate-700">Cantidad perdida</label>
                 <input
+                  id="merma-cantidad"
                   required
                   type="number"
                   step="0.0001"
@@ -172,8 +174,9 @@ export const MermasPage: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-600">Unidad</label>
+                <label htmlFor="merma-unidad" className="mb-1 block text-sm font-bold text-slate-700">Unidad</label>
                 <select
+                  id="merma-unidad"
                   value={form.unidad}
                   onChange={(e) => setForm({ ...form, unidad: e.target.value as UnidadMedida })}
                   className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -189,8 +192,9 @@ export const MermasPage: React.FC = () => {
             </p>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Motivo</label>
+              <label htmlFor="merma-motivo" className="mb-1 block text-sm font-bold text-slate-700">¿Qué pasó?</label>
               <select
+                id="merma-motivo"
                 value={form.motivo}
                 onChange={(e) => setForm({ ...form, motivo: e.target.value as MotivoMerma })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -204,8 +208,9 @@ export const MermasPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Observación</label>
+              <label htmlFor="merma-nota" className="mb-1 block text-sm font-bold text-slate-700">Nota (opcional)</label>
               <textarea
+                id="merma-nota"
                 rows={3}
                 value={form.observacion}
                 onChange={(e) => setForm({ ...form, observacion: e.target.value })}
@@ -219,7 +224,7 @@ export const MermasPage: React.FC = () => {
               disabled={guardando}
               className="min-h-[48px] w-full rounded-xl bg-red-600 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {guardando ? 'Registrando merma...' : 'Registrar Merma y Descontar Stock'}
+              {guardando ? 'Guardando…' : 'Guardar y descontar existencias'}
             </button>
           </form>
         )}

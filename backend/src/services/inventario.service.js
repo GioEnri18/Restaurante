@@ -361,6 +361,10 @@ class InventarioService {
                 const nuevoCostoPromedioOz = stockNuevoOz > 0 ? round4((valorAnterior + valorEntrada) / stockNuevoOz) : det.costoPorOz;
                 estado.stockOz = stockNuevoOz;
                 estado.costoOz = nuevoCostoPromedioOz;
+                det.stockAnteriorOz = stockAnteriorOz;
+                det.stockNuevoOz = stockNuevoOz;
+                det.costoPromedioAnteriorOz = costoAnteriorOz;
+                det.costoPromedioNuevoOz = nuevoCostoPromedioOz;
                 await Ingrediente.update({
                     stockActualOz: stockNuevoOz,
                     costoPromedioOz: nuevoCostoPromedioOz,
@@ -394,6 +398,10 @@ class InventarioService {
                         cantidadLb: d.cantidadLb,
                         cantidadOz: d.cantidadOz,
                         precioPorLb: d.precioPorLb,
+                        stockAnteriorOz: d.stockAnteriorOz,
+                        stockNuevoOz: d.stockNuevoOz,
+                        costoPromedioAnteriorOz: d.costoPromedioAnteriorOz,
+                        costoPromedioNuevoOz: d.costoPromedioNuevoOz,
                     })),
                 },
                 ipAddress: clientMeta.ipAddress,

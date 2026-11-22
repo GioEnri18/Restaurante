@@ -23,6 +23,8 @@ interface RawUsuarioAdminJson {
   email?: string;
   activo?: boolean;
   ultimoAcceso?: string | null;
+  fechaIngreso?: string | null;
+  sueldoMensual?: number | string | null;
   rol?: RawRolResumenJson | null;
   permisosEfectivos?: unknown[];
   permisosPersonalizados?: unknown[];
@@ -85,6 +87,8 @@ export const accesosAdapter = {
       email: String(data.email ?? ''),
       activo: Boolean(data.activo),
       ultimoAcceso: data.ultimoAcceso ?? null,
+      fechaIngreso: data.fechaIngreso ?? null,
+      sueldoMensual: data.sueldoMensual == null ? null : Number(data.sueldoMensual),
       rol: {
         id: Number(rol.id ?? 0),
         codigo: String(rol.codigo ?? ''),

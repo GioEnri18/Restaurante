@@ -31,7 +31,7 @@ const INITIAL_FORM = {
   unidadStockMinimo: 'lb' as UnidadMedida,
   stockInicial: '0',
   unidadStockInicial: 'lb' as UnidadMedida,
-  precioPorLb: '0',
+  precioPorLb: '',
 };
 const CAMPO = 'min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm';
 const ETIQUETA = 'block space-y-1 text-sm font-semibold text-slate-700';
@@ -75,8 +75,8 @@ export const NuevoIngredienteModal: React.FC<NuevoIngredienteModalProps> = ({
       unidadStockInicial: ingForm.unidadStockInicial,
       precioPorLb: Number(ingForm.precioPorLb || 0),
     };
-    if (tieneExistenciasIniciales && payload.precioPorLb < 0.01) {
-      setError('Indica un costo por libra de al menos Q0.01 para registrar el stock inicial.');
+    if (!Number.isFinite(payload.precioPorLb) || payload.precioPorLb < 0.01) {
+      setError('Indica un costo por libra de al menos Q0.01.');
       return;
     }
     setError(null);
@@ -141,12 +141,12 @@ export const NuevoIngredienteModal: React.FC<NuevoIngredienteModalProps> = ({
           </p>
           <label className={ETIQUETA}>
             <span>Costo por libra (Q)</span>
-            <input type="number" step="0.01" max="99999999.99" min={tieneExistenciasIniciales ? '0.01' : '0'}
-              required={tieneExistenciasIniciales} value={ingForm.precioPorLb} aria-describedby="ingrediente-costo-ayuda"
+            <input type="number" step="0.01" max="99999999.99" min="0.01" required
+              value={ingForm.precioPorLb} aria-describedby="ingrediente-costo-ayuda"
               onChange={(e) => setIngForm({ ...ingForm, precioPorLb: e.target.value })} className={CAMPO} />
           </label>
           <p id="ingrediente-costo-ayuda" className="text-xs text-slate-600">
-            {tieneExistenciasIniciales ? 'Requerido cuando registras existencias iniciales.' : 'Opcional si empiezas sin existencias.'}
+            Se usa para valorar las existencias y calcular el costo de las recetas.
           </p>
           <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)] gap-2">
             <label className={ETIQUETA}>

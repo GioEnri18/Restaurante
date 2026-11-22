@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { AuditoriaController } = require('../controllers/auditoria.controller');
 const { authenticate } = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
+const { requireAdmin, requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
 const {
     enteroPositivoStr,
@@ -26,4 +26,5 @@ router.use(authenticate);
 // Auditoría es estrictamente inmutable (solo endpoints de lectura GET)
 router.get('/', requirePermission('auditoria:ver'), validate(listarAuditoriaQuerySchema, 'query'), AuditoriaController.listar);
 router.get('/acciones', requirePermission('auditoria:ver'), AuditoriaController.catalogo);
+router.get('/nomina', requireAdmin, requirePermission('auditoria:ver'), AuditoriaController.nomina);
 module.exports = router;

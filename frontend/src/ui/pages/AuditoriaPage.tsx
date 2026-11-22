@@ -2,13 +2,56 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { ShieldCheck, Eye, RotateCcw } from 'lucide-react';
 import { AuditoriaLogModel, PaginationMeta } from '../../models';
 import { auditoriaService } from '../../services/auditoria.service';
-import { formatDateTime } from '../../utils/formatters';
+import { useAuthStore } from '../../store/auth.store';
+import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
 import { Pagination } from '../components/common/Pagination';
+import { NominaPanel } from '../components/auditoria/NominaPanel';
+
+function nombreAccion(accion: string): string {
+  if (accion === 'GESTION_NOMINA') return 'Cambio de sueldo o fecha de ingreso';
+  const frase = accion.toLowerCase().replaceAll('_', ' ');
+  return frase.charAt(0).toUpperCase() + frase.slice(1);
+}
+
+function ValoresRegistrados({ titulo, valor }: { titulo: string; valor: unknown }) {
+  const campos = valor && typeof valor === 'object' ? Object.entries(valor) : [];
+  return (
+    <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <h3 className="mb-2 text-sm font-bold">{titulo}</h3>
+      {campos.length === 0 ? <p className="text-sm text-slate-600">Sin datos registrados.</p> : (
+        <dl className="divide-y divide-slate-200">
+          {campos.map(([campo, dato]) => {
+            const etiqueta = campo === 'sueldoMensual' ? 'Sueldo mensual' :
+              nombreAccion(campo.replace(/([a-z])([A-Z])/g, '$1 $2'));
+            return (
+              <div key={campo} className="grid grid-cols-2 gap-2 py-2">
+                <dt className="text-slate-600">{etiqueta}</dt>
+                <dd className="break-words font-medium">
+                  {dato == null ? '—' : typeof dato === 'object' ? (
+                    <details>
+                      <summary className="cursor-pointer text-teal-800">Ver detalle</summary>
+                      <pre className="max-h-56 overflow-auto text-xs">{JSON.stringify(dato, null, 2)}</pre>
+                    </details>
+                  ) : campo === 'sueldoMensual' && typeof dato === 'number'
+                    ? formatCurrency(dato)
+                    : typeof dato === 'boolean' ? (dato ? 'Sí' : 'No') : String(dato)}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      )}
+    </section>
+  );
+}
 
 export const AuditoriaPage: React.FC = () => {
+  const puedeVerNomina = useAuthStore((s) => s.isAdmin());
+  const puedeEditarPersonal = useAuthStore((s) => s.can('accesos:ver') && s.can('accesos:gestionar'));
+  const [vista, setVista] = useState<'actividad' | 'nomina'>('actividad');
   const [logs, setLogs] = useState<AuditoriaLogModel[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [acciones, setAcciones] = useState<string[]>([]);
@@ -65,18 +108,30 @@ export const AuditoriaPage: React.FC = () => {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">
           <ShieldCheck className="h-7 w-7 text-brand-600" />
-          Auditoría Inmutable
+          Auditoría
         </h1>
         <p className="text-sm text-slate-500">
-          Registro de solo lectura de accesos, anulaciones, reimpresiones, precios, mermas, caja y permisos
+          Consulta quién hizo cada cambio y cuándo ocurrió.
         </p>
       </div>
 
+      {puedeVerNomina && (
+        <div className="flex flex-wrap gap-2" aria-label="Vistas de Auditoría">
+          {(['actividad', 'nomina'] as const).map((opcion) => (
+            <button key={opcion} type="button" aria-pressed={vista === opcion} onClick={() => setVista(opcion)}
+              className={`min-h-[44px] rounded-xl border px-4 text-sm font-bold ${vista === opcion ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+              {opcion === 'actividad' ? 'Actividad' : 'Nómina'}
+            </button>
+          ))}
+        </div>
+      )}
+      {puedeVerNomina && vista === 'nomina' ? <NominaPanel puedeEditar={puedeEditarPersonal} /> : <>
       {error && <Alert type="error" message={error} />}
 
       {/* Filtros */}
       <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
         <select
+          aria-label="Persona que hizo el cambio"
           value={usuarioId}
           onChange={(e) => setUsuarioId(e.target.value)}
           className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
@@ -90,6 +145,7 @@ export const AuditoriaPage: React.FC = () => {
         </select>
 
         <select
+          aria-label="Tipo de acción"
           value={accion}
           onChange={(e) => setAccion(e.target.value)}
           className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
@@ -97,13 +153,14 @@ export const AuditoriaPage: React.FC = () => {
           <option value="">Todas las acciones</option>
           {acciones.map((a) => (
             <option key={a} value={a}>
-              {a}
+                {nombreAccion(a)}
             </option>
           ))}
         </select>
 
         <input
           type="date"
+          aria-label="Fecha inicial de la actividad"
           value={fechaDesde}
           onChange={(e) => setFechaDesde(e.target.value)}
           className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
@@ -111,6 +168,7 @@ export const AuditoriaPage: React.FC = () => {
 
         <input
           type="date"
+          aria-label="Fecha final de la actividad"
           value={fechaHasta}
           onChange={(e) => setFechaHasta(e.target.value)}
           className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
@@ -176,7 +234,7 @@ export const AuditoriaPage: React.FC = () => {
                               : 'info'
                         }
                       >
-                        {l.accion}
+                        {nombreAccion(l.accion)}
                       </Badge>
                     </td>
                     <td className="py-2.5 px-2 text-xs font-medium text-slate-700">
@@ -194,7 +252,7 @@ export const AuditoriaPage: React.FC = () => {
                         className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
                       >
                         <Eye className="h-3.5 w-3.5" />
-                        Ver Diff
+                        Ver cambio
                       </button>
                     </td>
                   </tr>
@@ -210,7 +268,7 @@ export const AuditoriaPage: React.FC = () => {
       {/* Modal Valor Anterior vs Valor Nuevo */}
       <Modal
         open={Boolean(selectedLog)}
-        title={`Detalle de Auditoría #${selectedLog?.id ?? ''} — ${selectedLog?.accion ?? ''}`}
+        title={selectedLog ? nombreAccion(selectedLog.accion) : 'Detalle de actividad'}
         onClose={() => setSelectedLog(null)}
         maxWidthClass="max-w-3xl"
       >
@@ -232,26 +290,13 @@ export const AuditoriaPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <p className="mb-1.5 text-xs font-bold uppercase text-red-700">Valor Anterior</p>
-                <pre className="max-h-72 overflow-auto rounded-xl border border-red-200 bg-red-50/50 p-3 text-xs text-slate-800">
-                  {selectedLog.valorAnterior
-                    ? JSON.stringify(selectedLog.valorAnterior, null, 2)
-                    : 'null (registro nuevo)'}
-                </pre>
-              </div>
-              <div>
-                <p className="mb-1.5 text-xs font-bold uppercase text-emerald-700">Valor Nuevo</p>
-                <pre className="max-h-72 overflow-auto rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 text-xs text-slate-800">
-                  {selectedLog.valorNuevo
-                    ? JSON.stringify(selectedLog.valorNuevo, null, 2)
-                    : 'null'}
-                </pre>
-              </div>
+              <ValoresRegistrados titulo="Antes" valor={selectedLog.valorAnterior} />
+              <ValoresRegistrados titulo="Después" valor={selectedLog.valorNuevo} />
             </div>
           </div>
         )}
       </Modal>
+      </>}
     </div>
   );
 };

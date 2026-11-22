@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  AlertTriangle,
   Plus,
   ShoppingBag,
   Truck,
@@ -8,8 +7,8 @@ import {
   BookOpen,
   Scale,
 } from 'lucide-react';
-import { env } from '../../config/env';
 import {
+  CategoriaModel,
   CompraModel,
   IngredienteModel,
   InventarioMovimientoModel,
@@ -30,6 +29,7 @@ import { FotoPlatillo } from '../components/common/FotoPlatillo';
 import { SelectorFotoPlatillo } from '../components/common/SelectorFotoPlatillo';
 import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCampos';
 import { ExistenciasTable } from '../components/inventario/ExistenciasTable';
+import { AlertasStockPanel } from '../components/inventario/AlertasStockPanel';
 import { KardexTable } from '../components/inventario/KardexTable';
 import {
   NuevoIngredienteModal,
@@ -41,6 +41,7 @@ import {
 } from '../components/inventario/NuevoProveedorModal';
 import { ProveedoresGrid } from '../components/inventario/ProveedoresGrid';
 import { RecetasPreciosGrid } from '../components/inventario/RecetasPreciosGrid';
+import { NuevoPlatilloInventarioModal } from '../components/inventario/NuevoPlatilloInventarioModal';
 
 type Tab = 'existencias' | 'compras' | 'proveedores' | 'kardex' | 'recetas';
 
@@ -52,12 +53,17 @@ export const InventarioPage: React.FC = () => {
   const canAdjust = useAuthStore((s) => s.can('inventario:ajustar'));
 
   const [tab, setTab] = useState<Tab>('existencias');
+  const [buscarIngrediente, setBuscarIngrediente] = useState('');
+  const [ingredienteCompra, setIngredienteCompra] = useState<IngredienteModel | null>(null);
+  const [proveedorCompraNuevo, setProveedorCompraNuevo] = useState<number | null>(null);
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
   const [proveedores, setProveedores] = useState<ProveedorModel[]>([]);
   const [compras, setCompras] = useState<CompraModel[]>([]);
   const [movimientos, setMovimientos] = useState<InventarioMovimientoModel[]>([]);
   const [movMeta, setMovMeta] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [platillos, setPlatillos] = useState<PlatilloModel[]>([]);
+  const [categorias, setCategorias] = useState<CategoriaModel[]>([]);
+  const [nuevoPlatillo, setNuevoPlatillo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -118,7 +124,10 @@ export const InventarioPage: React.FC = () => {
       setCompras(comp.items);
       setMovimientos(movs.items);
       setMovMeta(movs.meta);
-      if (menu) setPlatillos(menu.platillos);
+      if (menu) {
+        setPlatillos(menu.platillos);
+        setCategorias(menu.categorias);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar inventario');
     }
@@ -128,7 +137,11 @@ export const InventarioPage: React.FC = () => {
     void cargarTodo();
   }, [cargarTodo]);
 
-  const alertas = ingredientes.filter((i) => i.bajoStock);
+  const abrirCompra = (ingrediente: IngredienteModel) => {
+    setIngredienteCompra(ingrediente);
+    setProveedorCompraNuevo(null);
+    setTab('compras');
+  };
 
   const handleCrearIngrediente = async (payload: NuevoIngredientePayload) => {
     setError(null);
@@ -138,18 +151,12 @@ export const InventarioPage: React.FC = () => {
     void cargarTodo();
   };
 
-  const handleCrearProveedor = async (payload: NuevoProveedorPayload): Promise<boolean> => {
+  const handleCrearProveedor = async (payload: NuevoProveedorPayload): Promise<void> => {
     setError(null);
-    try {
-      await inventarioService.crearProveedor(payload);
-      setProvModal(false);
-      setSuccess('Proveedor creado correctamente.');
-      await cargarTodo();
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error creando proveedor');
-      return false;
-    }
+    const proveedor = await inventarioService.crearProveedor(payload);
+    setProveedores((actuales) => [...actuales, proveedor].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+    if (tab === 'compras') setProveedorCompraNuevo(proveedor.id);
+    setSuccess('Proveedor creado correctamente.');
   };
 
   const handleAjuste = async (
@@ -254,7 +261,7 @@ export const InventarioPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900">Inventario y Compras</h1>
           <p className="text-sm text-slate-500">
-            Compras en libras (lb) con conversión automática a onzas (1 lb = {env.OZ_PER_LB} oz) para recetas
+            Ingresa las compras para sumar existencias y actualizar el costo promedio.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -281,26 +288,6 @@ export const InventarioPage: React.FC = () => {
         </div>
       </div>
 
-      {alertas.length > 0 && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
-          <div className="flex items-center gap-2 font-bold text-amber-900">
-            <AlertTriangle className="h-5 w-5 text-amber-600" />
-            Alerta de stock mínimo ({alertas.length} ingrediente(s) requieren reposición):
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {alertas.map((a) => (
-              <span
-                key={a.id}
-                className="rounded-lg bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900"
-              >
-                {a.nombre}: {a.stockActualOz.toFixed(1)} oz ({a.stockActualLb.toFixed(2)} lb) / Mín:{' '}
-                {a.stockMinimoOz.toFixed(1)} oz
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {error && <Alert type="error" message={error} />}
       {success && <Alert type="success" message={success} />}
 
@@ -308,15 +295,19 @@ export const InventarioPage: React.FC = () => {
       <div className="flex flex-wrap gap-2">
         {[
           { id: 'existencias', label: 'Existencias', Icon: Scale },
-          { id: 'compras', label: 'Compras (lb → oz)', Icon: ShoppingBag },
+          { id: 'compras', label: 'Compras', Icon: ShoppingBag },
           { id: 'proveedores', label: 'Proveedores', Icon: Truck },
-          { id: 'kardex', label: 'Movimientos (Kardex)', Icon: History },
+          { id: 'kardex', label: 'Historial de movimientos', Icon: History },
           { id: 'recetas', label: 'Recetas y Precios', Icon: BookOpen },
         ].map(({ id, label, Icon }) => (
           <button
             key={id}
             type="button"
-            onClick={() => setTab(id as Tab)}
+            onClick={() => {
+              setIngredienteCompra(null);
+              setProveedorCompraNuevo(null);
+              setTab(id as Tab);
+            }}
             className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 text-sm font-bold transition ${
               tab === id
                 ? 'bg-slate-900 text-white shadow'
@@ -330,16 +321,30 @@ export const InventarioPage: React.FC = () => {
       </div>
 
       {tab === 'existencias' && (
-        <ExistenciasTable
-          ingredientes={ingredientes}
-          canAdjust={canAdjust}
-          onAjustar={setAjusteTarget}
-        />
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
+          <div className="min-w-0 space-y-3">
+            <label className="block max-w-sm space-y-1 text-sm font-semibold text-slate-700">
+              <span>Buscar ingrediente</span>
+              <input type="search" value={buscarIngrediente} onChange={(e) => setBuscarIngrediente(e.target.value)}
+                placeholder="Nombre o código"
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" />
+            </label>
+            <ExistenciasTable ingredientes={ingredientes.filter((ingrediente) =>
+              `${ingrediente.nombre} ${ingrediente.codigo}`.toLowerCase().includes(buscarIngrediente.trim().toLowerCase()))}
+              canAdjust={canAdjust} canBuy={canBuy}
+              onComprar={abrirCompra} onAjustar={setAjusteTarget} />
+          </div>
+          <AlertasStockPanel ingredientes={ingredientes} onComprar={canBuy ? abrirCompra : undefined} />
+        </div>
       )}
 
       {tab === 'compras' && (
         <ComprasPanel
+          key={ingredienteCompra?.id ?? 'compras'}
           canBuy={canBuy}
+          ingredienteInicial={ingredienteCompra}
+          proveedorCompraNuevo={proveedorCompraNuevo}
+          onNuevoProveedor={canManage ? () => setProvModal(true) : undefined}
           proveedores={proveedores}
           ingredientes={ingredientes}
           compras={compras}
@@ -358,6 +363,16 @@ export const InventarioPage: React.FC = () => {
       )}
 
       {tab === 'recetas' && (
+        <div className="space-y-4">
+        {canManage && canManageMenu && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 p-4">
+            <p className="text-sm text-teal-950">Usa ingredientes con costo para calcular cada porción del platillo.</p>
+            <button type="button" onClick={() => setNuevoPlatillo(true)} disabled={categorias.length === 0}
+              className="min-h-[44px] rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:opacity-50">
+              Nuevo platillo con receta
+            </button>
+          </div>
+        )}
         <RecetasPreciosGrid
           platillos={platillos}
           canManage={canManageMenu}
@@ -366,7 +381,15 @@ export const InventarioPage: React.FC = () => {
           onEditarReceta={abrirReceta}
           onCambiarFoto={isAdmin && canManageMenu ? abrirFoto : undefined}
         />
+        </div>
       )}
+
+      {nuevoPlatillo && <NuevoPlatilloInventarioModal categorias={categorias} ingredientes={ingredientes}
+        onCerrar={() => setNuevoPlatillo(false)} onGuardado={(publicado) => {
+          setNuevoPlatillo(false);
+          setSuccess(publicado ? 'Platillo guardado y habilitado para venta.' : 'Platillo guardado como borrador.');
+          void cargarTodo();
+        }} />}
 
       <NuevoIngredienteModal
         open={ingModal}

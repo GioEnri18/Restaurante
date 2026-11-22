@@ -39,7 +39,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 p-4">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
         <div className="mb-7 text-center">
           <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
@@ -55,12 +55,14 @@ export const LoginPage: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-semibold text-slate-700">
+            <label htmlFor="sesion-usuario" className="mb-1.5 block text-sm font-semibold text-slate-700">
               Usuario o correo electrónico
             </label>
             <div className="relative">
               <User className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
+                id="sesion-usuario"
+                required
                 type="text"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
@@ -72,10 +74,12 @@ export const LoginPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-semibold text-slate-700">Contraseña</label>
+            <label htmlFor="sesion-clave" className="mb-1.5 block text-sm font-semibold text-slate-700">Contraseña</label>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
+                id="sesion-clave"
+                required
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -97,7 +101,7 @@ export const LoginPage: React.FC = () => {
         </form>
 
         {/* Accesos rápidos de prueba */}
-        <div className="mt-6 border-t border-slate-200 pt-5">
+        {import.meta.env.DEV && <div className="mt-6 border-t border-slate-200 pt-5">
           <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
             Credenciales de prueba rápida
           </p>
@@ -124,7 +128,7 @@ export const LoginPage: React.FC = () => {
               Mesero
             </button>
           </div>
-        </div>
+        </div>}
       </div>
     </div>
   );

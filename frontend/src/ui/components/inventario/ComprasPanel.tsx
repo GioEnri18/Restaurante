@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { env } from '../../../config/env';
 import { CompraModel, IngredienteModel, ProveedorModel } from '../../../models';
 import { formatCurrency, formatDateTime, lbToOzPreview } from '../../../utils/formatters';
@@ -8,6 +8,9 @@ interface ComprasPanelProps {
   proveedores: ProveedorModel[];
   ingredientes: IngredienteModel[];
   compras: CompraModel[];
+  ingredienteInicial: IngredienteModel | null;
+  proveedorCompraNuevo: number | null;
+  onNuevoProveedor?: () => void;
   onRegistrarCompra: (payload: {
     proveedorId: number;
     numeroDocumento?: string;
@@ -32,25 +35,45 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
   proveedores,
   ingredientes,
   compras,
+  ingredienteInicial,
+  proveedorCompraNuevo,
+  onNuevoProveedor,
   onRegistrarCompra,
 }) => {
-  const [compraForm, setCompraForm] = useState(INITIAL_COMPRA_FORM);
+  const [compraForm, setCompraForm] = useState(() => ({
+    ...INITIAL_COMPRA_FORM,
+    proveedorId: proveedores.some((p) => p.id === ingredienteInicial?.proveedorId)
+      ? String(ingredienteInicial?.proveedorId) : '',
+    ingredienteId: ingredienteInicial ? String(ingredienteInicial.id) : '',
+  }));
+  const [guardando, setGuardando] = useState(false);
+  const ingredienteActual = ingredientes.find((i) => String(i.id) === compraForm.ingredienteId);
+
+  useEffect(() => {
+    if (proveedorCompraNuevo !== null) {
+      setCompraForm((actual) => ({ ...actual, proveedorId: String(proveedorCompraNuevo) }));
+    }
+  }, [proveedorCompraNuevo]);
 
   const previewOz = lbToOzPreview(Number(compraForm.cantidadLb || 0));
   const previewSubtotal = Number(compraForm.cantidadLb || 0) * Number(compraForm.precioPorLb || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const ok = await onRegistrarCompra({
-      proveedorId: Number(compraForm.proveedorId),
-      numeroDocumento: compraForm.numeroDocumento || undefined,
-      observaciones: compraForm.observaciones || undefined,
-      ingredienteId: Number(compraForm.ingredienteId),
-      cantidadLb: Number(compraForm.cantidadLb),
-      precioPorLb: Number(compraForm.precioPorLb),
-    });
-    if (ok) {
-      setCompraForm(INITIAL_COMPRA_FORM);
+    if (guardando) return;
+    setGuardando(true);
+    try {
+      const ok = await onRegistrarCompra({
+        proveedorId: Number(compraForm.proveedorId),
+        numeroDocumento: compraForm.numeroDocumento || undefined,
+        observaciones: compraForm.observaciones || undefined,
+        ingredienteId: Number(compraForm.ingredienteId),
+        cantidadLb: Number(compraForm.cantidadLb),
+        precioPorLb: Number(compraForm.precioPorLb),
+      });
+      if (ok) setCompraForm((actual) => ({ ...actual, numeroDocumento: '', cantidadLb: '', precioPorLb: '' }));
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -61,10 +84,18 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
           onSubmit={handleSubmit}
           className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-5"
         >
-          <h2 className="text-lg font-bold text-slate-900">Registrar Compra en Libras (lb)</h2>
+          <h2 className="text-lg font-bold text-slate-900">Ingresar una compra</h2>
+          <p className="text-sm text-slate-600">Ingresa la cantidad recibida y lo que pagaste por libra.</p>
           <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">Proveedor</label>
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="compra-proveedor" className="text-sm font-bold text-slate-700">Proveedor</label>
+              {onNuevoProveedor && <button type="button" onClick={onNuevoProveedor} disabled={guardando}
+                className="min-h-9 rounded-lg border border-teal-300 px-3 text-xs font-bold text-teal-900 hover:bg-teal-50 disabled:opacity-50">
+                Nuevo proveedor
+              </button>}
+            </div>
             <select
+              id="compra-proveedor"
               required
               value={compraForm.proveedorId}
               onChange={(e) => setCompraForm({ ...compraForm, proveedorId: e.target.value })}
@@ -77,10 +108,12 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
                 </option>
               ))}
             </select>
+            {proveedores.length === 0 && <p className="mt-1 text-sm text-amber-800">Agrega un proveedor para poder registrar la compra.</p>}
           </div>
           <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">Ingrediente</label>
+            <label htmlFor="compra-ingrediente" className="mb-1 block text-sm font-bold text-slate-700">Ingrediente recibido</label>
             <select
+              id="compra-ingrediente"
               required
               value={compraForm.ingredienteId}
               onChange={(e) => setCompraForm({ ...compraForm, ingredienteId: e.target.value })}
@@ -96,24 +129,28 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Cantidad (lb)</label>
+              <label htmlFor="compra-cantidad" className="mb-1 block text-sm font-bold text-slate-700">Cantidad recibida (lb)</label>
               <input
+                id="compra-cantidad"
                 required
                 type="number"
-                step="0.01"
-                min="0.01"
+                step="0.0001"
+                min="0.0001"
+                max="999999.9999"
                 value={compraForm.cantidadLb}
                 onChange={(e) => setCompraForm({ ...compraForm, cantidadLb: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Precio por lb (Q)</label>
+              <label htmlFor="compra-precio" className="mb-1 block text-sm font-bold text-slate-700">Costo por libra (Q)</label>
               <input
+                id="compra-precio"
                 required
                 type="number"
                 step="0.01"
                 min="0.01"
+                max="99999999.99"
                 value={compraForm.precioPorLb}
                 onChange={(e) => setCompraForm({ ...compraForm, precioPorLb: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
@@ -121,7 +158,13 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
             </div>
           </div>
 
-          <div className="rounded-xl bg-sky-50 p-3.5 text-sm text-sky-900">
+          <div className="rounded-xl border border-teal-200 bg-teal-50 p-3.5 text-sm text-teal-950" aria-live="polite">
+            {ingredienteActual && (
+              <p className="mb-1">
+                Existencias actuales <strong>{ingredienteActual.stockActualLb.toFixed(2)} lb</strong>
+                {' · '}Costo promedio actual <strong>{formatCurrency(ingredienteActual.costoPromedioLb)}/lb</strong>
+              </p>
+            )}
             <p>
               Conversión automática: <strong>{compraForm.cantidadLb || 0} lb</strong> ={' '}
               <strong>{previewOz.toFixed(2)} oz</strong>
@@ -142,9 +185,10 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
 
           <button
             type="submit"
-            className="min-h-[48px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white hover:bg-brand-700"
+            disabled={guardando || proveedores.length === 0 || ingredientes.length === 0}
+            className="min-h-[48px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
           >
-            Registrar Compra e Ingresar Onzas
+            {guardando ? 'Guardando compra…' : 'Guardar compra y actualizar existencias'}
           </button>
         </form>
       )}

@@ -19,6 +19,7 @@ const {
   MetodoPago,
   MotivoMerma,
   Platillo,
+  Proveedor,
   Rol,
   Sucursal,
   TipoServicio,
@@ -247,10 +248,12 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
       precioPorLb: 0,
     };
     assert.equal((await enviar('/inventario/ingredientes', { ...ingredienteBase, stockInicial: 5 })).status, 400);
-    const sinCosto = await enviar('/inventario/ingredientes', ingredienteBase);
-    assert.equal(sinCosto.status, 201);
-    ingredientesTemporalesIds.push(sinCosto.body.data.id);
-    assert.equal((await enviar(`/inventario/ingredientes/${sinCosto.body.data.id}/ajustar`, {
+    assert.equal((await enviar('/inventario/ingredientes', ingredienteBase)).status, 400);
+    const sinCosto = await Ingrediente.findOne({
+      where: { sucursalId: adminUser.sucursalId, stockActualOz: 0, costoPromedioOz: 0, activo: true },
+    });
+    assert.ok(sinCosto, 'El menú precargado incluye ingredientes por valorar');
+    assert.equal((await enviar(`/inventario/ingredientes/${sinCosto.id}/ajustar`, {
       tipoAjuste: 'ENTRADA', cantidad: 2, unidad: UnidadMedida.oz, motivo: 'Prueba sin costo',
     })).status, 400);
 
@@ -271,8 +274,40 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     };
     assert.equal((await enviar('/ventas/confirmar', pedido)).status, 400);
     assert.equal((await enviar(`/ventas/platillos/${platillo.id}`, {
-      disponible: true, receta: [{ ingredienteId: sinCosto.body.data.id, cantidadOz: 3 }],
+      disponible: true, receta: [{ ingredienteId: sinCosto.id, cantidadOz: 3 }],
     }, 'PUT')).status, 400);
+
+    const conCosto = await enviar('/inventario/ingredientes', {
+      ...ingredienteBase, nombre: 'Ingrediente de compra QA', stockInicial: 16, precioPorLb: 16,
+    });
+    assert.equal(conCosto.status, 201);
+    const idCompraIngrediente = conCosto.body.data.id;
+    ingredientesTemporalesIds.push(idCompraIngrediente);
+    const proveedor = await Proveedor.findOne({ where: { sucursalId: adminUser.sucursalId, activo: true } });
+    assert.ok(proveedor);
+    const compra = await enviar('/inventario/compras', {
+      proveedorId: proveedor.id,
+      items: [{ ingredienteId: idCompraIngrediente, cantidadLb: 1, precioPorLb: 32 }],
+    });
+    assert.equal(compra.status, 201);
+    const comprado = await Ingrediente.findByPk(idCompraIngrediente);
+    assert.equal(Number(comprado.stockActualOz), 32);
+    assert.equal(Number(comprado.costoPromedioOz), 1.5);
+
+    const borrador = await enviar('/ventas/platillos', {
+      categoriaId,
+      sku: `QA-BORRADOR-${RUN_TAG}`.slice(0, 30),
+      nombre: 'Platillo QA desde inventario',
+      precioVenta: 28,
+      disponible: false,
+      receta: [{ ingredienteId: idCompraIngrediente, cantidadOz: 4 }],
+    });
+    assert.equal(borrador.status, 201);
+    platillosTemporalesIds.push(borrador.body.data.id);
+    assert.equal(borrador.body.data.disponible, false);
+    assert.equal(borrador.body.data.receta[0].ingredienteId, idCompraIngrediente);
+    assert.equal(Number(borrador.body.data.receta[0].cantidadOz), 4);
+    assert.equal(Number((await comprado.reload()).stockActualOz), 32);
 
     const ingrediente = await crearIngredienteTemporal('PRECIO', 20);
     const configurado = await enviar(`/ventas/platillos/${platillo.id}`, {

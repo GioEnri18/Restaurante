@@ -79,6 +79,7 @@ export const ventasService = {
     nombre: string;
     descripcion?: string;
     precioVenta: number;
+    disponible?: boolean;
     receta?: Array<{ ingredienteId: number; cantidadOz: number }>;
   }) {
     return httpClient.post<{ id: number }>('/ventas/platillos', payload);

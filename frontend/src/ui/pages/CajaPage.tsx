@@ -124,10 +124,10 @@ export const CajaPage: React.FC = () => {
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-2xl font-extrabold text-slate-900">Control de Caja y Arqueo</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900">Caja del turno</h1>
               {actual ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-800">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-600" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-100 px-3 py-1 text-xs font-extrabold text-teal-800">
+                  <span className="h-2 w-2 rounded-full bg-teal-700" />
                   TURNO #{actual.id} ABIERTO
                 </span>
               ) : (
@@ -159,7 +159,7 @@ export const CajaPage: React.FC = () => {
                 className="inline-flex min-h-[46px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50"
               >
                 <PlusCircle className="h-4 w-4 text-brand-600" />
-                Ingreso / Egreso
+                Registrar entrada o salida de efectivo
               </button>
             )}
             {canClose && (
@@ -169,7 +169,7 @@ export const CajaPage: React.FC = () => {
                 className="inline-flex min-h-[46px] items-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-extrabold text-white shadow-md shadow-red-600/20 transition hover:bg-red-700"
               >
                 <Lock className="h-4 w-4" />
-                Realizar Arqueo y Cierre
+                Contar efectivo y cerrar turno
               </button>
             )}
           </div>
