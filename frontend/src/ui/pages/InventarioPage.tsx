@@ -79,6 +79,11 @@ export const InventarioPage: React.FC = () => {
   const [ingredienteCompra, setIngredienteCompra] = useState<IngredienteModel | null>(null);
   const [proveedorCompraNuevo, setProveedorCompraNuevo] = useState<number | null>(null);
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
+  const [ingredientesCargados, setIngredientesCargados] = useState(false);
+  const [busquedaExistencias, setBusquedaExistencias] = useState('');
+  const [soloPorReponer, setSoloPorReponer] = useState(false);
+  const [enfocarPendientes, setEnfocarPendientes] = useState(false);
+  const tablaExistencias = React.useRef<HTMLDivElement>(null);
   const [proveedores, setProveedores] = useState<ProveedorModel[]>([]);
   const [compras, setCompras] = useState<CompraModel[]>([]);
   const [movimientos, setMovimientos] = useState<InventarioMovimientoModel[]>([]);
@@ -143,6 +148,7 @@ export const InventarioPage: React.FC = () => {
         ventasService.obtenerMenu().catch(() => null),
       ]);
       setIngredientes(ings);
+      setIngredientesCargados(true);
       setProveedores(provs);
       setCompras(comp.items);
       setMovimientos(movs.items);
@@ -160,11 +166,29 @@ export const InventarioPage: React.FC = () => {
     void cargarTodo();
   }, [cargarTodo]);
 
+  useEffect(() => {
+    if (!enfocarPendientes || tab !== 'existencias') return;
+    tablaExistencias.current?.focus();
+    setEnfocarPendientes(false);
+  }, [enfocarPendientes, tab]);
+
+  const verPendientes = () => {
+    setBusquedaExistencias('');
+    setSoloPorReponer(true);
+    setEnfocarPendientes(true);
+    cambiarTab('existencias');
+  };
+
   const abrirCompra = (ingrediente: IngredienteModel) => {
     setIngredienteCompra(ingrediente);
     setProveedorCompraNuevo(null);
     cambiarTab('compras');
   };
+
+  const alertasStock = ingredientesCargados && (
+    <AlertasStockPanel ingredientes={ingredientes} onComprar={canBuy ? abrirCompra : undefined}
+      onVerPendientes={verPendientes} />
+  );
 
   const handleCrearIngrediente = async (payload: NuevoIngredientePayload) => {
     setError(null);
@@ -345,6 +369,8 @@ export const InventarioPage: React.FC = () => {
             onClick={() => {
               setIngredienteCompra(null);
               setProveedorCompraNuevo(null);
+              setBusquedaExistencias('');
+              setSoloPorReponer(false);
               cambiarTab(id as Tab);
             }}
             className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 text-sm font-bold transition ${
@@ -361,11 +387,13 @@ export const InventarioPage: React.FC = () => {
 
       {tab === 'existencias' && (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
-          <div className="min-w-0">
+          <div className="min-w-0" ref={tablaExistencias} tabIndex={-1}>
             <ExistenciasTable ingredientes={ingredientes} canAdjust={canAdjust} canBuy={canBuy}
+              busqueda={busquedaExistencias} onBuscar={setBusquedaExistencias}
+              soloPorReponer={soloPorReponer} onAlternarPorReponer={() => setSoloPorReponer((actual) => !actual)}
               onComprar={abrirCompra} onAjustar={setAjusteTarget} />
           </div>
-          <AlertasStockPanel ingredientes={ingredientes} onComprar={canBuy ? abrirCompra : undefined} />
+          {alertasStock}
         </div>
       )}
 
@@ -382,7 +410,7 @@ export const InventarioPage: React.FC = () => {
           compras={compras}
           onRegistrarCompra={handleRegistrarCompra}
         />
-        <AlertasStockPanel ingredientes={ingredientes} onComprar={canBuy ? abrirCompra : undefined} />
+        {alertasStock}
         </div>
       )}
 

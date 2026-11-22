@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { IngredienteModel } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
@@ -8,6 +8,10 @@ interface ExistenciasTableProps {
   ingredientes: IngredienteModel[];
   canAdjust: boolean;
   canBuy: boolean;
+  busqueda: string;
+  onBuscar: (busqueda: string) => void;
+  soloPorReponer: boolean;
+  onAlternarPorReponer: () => void;
   onComprar: (ingrediente: IngredienteModel) => void;
   onAjustar: (ingrediente: IngredienteModel) => void;
 }
@@ -16,16 +20,17 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
   ingredientes,
   canAdjust,
   canBuy,
+  busqueda,
+  onBuscar,
+  soloPorReponer,
+  onAlternarPorReponer,
   onComprar,
   onAjustar,
 }) => {
-  const [busqueda, setBusqueda] = useState('');
-  const [soloBajoStock, setSoloBajoStock] = useState(false);
-
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return ingredientes.filter((ing) => {
-      if (soloBajoStock && !ing.bajoStock && ing.stockActualOz > 0) return false;
+      if (soloPorReponer && !ing.bajoStock && ing.stockActualOz > 0) return false;
       if (!q) return true;
       return (
         ing.nombre.toLowerCase().includes(q) ||
@@ -33,7 +38,7 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
         (ing.proveedorNombre ?? '').toLowerCase().includes(q)
       );
     });
-  }, [ingredientes, busqueda, soloBajoStock]);
+  }, [ingredientes, busqueda, soloPorReponer]);
 
   return (
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -44,14 +49,14 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
             type="text"
             aria-label="Buscar ingrediente"
             value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
+            onChange={(e) => onBuscar(e.target.value)}
             placeholder="Buscar ingrediente por nombre, código o proveedor..."
             className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 text-sm outline-none focus:border-brand-500 focus:bg-white"
           />
           {busqueda && (
             <button
               type="button"
-              onClick={() => setBusqueda('')}
+              onClick={() => onBuscar('')}
               aria-label="Limpiar búsqueda"
               className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
             >
@@ -61,10 +66,10 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
         </div>
         <button
           type="button"
-          onClick={() => setSoloBajoStock((v) => !v)}
-          aria-pressed={soloBajoStock}
+          onClick={onAlternarPorReponer}
+          aria-pressed={soloPorReponer}
           className={`min-h-[42px] rounded-xl border px-3.5 text-xs font-bold transition ${
-            soloBajoStock
+            soloPorReponer
               ? 'border-amber-600 bg-amber-600 text-white'
               : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
           }`}
