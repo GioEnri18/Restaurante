@@ -139,11 +139,10 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
             type="button"
             onClick={onToggleOnlyAvailable}
             aria-pressed={onlyAvailable}
-            className={`inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition ${
-              onlyAvailable
-                ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
-                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-            }`}
+            className={`inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition ${onlyAvailable
+              ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+              : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
           >
             {onlyAvailable ? 'Mostrando: Solo vendibles' : 'Solo listos para vender'}
           </button>
@@ -176,8 +175,8 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
             onClick={() => onSelectCat(null)}
             aria-pressed={selectedCat === null}
             className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${selectedCat === null
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              ? 'bg-slate-900 text-white shadow-md'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
           >
             <UtensilsCrossed className="h-4 w-4" />
@@ -196,10 +195,10 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
               onClick={() => onSelectCat('ESPECIAL')}
               aria-pressed={selectedCat === 'ESPECIAL'}
               className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${selectedCat === 'ESPECIAL'
-                  ? 'bg-gradient-to-r from-brand-600 to-rose-600 text-white shadow-md'
-                  : menu.menuEspecialActivo.esMenuPrincipal
-                    ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 hover:bg-amber-200'
-                    : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100'
+                ? 'bg-gradient-to-r from-brand-600 to-rose-600 text-white shadow-md'
+                : menu.menuEspecialActivo.esMenuPrincipal
+                  ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 hover:bg-amber-200'
+                  : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100'
                 }`}
             >
               <Sparkles className="h-4 w-4" />
@@ -210,7 +209,14 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
             </button>
           )}
 
-          {menu?.categorias.map((cat) => {
+          {[...(menu?.categorias ?? [])]
+            .sort((a, b) => {
+              const ca = countByCategoria.get(a.id) ?? 0;
+              const cb = countByCategoria.get(b.id) ?? 0;
+              if ((ca > 0) !== (cb > 0)) return ca > 0 ? -1 : 1;
+              return 0;
+            })
+            .map((cat) => {
             const visual = getCategoriaVisual(cat.nombre);
             const CatIcon = visual.Icon;
             const active = selectedCat === cat.id;
@@ -223,8 +229,8 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                 onClick={() => onSelectCat(cat.id)}
                 aria-pressed={active}
                 className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${active
-                    ? `${visual.pillActive} shadow-md`
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  ? `${visual.pillActive} shadow-md`
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
               >
                 <CatIcon className="h-4 w-4" />
@@ -277,10 +283,10 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                   }
                 }}
                 className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-white text-left transition select-none ${disabled
-                    ? 'cursor-not-allowed border-slate-200 opacity-60'
-                    : inCartQty > 0
-                      ? 'cursor-pointer border-brand-500 shadow-md ring-2 ring-brand-200'
-                      : 'cursor-pointer border-slate-200 shadow-sm hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md'
+                  ? 'cursor-not-allowed border-slate-200 opacity-60'
+                  : inCartQty > 0
+                    ? 'cursor-pointer border-brand-500 shadow-md ring-2 ring-brand-200'
+                    : 'cursor-pointer border-slate-200 shadow-sm hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md'
                   }`}
               >
                 <div

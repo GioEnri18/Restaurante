@@ -87,9 +87,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col bg-slate-950 text-slate-100">
-      {/* Encabezado marca */}
-      <div className="flex items-center justify-between border-b border-slate-800/80 px-5 py-4">
+    <div className="flex h-full flex-col overflow-hidden bg-slate-950 text-slate-100">
+      {/* Encabezado marca (siempre fijo arriba) */}
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-800/80 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg shadow-brand-900/40">
             <ChefHat className="h-6 w-6" />
@@ -113,8 +113,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
         </button>
       </div>
 
-      {/* Navegación agrupada por contexto operativo */}
-      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-5">
+      {/* Navegación agrupada por contexto operativo (scroll interno solo si no cabe en pantallas bajas) */}
+      <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
         {visibleGroups.map((group) => (
           <div key={group.title}>
             <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -156,8 +156,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
         ))}
       </nav>
 
-      {/* Pie de sesión */}
-      <div className="border-t border-slate-800/80 p-4">
+      {/* Pie de sesión (siempre fijo abajo en pantalla) */}
+      <div className="shrink-0 border-t border-slate-800/80 bg-slate-950 p-3.5">
         <div className="mb-3 flex items-center gap-3 rounded-xl bg-slate-900 px-3 py-2.5 ring-1 ring-slate-800">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600/20 text-sm font-extrabold text-brand-400">
             {(usuario?.nombreCompleto ?? 'U').charAt(0).toUpperCase()}
@@ -181,12 +181,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
 
   return (
     <>
-      <aside className="hidden w-64 shrink-0 lg:block">{sidebarContent}</aside>
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 supports-[height:100dvh]:h-dvh lg:block">
+        {sidebarContent}
+      </aside>
 
       {openMobile && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobile} />
-          <aside className="relative z-50 w-72 max-w-[85vw]">{sidebarContent}</aside>
+          <aside className="relative z-50 h-screen w-72 max-w-[85vw] supports-[height:100dvh]:h-dvh">
+            {sidebarContent}
+          </aside>
         </div>
       )}
     </>
