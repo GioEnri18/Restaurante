@@ -48,12 +48,15 @@ export const VentasPage: React.FC = () => {
   // Controlado por variables de entorno (.env) para habilitar mesas en el futuro sin tocar código
   const habilitarMesas = menu ? menu.habilitarMesas && env.ENABLE_TABLE_SERVICE : env.ENABLE_TABLE_SERVICE;
 
-  const cargarMenu = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const cargarMenu = useCallback(async (enSegundoPlano = false) => {
+    if (!enSegundoPlano) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const data = await ventasService.obtenerMenu();
       setMenu(data);
+      useCartStore.getState().actualizarPrecios(data.platillos);
       // Si el servicio en mesas está deshabilitado actualmente, asegurar servicio en MOSTRADOR
       if (!data.habilitarMesas && useCartStore.getState().tipoServicio === 'MESA') {
         useCartStore.getState().setTipoServicio('MOSTRADOR');
@@ -65,14 +68,23 @@ export const VentasPage: React.FC = () => {
         return data.categorias.some((categoria) => categoria.id === actual) ? actual : null;
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error cargando el menú');
+      if (!enSegundoPlano) setError(err instanceof Error ? err.message : 'Error cargando el menú');
     } finally {
-      setLoading(false);
+      if (!enSegundoPlano) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void cargarMenu();
+    const revisarVigencia = () => {
+      if (document.visibilityState === 'visible') void cargarMenu(true);
+    };
+    const intervalo = window.setInterval(revisarVigencia, 60000);
+    document.addEventListener('visibilitychange', revisarVigencia);
+    return () => {
+      window.clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', revisarVigencia);
+    };
   }, [cargarMenu]);
 
   const qtyByPlatillo = useMemo(() => {

@@ -9,6 +9,7 @@ interface CartState {
   mesaId: number | null;
   nombreTurno: string;
   addItem: (platillo: PlatilloModel) => void;
+  actualizarPrecios: (platillos: PlatilloModel[]) => void;
   updateQty: (platilloId: number, delta: number) => void;
   updateNotes: (platilloId: number, notas: string) => void;
   removeItem: (platilloId: number) => void;
@@ -38,6 +39,21 @@ export const useCartStore = create<CartState>((set, get) => ({
       return {
         items: [...state.items, { platillo, cantidad: 1, notas: '' }],
       };
+    });
+  },
+
+  actualizarPrecios: (platillos) => {
+    set((state) => {
+      if (state.items.length === 0) return state;
+      const precios = new Map(platillos.map((platillo) => [platillo.id, platillo.precioVenta]));
+      let cambio = false;
+      const items = state.items.map((item) => {
+        const precioVenta = precios.get(item.platillo.id);
+        if (precioVenta === undefined || precioVenta <= 0 || precioVenta === item.platillo.precioVenta) return item;
+        cambio = true;
+        return { ...item, platillo: { ...item.platillo, precioVenta } };
+      });
+      return cambio ? { items } : state;
     });
   },
 

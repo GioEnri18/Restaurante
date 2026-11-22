@@ -11,7 +11,7 @@ import { Sidebar } from './Sidebar';
 export const MainLayout: React.FC = () => {
   const [openMobile, setOpenMobile] = useState(false);
   const [alertasMenus, setAlertasMenus] = useState<AlertaMenuEspecialModel[]>([]);
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [avisoOculto, setAvisoOculto] = useState<string | null>(null);
   const usuario = useAuthStore((s) => s.usuario);
   const isAdmin = useAuthStore((s) => s.isAdmin());
 
@@ -19,19 +19,30 @@ export const MainLayout: React.FC = () => {
   useEffect(() => {
     if (!isAdmin) return;
     let active = true;
-    void ventasService
-      .obtenerAlertasMenusEspeciales()
-      .then((data) => {
-        if (active) setAlertasMenus(data);
-      })
-      .catch(() => null);
+    const cargarAlertas = () => {
+      if (document.visibilityState !== 'visible') return;
+      void ventasService
+        .obtenerAlertasMenusEspeciales()
+        .then((data) => {
+          if (active) setAlertasMenus(data);
+        })
+        .catch(() => null);
+    };
+    cargarAlertas();
+    const intervalo = window.setInterval(cargarAlertas, 60000);
+    document.addEventListener('visibilitychange', cargarAlertas);
     return () => {
       active = false;
+      window.clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', cargarAlertas);
     };
   }, [isAdmin]);
 
   const alertaDestacada =
     alertasMenus.find((a) => a.requiereAtencion) ?? alertasMenus[0] ?? null;
+  const idAviso = alertaDestacada
+    ? `${alertaDestacada.id}:${alertaDestacada.estado}:${alertaDestacada.fechaInicio}`
+    : null;
 
   return (
     <div className="flex min-h-screen bg-slate-100">
@@ -81,7 +92,7 @@ export const MainLayout: React.FC = () => {
         </header>
 
         {/* Aviso proactivo global de Menú por Fecha Especial (exclusivo Administrador) */}
-        {isAdmin && alertaDestacada && !bannerDismissed && (
+        {isAdmin && alertaDestacada && idAviso !== avisoOculto && (
           <div
             className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5 text-sm lg:px-6 ${
               alertaDestacada.requiereAtencion
@@ -114,7 +125,7 @@ export const MainLayout: React.FC = () => {
               </Link>
               <button
                 type="button"
-                onClick={() => setBannerDismissed(true)}
+                onClick={() => setAvisoOculto(idAviso)}
                 className="rounded-lg p-1 text-slate-500 hover:bg-black/5"
                 aria-label="Ocultar aviso"
               >

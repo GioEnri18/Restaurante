@@ -14,6 +14,15 @@ export class ApiError extends Error {
   }
 }
 
+export function mensajeErrorFormulario(error: unknown, alternativo: string): string {
+  if (error instanceof ApiError && Array.isArray(error.details)) {
+    const mensajes = error.details.flatMap((detalle) =>
+      detalle && typeof detalle.mensaje === 'string' ? [detalle.mensaje] : []);
+    if (mensajes.length) return mensajes.join(' · ');
+  }
+  return error instanceof Error ? error.message : alternativo;
+}
+
 export interface ApiEnvelope<T> {
   ok: boolean;
   data: T;

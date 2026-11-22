@@ -15,13 +15,26 @@ import { env } from '../../config/env';
 import { CategoriaModel, IngredienteModel, MenuEspecialModel, PlatilloModel } from '../../models';
 import { inventarioService } from '../../services/inventario.service';
 import { ventasService } from '../../services/ventas.service';
+import { mensajeErrorFormulario } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
-import { formatCurrency, formatDateOnly, getTodayISO } from '../../utils/formatters';
+import { formatCurrency, formatDateOnly } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
 import { SelectorFotoPlatillo } from '../components/common/SelectorFotoPlatillo';
 import { LineaRecetaForm, RecetaCampos } from '../components/inventario/RecetaCampos';
+
+const fechaGuatemala = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'America/Guatemala', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+const MILISEGUNDOS_POR_DIA = 86400000;
+const MAX_DIAS_AVISO = 60;
+const DIAS_AVISO_INICIAL = Math.max(1, Math.min(MAX_DIAS_AVISO, Math.round(env.SPECIAL_MENU_NOTICE_DAYS)));
+
+function restarDias(fecha: string, dias: number): string {
+  if (!fecha) return '';
+  return new Date(Date.parse(fecha) - dias * MILISEGUNDOS_POR_DIA).toISOString().slice(0, 10);
+}
 
 export const MenusEspecialesPage: React.FC = () => {
   const puedeSubirFoto = useAuthStore((s) => s.isAdmin() && s.can('ventas:gestionar_menu'));
@@ -37,13 +50,15 @@ export const MenusEspecialesPage: React.FC = () => {
 
   // Modal crear/editar Menú Especial por fecha
   const [modalOpen, setModalOpen] = useState(false);
+  const [errorMenu, setErrorMenu] = useState<string | null>(null);
+  const [guardandoMenu, setGuardandoMenu] = useState(false);
   const [editing, setEditing] = useState<MenuEspecialModel | null>(null);
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
-    fechaInicio: getTodayISO(),
-    fechaFin: getTodayISO(),
-    diasAvisoPrevio: String(env.SPECIAL_MENU_NOTICE_DAYS),
+    fechaInicio: fechaGuatemala.format(),
+    fechaFin: fechaGuatemala.format(),
+    fechaAviso: restarDias(fechaGuatemala.format(), DIAS_AVISO_INICIAL),
     activo: true,
     esMenuPrincipal: false,
   });
@@ -88,13 +103,15 @@ export const MenusEspecialesPage: React.FC = () => {
   }, [cargar]);
 
   const abrirNuevo = () => {
+    const hoy = fechaGuatemala.format();
+    setErrorMenu(null);
     setEditing(null);
     setForm({
       nombre: '',
       descripcion: '',
-      fechaInicio: getTodayISO(),
-      fechaFin: getTodayISO(),
-      diasAvisoPrevio: String(env.SPECIAL_MENU_NOTICE_DAYS),
+      fechaInicio: hoy,
+      fechaFin: hoy,
+      fechaAviso: restarDias(hoy, DIAS_AVISO_INICIAL),
       activo: true,
       esMenuPrincipal: false,
     });
@@ -103,13 +120,15 @@ export const MenusEspecialesPage: React.FC = () => {
   };
 
   const abrirEditar = (m: MenuEspecialModel) => {
+    setErrorMenu(null);
     setEditing(m);
+    const fechaInicio = m.fechaInicioLocal ?? fechaGuatemala.format(new Date(m.fechaInicio));
     setForm({
       nombre: m.nombre,
       descripcion: m.descripcion ?? '',
-      fechaInicio: m.fechaInicio.slice(0, 10),
-      fechaFin: m.fechaFin.slice(0, 10),
-      diasAvisoPrevio: String(m.diasAvisoPrevio),
+      fechaInicio,
+      fechaFin: m.fechaFinLocal ?? fechaGuatemala.format(new Date(m.fechaFin)),
+      fechaAviso: restarDias(fechaInicio, m.diasAvisoPrevio),
       activo: m.activo,
       esMenuPrincipal: m.esMenuPrincipal,
     });
@@ -135,8 +154,24 @@ export const MenusEspecialesPage: React.FC = () => {
 
   const handleGuardarMenu = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardandoMenu) return;
+    setErrorMenu(null);
     setError(null);
     setSuccess(null);
+    const nombre = form.nombre.trim();
+    if (nombre.length < 3) {
+      setErrorMenu('Escribe un nombre de al menos 3 caracteres.');
+      return;
+    }
+    if (form.fechaFin < form.fechaInicio) {
+      setErrorMenu('La fecha de fin debe ser igual o posterior a la de inicio.');
+      return;
+    }
+    const diasAvisoPrevio = (Date.parse(form.fechaInicio) - Date.parse(form.fechaAviso)) / MILISEGUNDOS_POR_DIA;
+    if (!Number.isInteger(diasAvisoPrevio) || diasAvisoPrevio < 1 || diasAvisoPrevio > MAX_DIAS_AVISO) {
+      setErrorMenu('Elige una fecha de aviso entre 1 y 60 días antes del inicio.');
+      return;
+    }
 
     const platillos = Object.entries(selectedPlatillos).map(([idStr, precioStr]) => ({
       platilloId: Number(idStr),
@@ -144,16 +179,17 @@ export const MenusEspecialesPage: React.FC = () => {
     }));
 
     const payload = {
-      nombre: form.nombre,
-      descripcion: form.descripcion || undefined,
+      nombre,
+      descripcion: form.descripcion.trim(),
       fechaInicio: form.fechaInicio,
       fechaFin: form.fechaFin,
-      diasAvisoPrevio: Number(form.diasAvisoPrevio || env.SPECIAL_MENU_NOTICE_DAYS),
+      diasAvisoPrevio,
       activo: form.activo,
       esMenuPrincipal: form.esMenuPrincipal,
       platillos,
     };
 
+    setGuardandoMenu(true);
     try {
       if (editing) {
         await ventasService.actualizarMenuEspecial(editing.id, payload);
@@ -165,7 +201,9 @@ export const MenusEspecialesPage: React.FC = () => {
       setModalOpen(false);
       await cargar();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo guardar el menú especial');
+      setErrorMenu(mensajeErrorFormulario(err, 'No se pudo guardar el menú de temporada'));
+    } finally {
+      setGuardandoMenu(false);
     }
   };
 
@@ -283,7 +321,7 @@ export const MenusEspecialesPage: React.FC = () => {
             Menús por Fechas Especiales
           </h1>
           <p className="text-sm text-slate-500">
-            Programa menús de temporada o festivos, configura días de aviso previo y cambia precios especiales automáticamente
+            Programa temporadas junto al menú general y elige cuándo avisar al administrador.
           </p>
         </div>
 
@@ -304,7 +342,7 @@ export const MenusEspecialesPage: React.FC = () => {
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-700"
           >
             <Plus className="h-4 w-4" />
-            Programar Menú Especial
+            Nueva temporada
           </button>
         </div>
       </div>
@@ -391,8 +429,9 @@ export const MenusEspecialesPage: React.FC = () => {
                       {estadoBadge(m.estado)}
                     </div>
                     <p className="mt-1 text-xs font-semibold text-slate-500">
-                      {formatDateOnly(m.fechaInicio)} → {formatDateOnly(m.fechaFin)} · Aviso{' '}
-                      {m.diasAvisoPrevio} día(s) antes
+                      {formatDateOnly(m.fechaInicio)} → {formatDateOnly(m.fechaFin)} · Aviso desde{' '}
+                      {restarDias(m.fechaInicioLocal ?? fechaGuatemala.format(new Date(m.fechaInicio)), m.diasAvisoPrevio)
+                        .split('-').reverse().join('/')}
                     </p>
                   </div>
                 </div>
@@ -472,7 +511,7 @@ export const MenusEspecialesPage: React.FC = () => {
       <Modal
         open={modalOpen}
         title={editing ? `Editar Menú Especial — ${editing.nombre}` : 'Programar Menú por Fecha Especial'}
-        onClose={() => setModalOpen(false)}
+        onClose={() => { if (!guardandoMenu) setModalOpen(false); }}
         maxWidthClass="max-w-3xl"
       >
         <form onSubmit={handleGuardarMenu} className="space-y-4">
@@ -483,6 +522,7 @@ export const MenusEspecialesPage: React.FC = () => {
               </label>
               <input
                 required
+                maxLength={120}
                 value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 placeholder="Ej. Menú Día de la Madre / Menú Navideño / Especial Fin de Semana"
@@ -491,21 +531,34 @@ export const MenusEspecialesPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Fecha de inicio</label>
+              <label htmlFor="temporada-inicio" className="mb-1 block text-xs font-bold text-slate-600">Fecha de inicio</label>
               <input
+                id="temporada-inicio"
                 required
                 type="date"
                 value={form.fechaInicio}
-                onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}
+                onChange={(e) => {
+                  const fechaInicio = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    fechaInicio,
+                    fechaFin: prev.fechaFin < fechaInicio ? fechaInicio : prev.fechaFin,
+                    fechaAviso: prev.fechaAviso < fechaInicio && prev.fechaAviso >= restarDias(fechaInicio, MAX_DIAS_AVISO)
+                      ? prev.fechaAviso
+                      : restarDias(fechaInicio, DIAS_AVISO_INICIAL),
+                  }));
+                }}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Fecha de fin</label>
+              <label htmlFor="temporada-fin" className="mb-1 block text-xs font-bold text-slate-600">Fecha de fin</label>
               <input
+                id="temporada-fin"
                 required
                 type="date"
+                min={form.fechaInicio}
                 value={form.fechaFin}
                 onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -513,18 +566,20 @@ export const MenusEspecialesPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">
-                Avisar con cuántos días de anticipación
+              <label htmlFor="temporada-aviso" className="mb-1 block text-xs font-bold text-slate-600">
+                Fecha de aviso al administrador
               </label>
               <input
                 required
-                type="number"
-                min="1"
-                max="60"
-                value={form.diasAvisoPrevio}
-                onChange={(e) => setForm({ ...form, diasAvisoPrevio: e.target.value })}
+                id="temporada-aviso"
+                type="date"
+                min={restarDias(form.fechaInicio, MAX_DIAS_AVISO)}
+                max={restarDias(form.fechaInicio, 1)}
+                value={form.fechaAviso}
+                onChange={(e) => setForm({ ...form, fechaAviso: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
               />
+              <p className="mt-1 text-xs text-slate-500">El aviso se muestra en el POS desde esta fecha.</p>
             </div>
 
             <div className="flex items-end">
@@ -543,6 +598,7 @@ export const MenusEspecialesPage: React.FC = () => {
               <label className="mb-1 block text-xs font-bold text-slate-600">Descripción</label>
               <input
                 value={form.descripcion}
+                maxLength={300}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                 placeholder="Notas sobre promociones o cambio de carta..."
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -575,7 +631,7 @@ export const MenusEspecialesPage: React.FC = () => {
                       <span>
                         <strong className="text-slate-900">{p.nombre}</strong>
                         <span className="ml-2 text-xs text-slate-500">
-                          Regular: {formatCurrency(p.precioRegular)}
+                          {p.precioRegular > 0 ? `Regular ${formatCurrency(p.precioRegular)}` : 'Precio pendiente'}
                         </span>
                       </span>
                     </label>
@@ -602,19 +658,22 @@ export const MenusEspecialesPage: React.FC = () => {
             </div>
           </div>
 
+          {errorMenu && <div role="alert"><Alert type="error" message={errorMenu} /></div>}
           <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setModalOpen(false)}
+              disabled={guardandoMenu}
               className="min-h-[44px] rounded-xl border border-slate-300 px-4 text-sm font-bold text-slate-700"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="min-h-[44px] rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700"
+              disabled={guardandoMenu}
+              className="min-h-[44px] rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
             >
-              Guardar Menú Especial
+              {guardandoMenu ? 'Guardando…' : 'Guardar Menú Especial'}
             </button>
           </div>
         </form>

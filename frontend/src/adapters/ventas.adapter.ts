@@ -26,6 +26,8 @@ interface RawMenuEspecialJson {
   descripcion?: string | null;
   fechaInicio?: string;
   fechaFin?: string;
+  fechaInicioLocal?: string;
+  fechaFinLocal?: string;
   diasAvisoPrevio?: number | string;
   activo?: boolean;
   esMenuPrincipal?: boolean;
@@ -256,6 +258,8 @@ export const ventasAdapter = {
       descripcion: data.descripcion ?? null,
       fechaInicio: String(data.fechaInicio ?? ''),
       fechaFin: String(data.fechaFin ?? ''),
+      fechaInicioLocal: data.fechaInicioLocal,
+      fechaFinLocal: data.fechaFinLocal,
       diasAvisoPrevio: Number(data.diasAvisoPrevio ?? 5),
       activo: Boolean(data.activo),
       esMenuPrincipal: Boolean(data.esMenuPrincipal),

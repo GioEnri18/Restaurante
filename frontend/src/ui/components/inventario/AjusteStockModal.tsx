@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { IngredienteModel, UnidadMedida } from '../../../models';
+import { mensajeErrorFormulario } from '../../../services/httpClient';
+import { Alert } from '../common/Alert';
 import { Modal } from '../common/Modal';
 
 export interface AjusteStockPayload {
@@ -12,7 +14,7 @@ export interface AjusteStockPayload {
 interface AjusteStockModalProps {
   target: IngredienteModel | null;
   onClose: () => void;
-  onAplicar: (ingredienteId: number, payload: AjusteStockPayload) => Promise<boolean>;
+  onAplicar: (ingredienteId: number, payload: AjusteStockPayload) => Promise<void>;
 }
 
 const INITIAL_FORM = {
@@ -28,24 +30,38 @@ export const AjusteStockModal: React.FC<AjusteStockModalProps> = ({
   onAplicar,
 }) => {
   const [ajusteForm, setAjusteForm] = useState(INITIAL_FORM);
+  const [error, setError] = useState<string | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     if (target) {
       setAjusteForm(INITIAL_FORM);
+      setError(null);
     }
   }, [target]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!target) return;
-    const ok = await onAplicar(target.id, {
-      tipoAjuste: ajusteForm.tipoAjuste,
-      cantidad: Number(ajusteForm.cantidad),
-      unidad: ajusteForm.unidad,
-      motivo: ajusteForm.motivo,
-    });
-    if (ok) {
-      setAjusteForm(INITIAL_FORM);
+    if (!target || guardando) return;
+    const motivo = ajusteForm.motivo.trim();
+    if (motivo.length < 4) {
+      setError('Escribe un motivo de al menos 4 caracteres.');
+      return;
+    }
+    setError(null);
+    setGuardando(true);
+    try {
+      await onAplicar(target.id, {
+        tipoAjuste: ajusteForm.tipoAjuste,
+        cantidad: Number(ajusteForm.cantidad),
+        unidad: ajusteForm.unidad,
+        motivo,
+      });
+      onClose();
+    } catch (err) {
+      setError(mensajeErrorFormulario(err, 'No se pudo aplicar el ajuste'));
+    } finally {
+      setGuardando(false);
     }
   };
 
@@ -53,7 +69,7 @@ export const AjusteStockModal: React.FC<AjusteStockModalProps> = ({
     <Modal
       open={Boolean(target)}
       title={`Ajuste Manual — ${target?.nombre ?? ''}`}
-      onClose={onClose}
+      onClose={() => { if (!guardando) onClose(); }}
       maxWidthClass="max-w-md"
     >
       <form onSubmit={handleSubmit} className="space-y-3">
@@ -82,8 +98,8 @@ export const AjusteStockModal: React.FC<AjusteStockModalProps> = ({
         <input
           required
           type="number"
-          step="0.01"
-          min="0.01"
+          step="0.0001"
+          min="0.0001"
           placeholder="Cantidad"
           value={ajusteForm.cantidad}
           onChange={(e) => setAjusteForm({ ...ajusteForm, cantidad: e.target.value })}
@@ -92,16 +108,19 @@ export const AjusteStockModal: React.FC<AjusteStockModalProps> = ({
         <input
           required
           minLength={4}
+          maxLength={250}
           placeholder="Motivo del ajuste (obligatorio para auditoría)"
           value={ajusteForm.motivo}
           onChange={(e) => setAjusteForm({ ...ajusteForm, motivo: e.target.value })}
           className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
         />
+        {error && <div role="alert"><Alert type="error" message={error} /></div>}
         <button
           type="submit"
-          className="min-h-[46px] w-full rounded-xl bg-slate-900 text-sm font-bold text-white"
+          disabled={guardando}
+          className="min-h-[46px] w-full rounded-xl bg-slate-900 text-sm font-bold text-white disabled:opacity-50"
         >
-          Aplicar Ajuste
+          {guardando ? 'Aplicando…' : 'Aplicar Ajuste'}
         </button>
       </form>
     </Modal>

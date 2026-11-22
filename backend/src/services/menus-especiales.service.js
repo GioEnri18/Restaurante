@@ -5,7 +5,7 @@ const { env } = require('../config/env');
 const { Categoria, MenuEspecial, MenuEspecialPlatillo, Platillo, Usuario } = require('../models');
 const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
-const { endOfDayInTimezone, startOfDayInTimezone } = require('../shared/utils/dates');
+const { endOfDayInTimezone, startOfDayInTimezone, toIsoDateInTimezone } = require('../shared/utils/dates');
 const { round2 } = require('../shared/utils/tax');
 const { evaluarEstadoMenuEspecial } = require('./menu.service');
 
@@ -61,6 +61,8 @@ class MenusEspecialesService {
         descripcion: m.descripcion,
         fechaInicio: m.fechaInicio,
         fechaFin: m.fechaFin,
+        fechaInicioLocal: toIsoDateInTimezone(m.fechaInicio),
+        fechaFinLocal: toIsoDateInTimezone(m.fechaFin),
         diasAvisoPrevio: m.diasAvisoPrevio,
         activo: m.activo,
         esMenuPrincipal: m.esMenuPrincipal,
@@ -162,6 +164,7 @@ class MenusEspecialesService {
         where: { id: menuId, sucursalId: user.sucursalId },
         include: [{ model: MenuEspecialPlatillo, as: 'platillos' }],
         transaction: tx,
+        lock: { level: tx.LOCK.UPDATE, of: MenuEspecial },
       });
       if (!actual) {
         throw new NotFoundError('Menú especial no encontrado');

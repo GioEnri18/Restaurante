@@ -446,13 +446,25 @@ export const AccesosPage: React.FC = () => {
             className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
           />
           {!editingUser && (
-            <input
-              required
-              placeholder="Nombre de usuario (login)"
-              value={userForm.username}
-              onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
+            <label className="block space-y-1">
+              <span className="text-sm font-semibold">Nombre de usuario</span>
+              <input
+                required
+                minLength={3}
+                maxLength={50}
+                pattern="[a-zA-Z0-9._\-]+"
+                title="Usa solo letras sin tilde, números, punto, guion o guion bajo"
+                aria-describedby="requisitos-nombre-usuario"
+                autoComplete="off"
+                placeholder="Ej. cajero_01"
+                value={userForm.username}
+                onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              />
+              <span id="requisitos-nombre-usuario" className="block text-xs text-slate-600">
+                Usa de 3 a 50 caracteres sin espacios ni tildes.
+              </span>
+            </label>
           )}
           <input
             required

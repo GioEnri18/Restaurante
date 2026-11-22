@@ -130,18 +130,12 @@ export const InventarioPage: React.FC = () => {
 
   const alertas = ingredientes.filter((i) => i.bajoStock);
 
-  const handleCrearIngrediente = async (payload: NuevoIngredientePayload): Promise<boolean> => {
+  const handleCrearIngrediente = async (payload: NuevoIngredientePayload) => {
     setError(null);
-    try {
-      await inventarioService.crearIngrediente(payload);
-      setIngModal(false);
-      setSuccess('Ingrediente registrado correctamente.');
-      await cargarTodo();
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error creando ingrediente');
-      return false;
-    }
+    setSuccess(null);
+    await inventarioService.crearIngrediente(payload);
+    setSuccess('Ingrediente registrado correctamente.');
+    void cargarTodo();
   };
 
   const handleCrearProveedor = async (payload: NuevoProveedorPayload): Promise<boolean> => {
@@ -161,18 +155,12 @@ export const InventarioPage: React.FC = () => {
   const handleAjuste = async (
     ingredienteId: number,
     payload: AjusteStockPayload,
-  ): Promise<boolean> => {
+  ): Promise<void> => {
     setError(null);
-    try {
-      await inventarioService.ajustarStock(ingredienteId, payload);
-      setAjusteTarget(null);
-      setSuccess('Ajuste de inventario aplicado y registrado en auditoría.');
-      await cargarTodo();
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error aplicando ajuste');
-      return false;
-    }
+    setSuccess(null);
+    await inventarioService.ajustarStock(ingredienteId, payload);
+    setSuccess('Ajuste de inventario aplicado y registrado en auditoría.');
+    void cargarTodo();
   };
 
   const handleRegistrarCompra = async (payload: {

@@ -113,6 +113,8 @@ export interface MenuEspecialModel {
   descripcion: string | null;
   fechaInicio: string;
   fechaFin: string;
+  fechaInicioLocal?: string;
+  fechaFinLocal?: string;
   diasAvisoPrevio: number;
   activo: boolean;
   esMenuPrincipal: boolean;
