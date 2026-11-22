@@ -2,7 +2,7 @@ const { ACCIONES_AUDITORIA } = require('../config/constants');
 const { withTransaction } = require('../config/database');
 const { Op } = require('sequelize');
 const { Categoria, Ingrediente, Platillo, RecetaIngrediente } = require('../models');
-const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
+const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { round2, round4 } = require('../shared/utils/tax');
 
@@ -59,6 +59,65 @@ async function validarReferenciasSucursal(sucursalId, { categoriaId, receta }, t
  * Servicio dedicado al mantenimiento de platillos, precios y recetas en onzas.
  */
 class PlatillosService {
+  static async crearCategoria(user, input, clientMeta) {
+    return withTransaction(async (tx) => {
+      const nombreLimpio = input.nombre.trim();
+      const existente = await Categoria.findOne({
+        where: {
+          nombre: { [Op.iLike]: nombreLimpio },
+          [Op.or]: [{ sucursalId: user.sucursalId }, { sucursalId: null }],
+        },
+        transaction: tx,
+      });
+
+      if (existente) {
+        throw new ConflictError(`Ya existe una categoría llamada "${existente.nombre}"`);
+      }
+
+      let orden = input.orden;
+      if (orden === undefined) {
+        const maxOrden = await Categoria.max('orden', {
+          where: { [Op.or]: [{ sucursalId: user.sucursalId }, { sucursalId: null }] },
+          transaction: tx,
+        });
+        orden = Number.isFinite(Number(maxOrden)) ? Number(maxOrden) + 1 : 1;
+      }
+
+      const categoria = await Categoria.create(
+        {
+          sucursalId: user.sucursalId,
+          nombre: nombreLimpio,
+          descripcion: input.descripcion?.trim() || null,
+          orden,
+          activa: true,
+        },
+        { transaction: tx },
+      );
+
+      await AuditService.registrar(
+        {
+          sucursalId: user.sucursalId,
+          usuarioId: user.id,
+          accion: ACCIONES_AUDITORIA.CAMBIO_PRECIO,
+          entidad: 'Categoria',
+          entidadId: categoria.id,
+          valorAnterior: null,
+          valorNuevo: {
+            nombre: categoria.nombre,
+            descripcion: categoria.descripcion,
+            orden: categoria.orden,
+          },
+          motivo: 'Creación de categoría de menú',
+          ipAddress: clientMeta.ipAddress,
+          userAgent: clientMeta.userAgent,
+        },
+        tx,
+      );
+
+      return categoria.get({ plain: true });
+    });
+  }
+
   static async crearPlatillo(user, input, clientMeta) {
     return withTransaction(async (tx) => {
       await validarReferenciasSucursal(user.sucursalId, input, tx);

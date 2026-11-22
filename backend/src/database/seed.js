@@ -82,6 +82,23 @@ async function main() {
             esSistema: true,
             permisos: ['ventas:ver', 'ventas:crear', 'facturas:ver'],
         },
+        {
+            codigo: 'AUDITOR',
+            nombre: 'Auditor',
+            descripcion: 'Supervisión de caja y consulta de solo lectura sobre reportes, auditoría, facturas, inventario y mermas',
+            vistaInicial: '/auditoria',
+            esSistema: false,
+            permisos: [
+                'reportes:ver',
+                'reportes:exportar',
+                'auditoria:ver',
+                'facturas:ver',
+                'caja:ver',
+                'caja:autorizar',
+                'inventario:ver',
+                'mermas:ver',
+            ],
+        },
     ];
     const rolesMap = new Map();
     for (const rc of rolesConfig) {

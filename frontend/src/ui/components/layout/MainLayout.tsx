@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { Link, Outlet } from 'react-router-dom';
-import { BellRing, CalendarClock, Menu, Store, X } from 'lucide-react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { BellRing, CalendarClock, HelpCircle, Menu, Store, X } from 'lucide-react';
 import { env } from '../../../config/env';
 import { AlertaMenuEspecialModel } from '../../../models';
 import { ventasService } from '../../../services/ventas.service';
 import { useAuthStore } from '../../../store/auth.store';
 import { formatDateOnly } from '../../../utils/formatters';
+import { QuickHelpModal } from '../common/QuickHelpModal';
 import { Sidebar } from './Sidebar';
 
 export const MainLayout: React.FC = () => {
+  const location = useLocation();
   const [openMobile, setOpenMobile] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [alertasMenus, setAlertasMenus] = useState<AlertaMenuEspecialModel[]>([]);
   const [avisoOculto, setAvisoOculto] = useState<string | null>(null);
   const usuario = useAuthStore((s) => s.usuario);
@@ -55,10 +58,11 @@ export const MainLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => setOpenMobile(true)}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 lg:hidden"
+              className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 lg:hidden"
               aria-label="Abrir menú"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5" />
+              <span>Menú</span>
             </button>
             <div className="flex items-center gap-2 text-slate-700">
               <Store className="h-5 w-5 text-brand-600" />
@@ -85,6 +89,15 @@ export const MainLayout: React.FC = () => {
                 {alertasMenus.length} aviso(s) de menú
               </Link>
             )}
+            <button
+              type="button"
+              onClick={() => setHelpOpen(true)}
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+              title="Guía rápida de esta pantalla"
+            >
+              <HelpCircle className="h-4 w-4 text-brand-600" />
+              <span className="hidden sm:inline">¿Cómo usar?</span>
+            </button>
             <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-bold text-brand-700">
               {usuario?.rol.nombre}
             </span>
@@ -140,6 +153,12 @@ export const MainLayout: React.FC = () => {
           <Outlet />
         </main>
       </div>
+
+      <QuickHelpModal
+        open={helpOpen}
+        pathname={location.pathname}
+        onClose={() => setHelpOpen(false)}
+      />
     </div>
   );
 };

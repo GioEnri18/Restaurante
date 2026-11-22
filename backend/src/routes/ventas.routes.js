@@ -108,6 +108,11 @@ const confirmarVentaSchema = z
 const estadoMesaSchema = z.object({
     estado: z.enum(['DISPONIBLE', 'OCUPADA', 'RESERVADA']),
 });
+const categoriaSchema = z.object({
+    nombre: z.string().trim().min(2, 'El nombre debe tener al menos 2 caracteres').max(80),
+    descripcion: z.string().trim().max(250).optional(),
+    orden: z.coerce.number().int().min(0).max(999).optional(),
+});
 const platilloSchema = z.object({
     categoriaId: z.coerce.number().int().positive(),
     sku: z.string().trim().min(2).max(30),
@@ -169,7 +174,9 @@ router.get('/menus-especiales', requireAdmin, requirePermission('ventas:gestiona
 router.post('/menus-especiales', requireAdmin, requirePermission('ventas:gestionar_menu'), validate(menuEspecialSchema), VentasController.crearMenuEspecial);
 router.put('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gestionar_menu'), idParams, validate(menuEspecialSchema.partial()), VentasController.actualizarMenuEspecial);
 router.delete('/menus-especiales/:id', requireAdmin, requirePermission('ventas:gestionar_menu'), idParams, VentasController.eliminarMenuEspecial);
-router.post('/platillos', requirePermission('ventas:gestionar_menu'), validate(platilloSchema), requirePlatilloPermissions, VentasController.crearPlatillo);
+// Creación de categorías y nuevos platillos reservada exclusivamente para el Administrador
+router.post('/categorias', requireAdmin, requirePermission('ventas:gestionar_menu'), validate(categoriaSchema), VentasController.crearCategoria);
+router.post('/platillos', requireAdmin, requirePermission('ventas:gestionar_menu'), validate(platilloSchema), requirePlatilloPermissions, VentasController.crearPlatillo);
 router.put('/platillos/:id', requirePermission('ventas:gestionar_menu'), idParams, validate(actualizarPlatilloSchema), requirePlatilloPermissions, VentasController.actualizarPlatillo);
 router.put('/platillos/:id/imagen', requireAdmin, requirePermission('ventas:gestionar_menu'), idParams, recibirFotoPlatillo, VentasController.subirFotoPlatillo);
 router.post('/confirmar', requirePermission('ventas:crear'), validate(confirmarVentaSchema), VentasController.confirmar);

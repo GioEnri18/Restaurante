@@ -5,6 +5,7 @@ build/
 .env.*
 *.env
 *.env.*
+!/frontend/.env.example
 *.postman_environment.json
 *.log
 .DS_Store

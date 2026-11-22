@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Minus,
@@ -10,6 +11,7 @@ import {
   CheckCircle2,
   StickyNote,
   UserRound,
+  AlertTriangle,
 } from 'lucide-react';
 import { env } from '../../../config/env';
 import { CartItemModel, MesaModel, TipoServicio } from '../../../models';
@@ -41,6 +43,7 @@ interface CarritoOrdenPanelProps {
   habilitarMesas: boolean;
   totals: CarritoTotals;
   canCreate: boolean;
+  canOpenCaja?: boolean;
   cajaAbierta: boolean;
   onSetTipoServicio: (tipo: TipoServicio) => void;
   onSetMesaId: (mesaId: number | null) => void;
@@ -62,6 +65,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
   habilitarMesas,
   totals,
   canCreate,
+  canOpenCaja = false,
   cajaAbierta,
   onSetTipoServicio,
   onSetMesaId,
@@ -316,7 +320,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
         {/* Totales fiscales + Botón Cobrar */}
         <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-4">
           <div className="flex justify-between text-xs font-medium text-slate-500">
-            <span>Base imponible (sin IVA)</span>
+            <span>Subtotal sin IVA</span>
             <span>{formatCurrency(totals.subtotalSinIva)}</span>
           </div>
           <div className="flex justify-between text-xs font-medium text-slate-500">
@@ -330,6 +334,23 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
             </span>
           </div>
 
+          {!cajaAbierta && (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                Abre la caja primero para poder cobrar
+              </span>
+              {canOpenCaja && (
+                <Link
+                  to="/caja"
+                  className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1 text-[11px] font-extrabold text-white hover:bg-amber-700"
+                >
+                  Ir a Caja
+                </Link>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 pt-1">
             {items.length > 0 && (
               <button
@@ -337,7 +358,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                 onClick={onClearCart}
                 className="min-h-[52px] rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-600 hover:bg-slate-100"
               >
-                Vaciar
+                Limpiar
               </button>
             )}
             <button
@@ -347,7 +368,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 text-base font-extrabold text-white shadow-lg shadow-brand-600/25 transition hover:from-brand-700 hover:to-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle2 className="h-5 w-5" />
-              Cobrar {formatCurrency(totals.total)}
+              {items.length === 0 ? 'Agrega platillos para cobrar' : `Cobrar ${formatCurrency(totals.total)}`}
             </button>
           </div>
         </div>

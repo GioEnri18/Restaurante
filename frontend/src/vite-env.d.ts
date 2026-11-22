@@ -17,6 +17,7 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_TABLE_SERVICE?: string;
   readonly VITE_DEFAULT_SERVICE_TYPE?: string;
   readonly VITE_SPECIAL_MENU_NOTICE_DAYS?: string;
+  readonly VITE_SHOW_DEMO_LOGIN?: string;
 }
 
 interface ImportMeta {
