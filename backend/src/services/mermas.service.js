@@ -2,7 +2,7 @@ const { createHash } = require('node:crypto');
 const { Op, col, fn } = require('sequelize');
 const { ACCIONES_AUDITORIA } = require('../config/constants');
 const { getPgErrorCode, withTransaction } = require('../config/database');
-const { Ingrediente, InventarioMovimiento, Merma, TipoMovimientoInventario, Usuario } = require('../models');
+const { CajaSesion, EstadoCaja, Ingrediente, InventarioMovimiento, Merma, TipoMovimientoInventario, Usuario } = require('../models');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
@@ -85,9 +85,6 @@ class MermasService {
         if (!Number.isFinite(fecha.valueOf()) || fecha.valueOf() > Date.now() + 60000) {
             throw new BadRequestError('La fecha de la merma debe ser válida y no puede ser futura');
         }
-        if (user.rolCodigo === 'CAJERO' && toIsoDateInTimezone(fecha) !== toIsoDateInTimezone()) {
-            throw new BadRequestError('El cajero solo puede registrar mermas del día de hoy');
-        }
         const observacion = input.observacion?.trim() || null;
         const key = input.idempotencyKey;
         const huella = key ? createHash('sha256').update(JSON.stringify([
@@ -111,6 +108,18 @@ class MermasService {
         if (previa) return previa;
 
         return withTransaction(async (tx) => {
+            if (user.rolCodigo === 'CAJERO') {
+                const turno = await CajaSesion.findOne({
+                    where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+                    attributes: ['id', 'fechaApertura'],
+                    lock: tx.LOCK.UPDATE,
+                    transaction: tx,
+                });
+                if (!turno) throw new BadRequestError('Abre un turno de caja para registrar una merma');
+                if (toIsoDateInTimezone(fecha) !== toIsoDateInTimezone() || fecha < turno.fechaApertura) {
+                    throw new BadRequestError('El cajero solo puede registrar mermas de hoy dentro del turno abierto');
+                }
+            }
             const ingrediente = await Ingrediente.findOne({
                 where: { id: input.ingredienteId, sucursalId: user.sucursalId, activo: true },
                 lock: tx.LOCK.UPDATE,

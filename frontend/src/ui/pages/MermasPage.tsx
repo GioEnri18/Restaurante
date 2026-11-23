@@ -102,7 +102,9 @@ export const MermasPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-extrabold text-slate-900">{esCajero ? 'Mermas de hoy' : 'Mermas y pérdidas'}</h1>
         <p className="text-sm text-slate-500">
-          Registra ingredientes dañados, vencidos o desperdiciados. La cantidad se descuenta del inventario.
+          {esCajero
+            ? 'Registra las pérdidas del turno abierto. La cantidad se descuenta del inventario.'
+            : 'Registra ingredientes dañados, vencidos o desperdiciados. La cantidad se descuenta del inventario.'}
         </p>
       </div>
 

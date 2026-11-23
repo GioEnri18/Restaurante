@@ -6,6 +6,7 @@ import { ventasService } from '../../services/ventas.service';
 import { useAuthStore } from '../../store/auth.store';
 import { useCartStore } from '../../store/cart.store';
 import { generarUuid } from '../../utils/idempotency';
+import { calcularFaltantesPedido } from '../../utils/stockPedido';
 import { Alert } from '../components/common/Alert';
 import {
   NuevaCategoriaModal,
@@ -146,8 +147,10 @@ export const VentasPage: React.FC = () => {
   );
 
   const totals = getTotals();
+  const faltantesPedido = useMemo(() => calcularFaltantesPedido(items, menu?.platillos ?? []), [items, menu]);
 
   const abrirCobro = () => {
+    if (faltantesPedido.length > 0) return;
     if (habilitarMesas && tipoServicio === 'MESA' && !mesaId) {
       setError('Selecciona una mesa en el panel de la orden antes de cobrar.');
       return;
@@ -240,6 +243,8 @@ export const VentasPage: React.FC = () => {
           canCreate={canCreate}
           canOpenCaja={canOpenCaja}
           cajaAbierta={Boolean(menu?.cajaAbierta)}
+          faltantes={faltantesPedido}
+          onActualizarExistencias={() => void cargarMenu()}
           onSetTipoServicio={setTipoServicio}
           onSetMesaId={setMesaId}
           onSetNombreTurno={setNombreTurno}
@@ -265,6 +270,7 @@ export const VentasPage: React.FC = () => {
         items={items}
         totals={totals}
         onVentaConfirmada={handleVentaConfirmada}
+        onInventarioInsuficiente={() => void cargarMenu(true)}
       />
 
       <PrintTicketsModal

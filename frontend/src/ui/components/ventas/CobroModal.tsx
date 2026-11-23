@@ -9,9 +9,12 @@ import {
   TipoServicio,
 } from '../../../models';
 import { ventasService } from '../../../services/ventas.service';
+import { ApiError } from '../../../services/httpClient';
 import { formatCurrency } from '../../../utils/formatters';
+import { FaltanteStock, leerFaltantesPedido } from '../../../utils/stockPedido';
 import { Alert } from '../common/Alert';
 import { Modal } from '../common/Modal';
+import { FaltantesPedido } from './FaltantesPedido';
 
 interface CobroModalProps {
   open: boolean;
@@ -30,6 +33,7 @@ interface CobroModalProps {
     totalUnidades: number;
   };
   onVentaConfirmada: (ticket: TicketImprimibleModel) => Promise<void> | void;
+  onInventarioInsuficiente: () => void;
 }
 
 export const CobroModal: React.FC<CobroModalProps> = ({
@@ -44,6 +48,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
   items,
   totals,
   onVentaConfirmada,
+  onInventarioInsuficiente,
 }) => {
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('EFECTIVO');
   const [montoRecibido, setMontoRecibido] = useState('');
@@ -53,10 +58,12 @@ export const CobroModal: React.FC<CobroModalProps> = ({
   const [clienteDireccion, setClienteDireccion] = useState('Ciudad');
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [faltantes, setFaltantes] = useState<FaltanteStock[]>([]);
 
   useEffect(() => {
     if (open) {
       setCheckoutError(null);
+      setFaltantes([]);
       setMetodoPago('EFECTIVO');
       setMontoRecibido(totals.total.toFixed(2));
       setReferenciaPago('');
@@ -73,6 +80,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
     e.preventDefault();
     if (submitting) return;
     setCheckoutError(null);
+    setFaltantes([]);
 
     if (habilitarMesas && tipoServicio === 'MESA' && !mesaId) {
       setCheckoutError('Selecciona una mesa para el servicio en mesa');
@@ -111,7 +119,13 @@ export const CobroModal: React.FC<CobroModalProps> = ({
 
       await onVentaConfirmada(ticket);
     } catch (err) {
-      setCheckoutError(err instanceof Error ? err.message : 'No se pudo confirmar la venta');
+      const detalles = err instanceof ApiError ? leerFaltantesPedido(err.details) : [];
+      if (detalles.length > 0) {
+        setFaltantes(detalles);
+        onInventarioInsuficiente();
+      } else {
+        setCheckoutError(err instanceof Error ? err.message : 'No se pudo confirmar la venta');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -126,6 +140,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
     >
       <form onSubmit={handleConfirmarVenta} className="space-y-4">
         {checkoutError && <Alert type="error" message={checkoutError} />}
+        {faltantes.length > 0 && <FaltantesPedido faltantes={faltantes} />}
 
         <div className="flex items-center justify-between rounded-2xl bg-slate-900 p-4 text-white">
           <div>

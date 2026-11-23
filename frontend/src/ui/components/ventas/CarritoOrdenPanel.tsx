@@ -16,6 +16,8 @@ import {
 import { env } from '../../../config/env';
 import { CartItemModel, MesaModel, TipoServicio } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
+import { FaltanteStock } from '../../../utils/stockPedido';
+import { FaltantesPedido } from './FaltantesPedido';
 
 const NOTAS_RAPIDAS = [
   'Sin cebolla',
@@ -45,6 +47,8 @@ interface CarritoOrdenPanelProps {
   canCreate: boolean;
   canOpenCaja?: boolean;
   cajaAbierta: boolean;
+  faltantes: FaltanteStock[];
+  onActualizarExistencias: () => void;
   onSetTipoServicio: (tipo: TipoServicio) => void;
   onSetMesaId: (mesaId: number | null) => void;
   onSetNombreTurno: (nombre: string) => void;
@@ -67,6 +71,8 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
   canCreate,
   canOpenCaja = false,
   cajaAbierta,
+  faltantes,
+  onActualizarExistencias,
   onSetTipoServicio,
   onSetMesaId,
   onSetNombreTurno,
@@ -351,6 +357,16 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
             </div>
           )}
 
+          {faltantes.length > 0 && (
+            <>
+              <FaltantesPedido faltantes={faltantes} />
+              <button type="button" onClick={onActualizarExistencias}
+                className="min-h-9 text-sm font-semibold text-brand-700 underline underline-offset-2">
+                Actualizar existencias
+              </button>
+            </>
+          )}
+
           <div className="flex gap-2 pt-1">
             {items.length > 0 && (
               <button
@@ -363,7 +379,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
             )}
             <button
               type="button"
-              disabled={!canCreate || items.length === 0 || !cajaAbierta}
+              disabled={!canCreate || items.length === 0 || !cajaAbierta || faltantes.length > 0}
               onClick={onAbrirCobro}
               className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 text-base font-extrabold text-white shadow-lg shadow-brand-600/25 transition hover:from-brand-700 hover:to-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
