@@ -50,7 +50,7 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
 │   │   └── ui/                        # Componentes modulares por dominio y 10 vistas
 │   ├── Dockerfile                     # Build Vite + Nginx SPA + proxy /api/
 │   └── eslint.config.js
-├── postman/                           # Colección Postman v2.1 (52 rutas) + Environment
+├── postman/                           # Colección Postman v2.1 (55 rutas) + Environment
 ├── .github/workflows/ci.yml           # Pipeline CI (check, typecheck, lint, test con PostgreSQL, build)
 └── docker-compose.yml                 # PostgreSQL local o stack completo (--profile full)
 ```
@@ -69,7 +69,7 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
 1. **Raíz del repositorio (Docker Compose):**
    Crea `.env` localmente. Define `POSTGRES_USER`, `POSTGRES_PASSWORD` y `POSTGRES_DB`. Usa el mismo usuario, contraseña y nombre de base en la conexión de desarrollo del backend.
 
-2. **Backend (`backend/.env`):**
+2. **Backend (`backend/.env`, plantilla en `backend/.env.example`):**
    Crea `backend/.env` para arrancar la API fuera de Docker. Variables principales:
    - `DATABASE_URL` / `DATABASE_URL_TEST`: conexión PostgreSQL principal y de pruebas.
    - `JWT_SECRET`: obligatorio; en `NODE_ENV=production` exige mínimo 32 caracteres aleatorios sin palabras de ejemplo.
@@ -79,6 +79,11 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
    - `REQUEST_TIMEOUT_MS`, `DB_POOL_MAX`, `DB_LOCK_TIMEOUT_MS`, `DB_STATEMENT_TIMEOUT_MS`.
    - `DEFAULT_TIMEZONE=America/Guatemala`, `IVA_RATE=0.12`, `UNIT_OZ_PER_LB=16`.
    - `ALLOW_SEED_IN_PRODUCTION=false`, `SEED_ADMIN_PASSWORD`, `SEED_CAJERO_PASSWORD`, `SEED_MESERO_PASSWORD`.
+   - **Auditoría de investigación:**
+     - `AUDIT_IMPACTO_ALTO_Q` (default `500`): monto en Quetzales a partir del cual egresos, mermas, ajustes o compras escalan a severidad `ALTA`.
+     - `AUDIT_DIFERENCIA_CAJA_ALTA_Q` (default `50`): diferencia de arqueo de caja (`|contado - esperado|`) en Quetzales que escala a `ALTA`.
+     - `AUDIT_REPETICION_UMBRAL` (default `3`): ocurrencias repetitivas en un mismo turno (o aprobador recurrente) que disparan alerta y/o severidad `ALTA`.
+     - `AUDIT_EXPORT_MAX_ROWS` (default `10000`): límite máximo de filas permitidas por exportación CSV.
 
 3. **Frontend (`frontend/.env`):**
    Crea `frontend/.env` si necesitas sobrescribir la URL local de la API. Define `VITE_API_BASE_URL` y guarda las credenciales en el backend. Vite expone las variables `VITE_*` al navegador.
@@ -162,6 +167,20 @@ sh scripts/verificar-restauracion.sh backups/<archivo>.dump pos_restaurante_gt
 ```
 
 La verificación restaura el respaldo en una base temporal y compara las filas de cada tabla con la base de origen. También revisa las migraciones y los triggers de auditoría, y al final borra la base temporal. Un respaldo que nunca se restauró no está comprobado.
+
+---
+
+## Módulo de Auditoría de Investigación
+
+La bitácora `auditoria_logs` es estrictamente **APPEND-ONLY** (trigger `trg_auditoria_logs_inmutable` bloquea `UPDATE`/`DELETE`, trigger anti-`TRUNCATE` y `pos_app_rol` solo tiene `SELECT` e `INSERT`). Cada evento de negocio se registra dentro de la misma transacción Sequelize y centraliza la redacción de secretos/tarjetas (`[REDACTADO]`) en `AuditService`.
+
+- **Contexto de negocio persistido:** `actor_rol_codigo` (snapshot), `aprobador_id` (supervisor en control dual), `caja_sesion_id` (turno), `severidad` (`BAJA` | `MEDIA` | `ALTA`), `codigo_motivo` estandarizado, `impacto_financiero` en Q (con signo contable) y `correlacion_id` (UUID para agrupar eventos de una misma operación). Los registros históricos (`severidad IS NULL`) derivan su severidad en tiempo de lectura sin backfill.
+- **Endpoints (`/api/v1/auditoria`):**
+  - `GET /auditoria`: listado paginado con filtros unificados (`severidad`, `accion`, `usuarioId`, `aprobadorId`, `cajaSesionId`, `entidad`, `entidadId`, `impactoMin`, `impactoMax`, `fechaDesde`, `fechaHasta` en `America/Guatemala`).
+  - `GET /auditoria/resumen`: KPIs agregados en SQL (`GROUP BY`), conteo por severidad, monto anulado, diferencia neta de caja, reimpresiones, rankings de usuarios/aprobadores y alertas automáticas de patrones repetitivos (`ANULACIONES_REPETIDAS_TURNO`, `APROBADOR_RECURRENTE`).
+  - `GET /auditoria/:id`: detalle con diff antes/después, enlace a la entidad origen y eventos correlacionados.
+  - `GET /auditoria/exportar`: descarga CSV por streaming (lotes de 500 filas, protección anti formula-injection, requiere permisos `auditoria:ver` + `auditoria:exportar` y audita su propia ejecución con `EXPORTAR_AUDITORIA`).
+  - `GET /auditoria/nomina`: exclusivo `ADMIN`; `GESTION_NOMINA` permanece totalmente excluida de listados, resúmenes, detalles y exportaciones para el resto de roles.
 
 ---
 

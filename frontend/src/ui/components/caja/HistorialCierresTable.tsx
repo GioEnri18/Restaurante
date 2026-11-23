@@ -68,7 +68,10 @@ export const HistorialCierresTable: React.FC<HistorialCierresTableProps> = ({
                   </td>
                   <td className="py-3 px-2 text-right">{formatCurrency(s.montoInicial)}</td>
                   <td className="py-3 px-2 text-right font-semibold text-slate-800">
-                    {formatCurrency(s.totalVentasEfectivo + s.totalVentasTarjeta)}
+                    <p>{formatCurrency(s.totalVentasEfectivo + s.totalVentasTarjeta)}</p>
+                    <p className="text-xs font-normal text-slate-500">
+                      Efec. {formatCurrency(s.totalVentasEfectivo)} · Tarj. {formatCurrency(s.totalTarjetaNeto)}
+                    </p>
                   </td>
                   <td className="py-3 px-2 text-right font-semibold">
                     {formatCurrency(s.montoEsperadoEfectivo)}

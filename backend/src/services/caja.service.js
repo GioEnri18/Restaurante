@@ -154,6 +154,10 @@ class CajaService {
             data: {
                 cajaId: sesion.id,
                 ventas: rows.map(({ id, total, createdAt }) => ({ ventaId: id, monto: Number(total), fecha: createdAt })),
+                montoInicial: desglose.montoInicial,
+                totalIngresosExtra: desglose.totalIngresosExtra,
+                totalEgresosEfectivo: desglose.totalEgresosEfectivo,
+                totalEgresosTarjeta: desglose.totalEgresosTarjeta,
                 montoEsperadoEfectivo: desglose.montoEsperadoEfectivo,
                 totalVentasEfectivo: desglose.totalVentasEfectivo,
                 totalVentasTarjeta: desglose.totalVentasTarjeta,

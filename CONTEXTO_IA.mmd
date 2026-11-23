@@ -1,68 +1,70 @@
 %% ============================================================================
-%% CONTEXTO DE LA CONVERSACIÓN IA — SISTEMA POS RESTAURANTE (GUATEMALA)
-%% Fecha de generación: 2026-11-20
+%% CONTEXTO DE LA ARQUITECTURA — SISTEMA POS RESTAURANTE (GUATEMALA)
+%% Actualizado: 2026-11-23
 %% Repositorio destino: https://github.com/GioEnri18/Restaurante.git
 %% ============================================================================
 %%
-%% 1. DECISIONES DE ARQUITECTURA Y NEGOCIO ACORDADAS
+%% 1. DECISIONES DE ARQUITECTURA Y NEGOCIO
 %% - Negocio: Restaurante en Guatemala, moneda Quetzales (GTQ / Q), IVA 12%
 %%   INCLUIDO en el precio del menú (fórmula legal: base = total / 1.12).
 %% - Servicio actual: Enfoque en MOSTRADOR y PARA LLEVAR (con nombre/turno
-%%   impreso en comanda). El soporte de MESAS queda implementado y oculto por
-%%   variable de entorno (ENABLE_TABLE_SERVICE / VITE_ENABLE_TABLE_SERVICE=false)
-%%   para habilitarlo en el futuro sin modificar código.
-%% - Base de datos: PostgreSQL 16 (Docker Compose) + Prisma ORM con 3
-%%   migraciones SQL versionadas y seeder idempotente (backend/prisma/seed.ts).
-%% - Multi-sucursal: campo sucursal_id en entidades clave.
+%%   impreso en comanda). Soporte de MESAS oculto por variable de entorno
+%%   (ENABLE_TABLE_SERVICE / VITE_ENABLE_TABLE_SERVICE=false).
+%% - Base de datos: PostgreSQL 16 (Docker Compose) + Sequelize 6 (CommonJS)
+%%   con migraciones SQL versionadas en backend/src/database/migrations/ y
+%%   rol de mínimo privilegio pos_app_rol.
+%% - Multi-sucursal: aislamiento estricto por sucursal_id en entidades clave.
 %% - Facturas como comprobante interno (sin certificación ante la SAT).
-%% - Preparado para expansión futura: Delivery (datos_delivery_json) y Reservas (tabla mesas + reserva_id).
-%% - Todo en variables de entorno: backend/.env y frontend/.env (con plantillas
-%%   .env.example). Cero configuraciones quemadas en código.
+%% - Seguridad: JWT en cookie httpOnly (SameSite=Lax, Secure en prod) +
+%%   protección CSRF (X-Requested-With + Origin) + bloqueo temporal por intentos
+%%   fallidos + revocación por token_version + permisos cacheados con invalidación.
 %% - Conversión de unidades centralizada: UnitConversionService (1 lb = 16 oz).
-%%   Compras en libras -> conversión automática a onzas para recetas y costeo.
 %% - Transacción atómica de venta: valida caja abierta -> venta -> factura ->
 %%   comanda -> movimiento de caja -> descuento de inventario por receta ->
-%%   auditoría inmutable, todo en una sola transacción Prisma.
-%% - Facturas inmutables: nunca se editan ni borran; solo se anulan con motivo
-%%   obligatorio, reversión automática en caja y opción de reintegrar inventario.
-%% - Paginación estricta en Facturas: 10 registros por página.
+%%   auditoría inmutable en una sola transacción Sequelize.
+%% - Auditoría de investigación (APPEND-ONLY):
+%%   * Triggers bloquean UPDATE/DELETE/TRUNCATE; pos_app_rol solo SELECT/INSERT.
+%%   * Columnas de contexto: actor_rol_codigo, aprobador_id, caja_sesion_id,
+%%     severidad (BAJA/MEDIA/ALTA), codigo_motivo, impacto_financiero,
+%%     correlacion_id (UUID). Sin backfill (filas previas derivan severidad).
+%%   * Reglas centralizadas en auditoriaSeveridad.js + umbrales AUDIT_* en env.js.
+%%   * Filtros unificados en auditoriaFiltros.js (listar, resumen SQL, exportar CSV).
+%%   * Sanitización/redacción centralizada ([REDACTADO]) en AuditService.
+%%   * Aislamiento estricto de nómina (GESTION_NOMINA solo ADMIN).
 %%
 %% 2. ARQUITECTURA DE CARPETAS
-%% - Backend (backend/src/): MVC + Servicio por 9 dominios
+%% - Backend (backend/src/): MVC + Servicio por 9 dominios (JavaScript CommonJS)
 %%   (auth, ventas, facturas, inventario, mermas, caja, reportes, auditoria,
-%%   accesos), cada uno con *.model.ts, *.service.ts, *.controller.ts, *.routes.ts.
-%% - Frontend (frontend/src/): MVC + Capa de Adaptadores + UI
+%%   accesos) + servicios compartidos (audit.service.js, auditoriaSeveridad.js,
+%%   auditoriaFiltros.js, unitConversion.service.js, dates.js, tax.js).
+%% - Frontend (frontend/src/): React 19 + TypeScript estricto + Tailwind + Zustand
 %%   * config/env.ts       -> Variables VITE_* tipadas
-%%   * models/index.ts     -> Modelos de dominio limpios
-%%   * adapters/           -> Traducción exclusiva JSON backend <-> modelos UI
-%%   * services/           -> Llamadas HTTP (/api/v1) + httpClient.ts
+%%   * models/index.ts     -> Modelos de dominio estrictos (sin any)
+%%   * adapters/           -> Traducción exclusiva JSON API <-> modelos UI
+%%   * services/           -> Cliente HTTP (cookie httpOnly) y servicios por dominio
 %%   * store/              -> Estado global Zustand (auth.store.ts, cart.store.ts)
-%%   * ui/components/      -> common/, layout/ (Sidebar RBAC), print/ (80mm)
-%%   * ui/pages/           -> 9 vistas obligatorias + MenusEspecialesPage (Admin)
+%%   * ui/components/      -> common/ (Modal dialog+drawer, Field, Pagination, etc.),
+%%                            layout/, print/ (80mm), ventas/, caja/, inventario/,
+%%                            auditoria/ (AuditoriaResumen, AuditoriaFiltros,
+%%                            AuditoriaTabla, AuditoriaDetalleDrawer, NominaPanel)
+%%   * ui/pages/           -> 10 vistas protegidas por RBAC
 %%
-%% 3. ROLES Y PERMISOS ACTUALES (RBAC CONFIGURABLE EN BD)
-%% - ADMIN  (admin / Admin123!)   -> Vista inicial: /reportes
-%%   Acceso total: Menú/Ventas, Caja, Facturas, Inventario, Mermas, Reportes
-%%   (PDF/Excel), Auditoría, Accesos (exclusivo Admin) y Menús Especiales por
-%%   Fecha con avisos proactivos.
-%% - CAJERO (cajero / Cajero123!) -> Vista inicial: /ventas
-%%   Permisos vigentes: ventas:ver, ventas:crear, caja:ver, caja:abrir,
-%%   caja:movimiento, caja:cerrar (toma órdenes en mostrador + arqueo/cuadre GTQ).
-%% - MESERO (mesero / Mesero123!) -> Vista inicial: /ventas
-%%   Permisos vigentes: ventas:ver, ventas:crear, facturas:ver.
-%%
-%% 4. PENDIENTE / MEJORAS OPCIONALES COMENTADAS EN CONVERSACIÓN
-%% - Autenticación actual: JWT en localStorage (se conversó migrar a Cookies
-%%   HttpOnly o sesiones en BD si se requiere eliminar localStorage).
+%% 3. ROLES Y PERMISOS CONFIGURABLES (RBAC EN BD)
+%% - ADMIN   -> Control total + Accesos + Menús Especiales + Nómina + Auditoría (ver/exportar)
+%% - AUDITOR -> Supervisión de caja (caja:autorizar) + Auditoría investigación (ver/exportar, sin nómina)
+%%              + solo lectura en reportes, facturas, caja, inventario y mermas
+%% - CAJERO  -> Ventas (Mostrador/Para Llevar) + Caja (con control dual de supervisor) + Mermas
+%% - MESERO  -> Ventas + Facturas (solo lectura)
+%% - CHEF    -> Cocina/Mermas (sin acceso a Auditoría)
 %% ============================================================================
 
 flowchart TD
-    subgraph FRONTEND["Frontend POS (React + TypeScript + Tailwind · MVC + UI)"]
+    subgraph FRONTEND["Frontend POS (React 19 + TypeScript + Tailwind + Zustand)"]
         ENVF["config/env.ts (.env VITE_*)"]
-        UI["ui/pages (10 vistas) + ui/components (Sidebar RBAC, Tickets 80mm)"]
+        UI["ui/pages (10 vistas) + ui/components/<dominio>\n(AuditoriaResumen, Filtros, Tabla, DetalleDrawer, NominaPanel)"]
         STORE["store/ (auth.store + cart.store · Zustand)"]
-        SERVICES["services/ (httpClient + 9 servicios HTTP)"]
-        ADAPTERS["adapters/ (Traducción JSON <-> Models)"]
+        SERVICES["services/ (httpClient cookie httpOnly + 9 servicios HTTP)"]
+        ADAPTERS["adapters/ (Traducción estricta JSON <-> Models sin any)"]
         MODELS["models/index.ts"]
 
         ENVF --> SERVICES
@@ -74,27 +76,28 @@ flowchart TD
         MODELS --> UI
     end
 
-    subgraph BACKEND["Backend API REST (/api/v1 · Node.js + Express + TS)"]
-        ENVB["config/env.ts (Zod .env)"]
-        MW["Middlewares: JWT authenticate + RBAC authorize + Zod validate"]
-        MODS["9 Módulos MVC+Service: auth, ventas (+Menús Especiales), facturas, inventario, mermas, caja, reportes, auditoria, accesos"]
-        SHARED["Servicios Transversales: UnitConversionService (1 lb = 16 oz), AuditService"]
+    subgraph BACKEND["Backend API REST (/api/v1 · Node.js 22 JS + Express 4 + Sequelize 6)"]
+        ENVB["config/env.js (Zod .env + umbrales AUDIT_*)"]
+        MW["Middlewares: JWT cookie httpOnly + CSRF + RBAC permisosCache + Zod validate"]
+        MODS["9 Módulos MVC+Service: auth, ventas, facturas, inventario, mermas, caja, reportes, auditoria (resumen/detalle/CSV), accesos"]
+        SHARED["Transversales: AuditService (redacción + correlación), auditoriaSeveridad, auditoriaFiltros, UnitConversionService"]
 
         ENVB --> MW
         MW --> MODS
         MODS --> SHARED
     end
 
-    subgraph DATABASE["Base de Datos (PostgreSQL 16 + Prisma ORM)"]
-        PG[("25 Tablas Multi-Sucursal (sucursal_id)\n3 Migraciones SQL + Seeder")]
+    subgraph DATABASE["Base de Datos (PostgreSQL 16 · pos_app_rol mínimo privilegio)"]
+        PG[("Tablas Multi-Sucursal (sucursal_id)\nMigraciones SQL versionadas\nauditoria_logs APPEND-ONLY (triggers inmutables)")]
     end
 
     subgraph ROLES["Roles Configurables (RBAC)"]
-        R1["ADMIN: Control total + Menús Especiales + Accesos"]
-        R2["CAJERO: Menú/Ventas (Mostrador) + Caja (Arqueo GTQ)"]
-        R3["MESERO: Menú/Ventas + Facturas"]
+        R1["ADMIN: Control total + Nómina + Auditoría"]
+        R2["AUDITOR: Supervisión Caja + Investigación Auditoría + Exportar CSV"]
+        R3["CAJERO: Ventas + Caja (control dual) + Mermas"]
+        R4["MESERO / CHEF: Operación sin acceso a Auditoría"]
     end
 
-    SERVICES <-->|"JSON / PDF / Excel\nhttp://localhost:4000/api/v1"| MW
-    MODS <-->|"Transacciones ACID"| PG
+    SERVICES <-->|"JSON / PDF / Excel / CSV\nCookie httpOnly + CSRF"| MW
+    MODS <-->|"Transacciones ACID + FOR UPDATE"| PG
     ROLES -.->|"Permisos dinámicos"| MW

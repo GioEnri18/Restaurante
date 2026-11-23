@@ -160,23 +160,58 @@ const ETIQUETAS_CAMPO: Record<string, string> = {
   diferencia: 'Diferencia efectivo',
   totalVentasEfectivo: 'Ventas en efectivo',
   totalVentasTarjeta: 'Ventas con tarjeta',
+  totalCobrosVentas: 'Total cobros por ventas',
+  totalIngresosExtra: 'Ingresos extra',
   totalEgresos: 'Total egresos',
+  totalEgresosTarjeta: 'Anulaciones tarjeta',
+  totalTarjetaNeto: 'Tarjeta neta',
+  totalVouchersConciliados: 'Vouchers conciliados',
+  totalGeneralEsperado: 'Total general esperado',
+  montoContadoGeneral: 'Total contado general',
+  diferenciaGeneral: 'Diferencia general',
+  vouchersConciliados: 'Detalle de vouchers',
   autorizadoPor: 'Autorizado por',
+  autoAutorizado: 'Autorización directa',
+  fechaApertura: 'Fecha de apertura',
   observacionesCierre: 'Observaciones de cierre',
-  stockActualOz: 'Stock (oz)',
-  stockActualLb: 'Stock (lb)',
+  stockActualOz: 'Stock actual (oz)',
+  stockActualLb: 'Stock actual (lb)',
+  stockAnteriorOz: 'Stock anterior (oz)',
+  stockNuevoOz: 'Stock nuevo (oz)',
   stockMinimoOz: 'Stock mínimo (oz)',
+  costoPromedioAnteriorOz: 'Costo promedio anterior (oz)',
+  costoPromedioNuevoOz: 'Costo promedio nuevo (oz)',
+  costoUnitarioOriginal: 'Costo unitario',
+  precioPorLb: 'Precio por libra',
+  cantidadLb: 'Cantidad (lb)',
+  cantidadOz: 'Cantidad (oz)',
+  cantidadOriginal: 'Cantidad',
+  unidadOriginal: 'Unidad',
+  ingredienteId: 'ID ingrediente',
+  ingrediente: 'Ingrediente',
+  items: 'Ítems',
+  receta: 'Receta',
   precioVenta: 'Precio de venta',
   disponible: 'Disponible en ventas',
   sueldoMensual: 'Sueldo mensual',
   fechaIngreso: 'Fecha de ingreso',
   nombreCompleto: 'Nombre completo',
   permisos: 'Permisos',
+  permisosPersonalizados: 'Permisos personalizados',
   vistaInicial: 'Vista inicial',
   costoEstimado: 'Costo estimado',
   cantidadMermada: 'Cantidad mermada',
   proveedor: 'Proveedor',
+  numeroDocumento: 'No. documento',
   filasExportadas: 'Filas exportadas',
+  filtrosAplicados: 'Filtros aplicados',
+  truncado: 'Exportación truncada',
+  ventaId: 'No. venta',
+  referencia: 'Referencia / voucher',
+  monto: 'Monto',
+  cajaOriginalId: 'Turno original',
+  cajaEgresoId: 'Turno del egreso',
+  cajaMovimientoId: 'ID movimiento caja',
 };
 
 export function etiquetaAccionAuditoria(accion: string): string {
@@ -402,27 +437,37 @@ export function calcularDiffCampos(
     new Set([...Object.keys(prevObj ?? {}), ...Object.keys(nextObj ?? {})]),
   );
 
-  return claves.map((campo) => {
-    const tienePrev = Boolean(prevObj && Object.hasOwn(prevObj, campo));
-    const tieneNext = Boolean(nextObj && Object.hasOwn(nextObj, campo));
-    const anterior = tienePrev && prevObj ? prevObj[campo] : undefined;
-    const nuevo = tieneNext && nextObj ? nextObj[campo] : undefined;
-    const igual = tienePrev && tieneNext && JSON.stringify(anterior) === JSON.stringify(nuevo);
+  const esVacio = (v: unknown) => v === undefined || v === null || v === '';
 
-    let estado: DiffCampoAuditoria['estado'] = 'igual';
-    if (!tienePrev && tieneNext) estado = 'agregado';
-    else if (tienePrev && !tieneNext) estado = 'eliminado';
-    else if (!igual) estado = 'modificado';
+  return claves
+    .map((campo) => {
+      const tienePrev = Boolean(prevObj && Object.hasOwn(prevObj, campo));
+      const tieneNext = Boolean(nextObj && Object.hasOwn(nextObj, campo));
+      const anterior = tienePrev && prevObj ? prevObj[campo] : undefined;
+      const nuevo = tieneNext && nextObj ? nextObj[campo] : undefined;
 
-    return {
-      campo,
-      etiqueta: etiquetaCampoAuditoria(campo),
-      anterior: tienePrev ? anterior : null,
-      nuevo: tieneNext ? nuevo : null,
-      cambiado: estado !== 'igual',
-      estado,
-    };
-  });
+      // Evita marcar como "Nuevo" o "Quitado" campos vacíos/null que no aportan cambio real
+      if (esVacio(anterior) && esVacio(nuevo)) {
+        return null;
+      }
+
+      const igual = tienePrev && tieneNext && JSON.stringify(anterior) === JSON.stringify(nuevo);
+
+      let estado: DiffCampoAuditoria['estado'] = 'igual';
+      if (esVacio(anterior) && !esVacio(nuevo)) estado = 'agregado';
+      else if (!esVacio(anterior) && esVacio(nuevo)) estado = 'eliminado';
+      else if (!igual) estado = 'modificado';
+
+      return {
+        campo,
+        etiqueta: etiquetaCampoAuditoria(campo),
+        anterior: tienePrev ? anterior : null,
+        nuevo: tieneNext ? nuevo : null,
+        cambiado: estado !== 'igual',
+        estado,
+      };
+    })
+    .filter((row): row is DiffCampoAuditoria => row !== null);
 }
 
 function mapEntidadOrigen(raw: unknown): AuditoriaEntidadOrigenModel | null {

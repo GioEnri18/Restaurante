@@ -1,5 +1,5 @@
 import { cajaAdapter } from '../adapters/caja.adapter';
-import { CajaMovimientoModel, CajaSesionModel, MetodoPago, PaginationMeta } from '../models';
+import { CajaMovimientoModel, CajaSesionModel, PaginationMeta } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
 export interface VoucherConciliado {
@@ -11,6 +11,10 @@ export interface VoucherConciliado {
 interface VouchersTurno {
   cajaId: number;
   ventas: { ventaId: number; monto: number; fecha: string }[];
+  montoInicial?: number;
+  totalIngresosExtra?: number;
+  totalEgresosEfectivo?: number;
+  totalEgresosTarjeta?: number;
   montoEsperadoEfectivo: number;
   totalVentasEfectivo: number;
   totalVentasTarjeta: number;
@@ -20,7 +24,7 @@ interface VouchersTurno {
   ajusteTarjeta: number;
 }
 
-export type FiltroMovimientoCaja = 'TODOS' | 'VENTAS' | 'INGRESOS' | 'EGRESOS';
+export type FiltroMovimientoCaja = 'TODOS' | 'VENTAS' | 'EGRESOS';
 
 export const cajaService = {
   async obtenerActual(): Promise<CajaSesionModel | null> {
@@ -36,15 +40,6 @@ export const cajaService = {
   ): Promise<CajaSesionModel> {
     const res = await httpClient.post<unknown>('/caja/abrir', { montoInicial, observaciones, autorizacion });
     return cajaAdapter.fromSesionJson(res.data);
-  },
-
-  async registrarMovimiento(payload: {
-    tipo: 'INGRESO_MANUAL' | 'EGRESO_MANUAL';
-    monto: number;
-    descripcion: string;
-    metodoPago?: MetodoPago;
-  }) {
-    return httpClient.post('/caja/movimientos', payload);
   },
 
   async cerrar(

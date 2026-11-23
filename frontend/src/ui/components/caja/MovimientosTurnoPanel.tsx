@@ -9,8 +9,8 @@ import { Pagination } from '../common/Pagination';
 
 const ETIQUETA_TIPO_CAJA: Record<string, string> = {
   INGRESO_VENTA: 'Venta',
-  INGRESO_MANUAL: 'Ingreso manual',
-  EGRESO_MANUAL: 'Egreso manual',
+  INGRESO_MANUAL: 'Ingreso previo',
+  EGRESO_MANUAL: 'Egreso previo',
   EGRESO_ANULACION: 'Anulación',
 };
 
@@ -41,14 +41,13 @@ export const MovimientosTurnoPanel: React.FC = () => {
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-12">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-extrabold text-slate-900">
-          Movimientos del turno {resultado && "(" + resultado.meta.total + ")"}
+          Movimientos del turno {resultado && `(${resultado.meta.total})`}
         </h2>
         <div className="flex flex-wrap gap-1.5">
           {([
             { id: 'TODOS', label: 'Todos' },
             { id: 'VENTAS', label: 'Ventas' },
-            { id: 'INGRESOS', label: 'Ingresos manuales' },
-            { id: 'EGRESOS', label: 'Egresos / Anulaciones' },
+            { id: 'EGRESOS', label: 'Anulaciones' },
           ] as const).map((f) => (
             <button
               key={f.id}
@@ -93,7 +92,7 @@ export const MovimientosTurnoPanel: React.FC = () => {
             title="Sin movimientos en esta categoría"
             description={
               movFiltro === 'TODOS'
-                ? 'Las ventas e ingresos o salidas de efectivo del turno actual aparecerán aquí.'
+                ? 'Las ventas y anulaciones del turno actual aparecerán aquí.'
                 : 'No hay registros de este tipo durante el turno actual.'
             }
             action={

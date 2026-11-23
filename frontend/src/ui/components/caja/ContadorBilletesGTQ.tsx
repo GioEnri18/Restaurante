@@ -2,7 +2,7 @@ import React from 'react';
 import { formatCurrency } from '../../../utils/formatters';
 import { Field } from '../common/Field';
 
-// Denominaciones oficiales de billetes y monedas de Guatemala (GTQ) para arqueo profesional
+// Denominaciones oficiales de billetes y monedas de Guatemala (GTQ) para arqueo al centavo
 export const DENOMINACIONES_GTQ = [
   { key: '200', label: 'Q 200', valor: 200, tipo: 'Billete' },
   { key: '100', label: 'Q 100', valor: 100, tipo: 'Billete' },
@@ -13,6 +13,9 @@ export const DENOMINACIONES_GTQ = [
   { key: '1', label: 'Q 1', valor: 1, tipo: 'Moneda' },
   { key: '0.5', label: 'Q 0.50', valor: 0.5, tipo: 'Moneda' },
   { key: '0.25', label: 'Q 0.25', valor: 0.25, tipo: 'Moneda' },
+  { key: '0.1', label: 'Q 0.10', valor: 0.1, tipo: 'Moneda' },
+  { key: '0.05', label: 'Q 0.05', valor: 0.05, tipo: 'Moneda' },
+  { key: '0.01', label: 'Q 0.01', valor: 0.01, tipo: 'Moneda' },
 ] as const;
 
 interface ContadorBilletesGTQProps {
@@ -28,7 +31,7 @@ export const ContadorBilletesGTQ: React.FC<ContadorBilletesGTQProps> = ({
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
       {DENOMINACIONES_GTQ.map((d) => {
         const qty = Number(conteoBilletes[d.key] || 0);
-        const sub = qty > 0 ? qty * d.valor : 0;
+        const sub = qty > 0 ? Math.round(qty * d.valor * 100) / 100 : 0;
         return (
           <div
             key={d.key}

@@ -4,6 +4,7 @@ import { ExternalLink, Link2, Loader2 } from 'lucide-react';
 import {
   calcularDiffCampos,
   etiquetaAccionAuditoria,
+  etiquetaCampoAuditoria,
   etiquetaCodigoMotivo,
 } from '../../../adapters/auditoria.adapter';
 import { AuditoriaDetalleModel, AuditoriaLogModel } from '../../../models';
@@ -23,20 +24,135 @@ interface AuditoriaDetalleDrawerProps {
   onAbrirCorrelacionado: (log: AuditoriaLogModel) => void;
 }
 
-function formatearValorCelda(campo: string, valor: unknown): string {
-  if (valor === null || valor === undefined) return '—';
+const PATRON_MONEDA = /precio|monto|total|diferencia|sueldo|costo|impacto|egreso|ingreso/i;
+const PATRON_FECHA_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/;
+
+function formatearPrimitivo(campo: string, valor: unknown): string {
+  if (valor === null || valor === undefined || valor === '') return '—';
   if (typeof valor === 'boolean') return valor ? 'Sí' : 'No';
   if (typeof valor === 'number') {
-    if (
-      /precio|monto|total|diferencia|sueldo|costo|impacto|egreso|ingreso/i.test(campo)
-    ) {
-      return formatCurrency(valor);
-    }
+    if (PATRON_MONEDA.test(campo)) return formatCurrency(valor);
+    if (/oz$/i.test(campo)) return `${valor} oz`;
+    if (/lb$/i.test(campo)) return `${valor} lb`;
     return String(valor);
   }
-  if (typeof valor === 'string') return valor;
-  return JSON.stringify(valor, null, 2);
+  if (typeof valor === 'string') {
+    if (PATRON_FECHA_ISO.test(valor)) return formatDateTime(valor);
+    return valor;
+  }
+  return String(valor);
 }
+
+function esObjetoPlano(val: unknown): val is Record<string, unknown> {
+  return val !== null && typeof val === 'object' && !Array.isArray(val);
+}
+
+/**
+ * Renderiza cualquier valor de auditoría en formato humano legible (listas/tarjetas),
+ * sin exponer JSON técnico crudo (llaves, corchetes ni comillas).
+ */
+const ValorAuditoriaLegible: React.FC<{
+  campo: string;
+  valor: unknown;
+  tachado?: boolean;
+}> = ({ campo, valor, tachado = false }) => {
+  if (valor === null || valor === undefined || valor === '') {
+    return <span className="text-slate-400">—</span>;
+  }
+
+  if (typeof valor !== 'object') {
+    const texto = formatearPrimitivo(campo, valor);
+    return tachado ? <span className="line-through text-red-700">{texto}</span> : <span>{texto}</span>;
+  }
+
+  if (Array.isArray(valor)) {
+    if (valor.length === 0) {
+      return <span className="text-slate-500">Sin elementos</span>;
+    }
+
+    // Arreglo de valores simples (ej. lista de códigos de permisos)
+    if (valor.every((item) => item === null || typeof item !== 'object')) {
+      return (
+        <ul className="flex flex-wrap gap-1">
+          {valor.map((item, idx) => (
+            <li
+              key={idx}
+              className={`rounded-md border px-2 py-0.5 text-xs ${
+                tachado
+                  ? 'border-red-200 bg-red-50 text-red-700 line-through'
+                  : 'border-slate-200 bg-slate-50 text-slate-800'
+              }`}
+            >
+              {formatearPrimitivo(campo, item)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    // Arreglo de objetos (ej. ítems de compra, receta, vouchers conciliados)
+    return (
+      <div className="space-y-2">
+        {valor.map((item, idx) => (
+          <div
+            key={idx}
+            className={`rounded-lg border p-2.5 text-xs ${
+              tachado
+                ? 'border-red-200 bg-red-50/50 text-red-800'
+                : 'border-slate-200 bg-slate-50/70 text-slate-800'
+            }`}
+          >
+            <p className="mb-1 text-xs font-extrabold text-slate-700">Registro #{idx + 1}</p>
+            {esObjetoPlano(item) ? (
+              <dl className="space-y-0.5">
+                {Object.entries(item)
+                  .filter(([, v]) => v !== null && v !== undefined && v !== '')
+                  .map(([k, v]) => (
+                    <div key={k} className="flex flex-wrap justify-between gap-x-2">
+                      <dt className="font-semibold text-slate-600">{etiquetaCampoAuditoria(k)}:</dt>
+                      <dd className={tachado ? 'font-medium line-through' : 'font-bold text-slate-900'}>
+                        {typeof v === 'object' ? (
+                          <ValorAuditoriaLegible campo={k} valor={v} tachado={tachado} />
+                        ) : (
+                          formatearPrimitivo(k, v)
+                        )}
+                      </dd>
+                    </div>
+                  ))}
+              </dl>
+            ) : (
+              <span>{formatearPrimitivo(campo, item)}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Objeto plano anidado
+  const entradas = Object.entries(valor as Record<string, unknown>).filter(
+    ([, v]) => v !== null && v !== undefined && v !== '',
+  );
+  if (entradas.length === 0) {
+    return <span className="text-slate-400">—</span>;
+  }
+  return (
+    <dl className="space-y-1">
+      {entradas.map(([k, v]) => (
+        <div key={k} className="flex flex-wrap justify-between gap-x-2">
+          <dt className="font-semibold text-slate-600">{etiquetaCampoAuditoria(k)}:</dt>
+          <dd className={tachado ? 'font-medium text-red-700 line-through' : 'font-bold text-slate-900'}>
+            {typeof v === 'object' ? (
+              <ValorAuditoriaLegible campo={k} valor={v} tachado={tachado} />
+            ) : (
+              formatearPrimitivo(k, v)
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+};
 
 export const AuditoriaDetalleDrawer: React.FC<AuditoriaDetalleDrawerProps> = ({
   open,
@@ -89,7 +205,7 @@ export const AuditoriaDetalleDrawer: React.FC<AuditoriaDetalleDrawerProps> = ({
               {log.resumenNatural}
             </p>
             {puedeAbrirEntidad && detalle?.entidadOrigen && (
-              <div className="mt-3 pt-3 border-t border-slate-200">
+              <div className="mt-3 border-t border-slate-200 pt-3">
                 <Link
                   to={detalle.entidadOrigen.ruta}
                   onClick={onClose}
@@ -163,14 +279,14 @@ export const AuditoriaDetalleDrawer: React.FC<AuditoriaDetalleDrawerProps> = ({
             </div>
           </dl>
 
-          {/* Diff legible antes vs después */}
+          {/* Diff legible antes vs después (sin JSON crudo) */}
           <section aria-label="Comparación antes y después" className="space-y-2">
             <h4 className="text-sm font-extrabold text-slate-900">
               Cambios registrados (antes vs. después)
             </h4>
             {diffCampos.length === 0 ? (
               <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                Este evento no registró campos estructurados de antes/después.
+                Este evento no registró cambios de valores anteriores o nuevos.
               </p>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -191,10 +307,10 @@ export const AuditoriaDetalleDrawer: React.FC<AuditoriaDetalleDrawerProps> = ({
                         key={row.campo}
                         className={row.cambiado ? 'bg-amber-50/70' : 'bg-white'}
                       >
-                        <th scope="row" className="px-3 py-2 align-top font-bold text-slate-800">
-                          {row.etiqueta}
+                        <th scope="row" className="px-3 py-2.5 align-top font-bold text-slate-800">
+                          <span>{row.etiqueta}</span>
                           {row.cambiado && (
-                            <span className="ml-1.5 rounded bg-amber-200 px-1.5 py-0.5 text-xs font-bold text-amber-950">
+                            <span className="ml-1.5 inline-block rounded bg-amber-200 px-1.5 py-0.5 text-xs font-bold text-amber-950">
                               {row.estado === 'agregado'
                                 ? 'Nuevo'
                                 : row.estado === 'eliminado'
@@ -203,17 +319,15 @@ export const AuditoriaDetalleDrawer: React.FC<AuditoriaDetalleDrawerProps> = ({
                             </span>
                           )}
                         </th>
-                        <td className="px-3 py-2 align-top break-words whitespace-pre-wrap text-slate-600">
-                          {row.estado === 'modificado' ? (
-                            <span className="line-through text-red-700">
-                              {formatearValorCelda(row.campo, row.anterior)}
-                            </span>
-                          ) : (
-                            formatearValorCelda(row.campo, row.anterior)
-                          )}
+                        <td className="px-3 py-2.5 align-top break-words text-slate-600">
+                          <ValorAuditoriaLegible
+                            campo={row.campo}
+                            valor={row.anterior}
+                            tachado={row.estado === 'modificado'}
+                          />
                         </td>
-                        <td className="px-3 py-2 align-top break-words whitespace-pre-wrap font-semibold text-slate-900">
-                          {formatearValorCelda(row.campo, row.nuevo)}
+                        <td className="px-3 py-2.5 align-top break-words font-semibold text-slate-900">
+                          <ValorAuditoriaLegible campo={row.campo} valor={row.nuevo} />
                         </td>
                       </tr>
                     ))}
@@ -247,27 +361,6 @@ export const AuditoriaDetalleDrawer: React.FC<AuditoriaDetalleDrawerProps> = ({
               </div>
             </section>
           )}
-
-          {/* JSON crudo colapsable */}
-          <details className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <summary className="cursor-pointer text-xs font-bold text-slate-700">
-              Ver JSON técnico completo (valor anterior y nuevo)
-            </summary>
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div>
-                <p className="mb-1 text-xs font-bold text-slate-700">valorAnterior</p>
-                <pre className="max-h-56 overflow-auto rounded-lg bg-white p-2.5 text-xs text-slate-800 ring-1 ring-slate-200">
-                  {JSON.stringify(log.valorAnterior, null, 2)}
-                </pre>
-              </div>
-              <div>
-                <p className="mb-1 text-xs font-bold text-slate-700">valorNuevo</p>
-                <pre className="max-h-56 overflow-auto rounded-lg bg-white p-2.5 text-xs text-slate-800 ring-1 ring-slate-200">
-                  {JSON.stringify(log.valorNuevo, null, 2)}
-                </pre>
-              </div>
-            </div>
-          </details>
         </div>
       ) : null}
     </Modal>

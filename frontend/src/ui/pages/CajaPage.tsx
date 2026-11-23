@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Wallet, Lock, Clock, PlusCircle } from 'lucide-react';
+import { Wallet, Lock, Clock } from 'lucide-react';
 import { CajaSesionModel, PaginationMeta } from '../../models';
 import { cajaService } from '../../services/caja.service';
 import { useAuthStore } from '../../store/auth.store';
@@ -9,14 +9,12 @@ import { AperturaCajaPanel } from '../components/caja/AperturaCajaPanel';
 import { ArqueoCierreModal } from '../components/caja/ArqueoCierreModal';
 import { AutorizacionSupervisor } from '../components/caja/AutorizacionSupervisorFields';
 import { HistorialCierresTable } from '../components/caja/HistorialCierresTable';
-import { MovimientoManualModal } from '../components/caja/MovimientoManualModal';
 import { MovimientosTurnoPanel } from '../components/caja/MovimientosTurnoPanel';
 import { ResumenCajaTurno } from '../components/caja/ResumenCajaTurno';
 import { Alert } from '../components/common/Alert';
 
 export const CajaPage: React.FC = () => {
   const canOpen = useAuthStore((s) => s.can('caja:abrir'));
-  const canMove = useAuthStore((s) => s.can('caja:movimiento'));
   const canClose = useAuthStore((s) => s.can('caja:cerrar'));
   const canRegisterWaste = useAuthStore((s) => s.can('mermas:ver') && s.can('mermas:crear'));
   // Control dual: sin caja:autorizar (p. ej. un cajero) se piden credenciales de un supervisor
@@ -29,7 +27,6 @@ export const CajaPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [movModal, setMovModal] = useState(false);
   const [closeModal, setCloseModal] = useState(false);
 
   const cargar = useCallback(async (page = 1) => {
@@ -72,32 +69,16 @@ export const CajaPage: React.FC = () => {
     }
   };
 
-  const handleMovimiento = async (payload: {
-    tipo: 'INGRESO_MANUAL' | 'EGRESO_MANUAL';
-    monto: number;
-    descripcion: string;
-  }): Promise<boolean> => {
-    setError(null);
-    setSuccess(null);
-    try {
-      await cajaService.registrarMovimiento(payload);
-      setMovModal(false);
-      setSuccess('Movimiento registrado en la sesión de caja y auditado.');
-      await cargar(1);
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo registrar el movimiento');
-      return false;
-    }
-  };
-
   const handleCerrarCaja = async (payload: Parameters<typeof cajaService.cerrar>[0]) => {
     setError(null);
     setSuccess(null);
     const cerrada = await cajaService.cerrar(payload);
     setCloseModal(false);
+    const totalCobros = cerrada.totalVentasEfectivo + cerrada.totalVentasTarjeta;
+    const textoAnulaciones =
+      cerrada.totalEgresos > 0 ? ` · Anulaciones: −${formatCurrency(cerrada.totalEgresos)}` : '';
     setSuccess(
-      `Turno #${cerrada.id} cerrado. Cobros por ventas: ${formatCurrency(cerrada.totalVentasEfectivo + cerrada.totalVentasTarjeta)} (${formatCurrency(cerrada.totalVentasEfectivo)} en efectivo + ${formatCurrency(cerrada.totalVentasTarjeta)} con tarjeta). Diferencia de efectivo: ${formatCurrency(cerrada.diferencia ?? 0)}.`,
+      `Turno #${cerrada.id} cerrado. Cobros por ventas: ${formatCurrency(totalCobros)} (${formatCurrency(cerrada.totalVentasEfectivo)} efectivo + ${formatCurrency(cerrada.totalVentasTarjeta)} tarjeta)${textoAnulaciones}. Esperado en gaveta: ${formatCurrency(cerrada.montoEsperadoEfectivo)} · Contado: ${formatCurrency(cerrada.montoContadoEfectivo ?? 0)} · Diferencia: ${formatCurrency(cerrada.diferencia ?? 0)}.`,
     );
     await cargar(1);
   };
@@ -151,16 +132,6 @@ export const CajaPage: React.FC = () => {
                 Registrar merma de hoy
               </Link>
             )}
-            {canMove && (
-              <button
-                type="button"
-                onClick={() => setMovModal(true)}
-                className="inline-flex min-h-[46px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50"
-              >
-                <PlusCircle className="h-4 w-4 text-brand-600" aria-hidden="true" />
-                Registrar entrada o salida de efectivo
-              </button>
-            )}
             {canClose && (
               <button
                 type="button"
@@ -198,12 +169,6 @@ export const CajaPage: React.FC = () => {
         loading={loading}
         meta={meta}
         onPageChange={(p) => void cargar(p)}
-      />
-
-      <MovimientoManualModal
-        open={movModal}
-        onClose={() => setMovModal(false)}
-        onGuardar={handleMovimiento}
       />
 
       <ArqueoCierreModal
