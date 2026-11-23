@@ -169,7 +169,7 @@ export const NuevoIngredienteModal: React.FC<NuevoIngredienteModalProps> = ({
             Cancelar
           </button>
           <button type="submit" disabled={guardando}
-            className="min-h-[44px] rounded-xl bg-brand-600 px-5 text-sm font-bold text-white disabled:opacity-50">
+            className="min-h-[44px] rounded-xl bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50">
             {guardando ? 'Guardando…' : 'Guardar ingrediente'}
           </button>
         </div>

@@ -67,7 +67,7 @@ export const CambiarPrecioModal: React.FC<CambiarPrecioModalProps> = ({
         </Field>
         <button
           type="submit"
-          className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white"
+          className="min-h-[46px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800"
         >
           Guardar nuevo precio
         </button>

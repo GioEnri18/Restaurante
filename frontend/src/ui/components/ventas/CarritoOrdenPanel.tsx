@@ -102,12 +102,12 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
       <div className="sticky top-20 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
         <div className="flex items-center justify-between bg-slate-900 px-4 py-3.5 text-white">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-700">
               <ShoppingCart className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
               <h2 className="text-base font-extrabold leading-tight">Orden de Mostrador</h2>
-              <p className="text-[11px] text-slate-300">
+              <p className="text-xs text-slate-300">
                 {tipoServicio === 'MOSTRADOR'
                   ? 'Despacho directo en mostrador'
                   : tipoServicio === 'LLEVAR'
@@ -132,7 +132,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               onClick={() => onSetTipoServicio('MOSTRADOR')}
               className={`flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border text-xs font-extrabold transition ${
                 tipoServicio === 'MOSTRADOR'
-                  ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
+                  ? 'border-brand-700 bg-brand-700 text-white shadow-sm'
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -145,7 +145,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               onClick={() => onSetTipoServicio('LLEVAR')}
               className={`flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border text-xs font-extrabold transition ${
                 tipoServicio === 'LLEVAR'
-                  ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
+                  ? 'border-brand-700 bg-brand-700 text-white shadow-sm'
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -159,7 +159,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                 onClick={() => onSetTipoServicio('MESA')}
                 className={`flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border text-xs font-extrabold transition ${
                   tipoServicio === 'MESA'
-                    ? 'border-brand-600 bg-brand-600 text-white shadow-sm'
+                    ? 'border-brand-700 bg-brand-700 text-white shadow-sm'
                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -194,7 +194,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
           {/* Mapa de mesas conservado y listo para activar en el futuro (VITE_ENABLE_TABLE_SERVICE=true) */}
           {habilitarMesas && tipoServicio === 'MESA' && (
             <div>
-              <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">
                 Toca una mesa:
               </p>
               <div className="grid grid-cols-4 gap-1.5">
@@ -207,12 +207,12 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                       onClick={() => onSetMesaId(m.id)}
                       className={`flex min-h-[42px] flex-col items-center justify-center rounded-xl border text-xs font-extrabold transition ${
                         selected
-                          ? 'border-brand-600 bg-brand-50 text-brand-700 ring-2 ring-brand-200'
+                          ? 'border-brand-700 bg-brand-50 text-brand-700 ring-2 ring-brand-200'
                           : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
                       }`}
                     >
                       <span>{m.numero}</span>
-                      <span className="text-[10px] font-medium text-slate-400">{m.capacidad}p</span>
+                      <span className="text-xs font-medium text-slate-600">{m.capacidad}p</span>
                     </button>
                   );
                 })}
@@ -225,9 +225,9 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
         <div className="max-h-[38vh] divide-y divide-slate-100 overflow-y-auto px-4">
           {items.length === 0 ? (
             <div className="py-12 text-center">
-              <ShoppingCart className="mx-auto mb-2 h-9 w-9 text-slate-200" aria-hidden="true" />
-              <p className="text-sm font-semibold text-slate-500">Tu orden está vacía</p>
-              <p className="mt-0.5 text-xs text-slate-400">
+              <ShoppingCart className="mx-auto mb-2 h-9 w-9 text-slate-300" aria-hidden="true" />
+              <p className="text-sm font-semibold text-slate-700">Tu orden está vacía</p>
+              <p className="mt-0.5 text-xs text-slate-600">
                 Toca cualquier platillo de la carta para agregarlo al pedido.
               </p>
             </div>
@@ -322,10 +322,10 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                               key={chip}
                               type="button"
                               onClick={() => toggleNotaRapida(item.platillo.id, item.notas, chip)}
-                              className={`rounded-md px-2 py-0.5 text-[10px] font-bold transition ${
+                              className={`rounded-md px-2 py-0.5 text-xs font-bold transition ${
                                 active
-                                  ? 'bg-amber-600 text-white'
-                                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-amber-100'
+                                  ? 'bg-amber-700 text-white'
+                                  : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-amber-100'
                               }`}
                             >
                               {chip}
@@ -367,7 +367,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               {canOpenCaja && (
                 <Link
                   to="/caja"
-                  className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1 text-[11px] font-extrabold text-white hover:bg-amber-700"
+                  className="shrink-0 rounded-lg bg-amber-700 px-2.5 py-1 text-xs font-extrabold text-white hover:bg-amber-800"
                 >
                   Ir a Caja
                 </Link>
@@ -399,7 +399,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               type="button"
               disabled={!canCreate || items.length === 0 || !cajaAbierta || faltantes.length > 0}
               onClick={onAbrirCobro}
-              className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 text-base font-extrabold text-white shadow-lg shadow-brand-600/25 transition hover:from-brand-700 hover:to-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-700 to-brand-800 px-4 text-base font-extrabold text-white shadow-lg shadow-brand-900/25 transition hover:from-brand-800 hover:to-brand-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
               {items.length === 0 ? 'Agrega platillos para cobrar' : `Cobrar ${formatCurrency(totals.total)}`}

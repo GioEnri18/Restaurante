@@ -179,7 +179,7 @@ export const CajaPage: React.FC = () => {
       {success && <Alert type="success" message={success} />}
 
       {loading ? (
-        <div className="rounded-2xl bg-white p-12 text-center text-slate-400">Cargando estado de caja...</div>
+        <div className="rounded-2xl bg-white p-12 text-center text-slate-600">Cargando estado de caja...</div>
       ) : !actual ? (
         <AperturaCajaPanel
           canOpen={canOpen}

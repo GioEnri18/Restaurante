@@ -222,7 +222,7 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
           <button
             type="submit"
             disabled={guardando || proveedores.length === 0 || ingredientes.length === 0}
-            className="min-h-[48px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+            className="min-h-[48px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {guardando ? 'Guardando compra…' : 'Guardar compra y actualizar existencias'}
           </button>
@@ -233,7 +233,7 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
         <h2 className="mb-4 text-lg font-bold text-slate-900">Compras recientes</h2>
         <div className="space-y-3">
           {compras.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-400">Sin compras registradas todavía.</p>
+            <p className="py-8 text-center text-sm text-slate-600">Sin compras registradas todavía.</p>
           ) : (
             compras.map((c) => (
               <div key={c.id} className="rounded-xl border border-slate-200 p-3.5 text-sm">

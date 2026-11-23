@@ -59,7 +59,7 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
                   type="button"
                   onClick={() => onBuscar('')}
                   aria-label="Limpiar búsqueda de ingredientes"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-700"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
@@ -110,7 +110,7 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
                 <tr key={ing.id} className="hover:bg-slate-50">
                   <td className="px-2 py-3">
                     <p className="font-bold text-slate-900">{ing.nombre}</p>
-                    <p className="text-xs text-slate-400">{ing.codigo}</p>
+                    <p className="text-xs text-slate-600">{ing.codigo}</p>
                   </td>
                   <td className="px-2 py-3 text-slate-600">{ing.proveedorNombre ?? '—'}</td>
                   <td className="px-2 py-3 text-right font-bold text-slate-900">

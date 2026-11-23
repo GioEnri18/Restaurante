@@ -279,7 +279,7 @@ export const ReportesPage: React.FC = () => {
 
       {/* Gráficos */}
       {loading ? (
-        <div className="rounded-2xl bg-white p-10 text-center text-slate-400">Generando estadísticas...</div>
+        <div className="rounded-2xl bg-white p-10 text-center text-slate-600">Generando estadísticas...</div>
       ) : (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -287,7 +287,7 @@ export const ReportesPage: React.FC = () => {
               Ventas, costos y ganancia por día
             </h2>
             {serie.length === 0 ? (
-              <p className="py-16 text-center text-sm text-slate-400">Sin ventas ni mermas en este período.</p>
+              <p className="py-16 text-center text-sm text-slate-600">Sin ventas ni mermas en este período.</p>
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -314,7 +314,7 @@ export const ReportesPage: React.FC = () => {
               Platillos Más Vendidos (Unidades)
             </h2>
             {topProductos.length === 0 ? (
-              <p className="py-16 text-center text-sm text-slate-400">Sin datos de productos.</p>
+              <p className="py-16 text-center text-sm text-slate-600">Sin datos de productos.</p>
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">

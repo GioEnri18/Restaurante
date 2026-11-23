@@ -209,19 +209,19 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="grid grid-cols-3 gap-3 text-center">
               <div>
-                <p className="text-[11px] font-bold uppercase text-slate-500">Esperado</p>
+                <p className="text-xs font-bold uppercase text-slate-600">Esperado</p>
                 <p className="mt-0.5 text-lg font-black text-slate-900">
                   {formatCurrency(efectivoEsperado)}
                 </p>
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase text-slate-500">Contado</p>
+                <p className="text-xs font-bold uppercase text-slate-600">Contado</p>
                 <p className="mt-0.5 text-lg font-black text-brand-700">
                   {formatCurrency(montoContadoFinal)}
                 </p>
               </div>
               <div>
-                <p className="text-[11px] font-bold uppercase text-slate-500">Diferencia</p>
+                <p className="text-xs font-bold uppercase text-slate-600">Diferencia</p>
                 <p
                   className={`mt-0.5 text-lg font-black ${
                     diferenciaPreview === 0

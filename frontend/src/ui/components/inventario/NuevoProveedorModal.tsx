@@ -116,7 +116,7 @@ export const NuevoProveedorModal: React.FC<NuevoProveedorModalProps> = ({
         <button
           type="submit"
           disabled={guardando}
-          className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
+          className="min-h-[46px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
         >
           {guardando ? 'Guardando…' : 'Guardar proveedor'}
         </button>

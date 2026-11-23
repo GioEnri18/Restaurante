@@ -47,7 +47,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+              className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-800"
             >
               <Printer className="h-4 w-4" aria-hidden="true" />
               Imprimir ahora
@@ -126,7 +126,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                 </div>
               </div>
 
-              <div className="pt-2 text-[11px]">
+              <div className="pt-2 text-xs">
                 <p>Pago: {ticket.venta.metodoPago}</p>
                 {ticket.venta.metodoPago === 'EFECTIVO' && (
                   <>

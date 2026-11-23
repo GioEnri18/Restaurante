@@ -398,7 +398,7 @@ export const InventarioPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIngModal(true)}
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-700 px-4 text-sm font-bold text-white hover:bg-brand-800"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Nuevo Ingrediente
@@ -537,7 +537,7 @@ export const InventarioPage: React.FC = () => {
           <button
             type="submit"
             disabled={!foto || guardandoFoto}
-            className="min-h-[44px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
+            className="min-h-[44px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {guardandoFoto ? 'Guardando…' : 'Guardar foto'}
           </button>
@@ -560,7 +560,7 @@ export const InventarioPage: React.FC = () => {
             Habilitar en ventas
           </label>
           {recetaError && <Alert type="error" message={recetaError} />}
-          <button type="submit" className="min-h-[44px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white">
+          <button type="submit" className="min-h-[44px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800">
             Guardar receta
           </button>
         </form>

@@ -24,30 +24,30 @@ export const ResumenCajaTurno: React.FC<ResumenCajaTurnoProps> = ({ actual }) =>
               Flujo de Efectivo en Gaveta
             </h2>
           </div>
-          <span className="text-xs font-semibold text-slate-400">Cálculo en tiempo real</span>
+          <span className="text-xs font-semibold text-slate-600">Cálculo en tiempo real</span>
         </div>
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
-            <p className="text-[11px] font-bold uppercase text-slate-500">Fondo Inicial</p>
+            <p className="text-xs font-bold uppercase text-slate-600">Fondo Inicial</p>
             <p className="mt-1 text-lg font-black text-slate-900">
               {formatCurrency(actual.montoInicial)}
             </p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5">
-            <p className="text-[11px] font-bold uppercase text-emerald-700">+ Ventas Efectivo</p>
+            <p className="text-xs font-bold uppercase text-emerald-700">+ Ventas Efectivo</p>
             <p className="mt-1 text-lg font-black text-emerald-700">
               {formatCurrency(actual.totalVentasEfectivo)}
             </p>
           </div>
           <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3.5">
-            <p className="text-[11px] font-bold uppercase text-sky-700">+ Ingresos Extra</p>
+            <p className="text-xs font-bold uppercase text-sky-700">+ Ingresos Extra</p>
             <p className="mt-1 text-lg font-black text-sky-700">
               {formatCurrency(actual.totalIngresosExtra)}
             </p>
           </div>
           <div className="rounded-xl border border-red-200 bg-red-50/60 p-3.5">
-            <p className="text-[11px] font-bold uppercase text-red-700">− Egresos Efec.</p>
+            <p className="text-xs font-bold uppercase text-red-700">− Egresos Efec.</p>
             <p className="mt-1 text-lg font-black text-red-600">
               {formatCurrency(actual.totalEgresosEfectivo)}
             </p>
@@ -60,7 +60,7 @@ export const ResumenCajaTurno: React.FC<ResumenCajaTurnoProps> = ({ actual }) =>
             <p className="text-xs font-bold uppercase tracking-wider text-brand-300">
               Efectivo Esperado en Gaveta
             </p>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-300">
               Monto que debe existir físicamente al hacer el arqueo
             </p>
           </div>
@@ -82,18 +82,18 @@ export const ResumenCajaTurno: React.FC<ResumenCajaTurnoProps> = ({ actual }) =>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border border-slate-200 p-3.5">
-              <p className="text-[11px] font-bold uppercase text-slate-500">Total Vendido</p>
+              <p className="text-xs font-bold uppercase text-slate-600">Total Vendido</p>
               <p className="mt-1 text-2xl font-black text-slate-900">
                 {formatCurrency(totalVentasTurno)}
               </p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3.5">
-              <p className="text-[11px] font-bold uppercase text-sky-700">Vouchers Tarjeta Neto</p>
+              <p className="text-xs font-bold uppercase text-sky-700">Vouchers Tarjeta Neto</p>
               <p className="mt-1 text-2xl font-black text-sky-700">
                 {formatCurrency(actual.totalTarjetaNeto)}
               </p>
               {actual.totalEgresosTarjeta > 0 && (
-                <p className="mt-0.5 text-[11px] font-semibold text-red-600">
+                <p className="mt-0.5 text-xs font-semibold text-red-700">
                   Anulaciones tarj.: −{formatCurrency(actual.totalEgresosTarjeta)}
                 </p>
               )}

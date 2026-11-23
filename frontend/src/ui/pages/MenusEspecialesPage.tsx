@@ -362,7 +362,7 @@ export const MenusEspecialesPage: React.FC = () => {
           <button
             type="button"
             onClick={abrirNuevo}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-700"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-700 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-800"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Nueva temporada
@@ -426,7 +426,7 @@ export const MenusEspecialesPage: React.FC = () => {
 
       {/* LISTADO DE MENÚS ESPECIALES */}
       {loading ? (
-        <div className="rounded-2xl bg-white p-10 text-center text-slate-400">
+        <div className="rounded-2xl bg-white p-10 text-center text-slate-600">
           Cargando calendario de menús...
         </div>
       ) : menus.length === 0 ? (
@@ -479,7 +479,7 @@ export const MenusEspecialesPage: React.FC = () => {
                           <span>
                             {p.precioEspecial !== null ? (
                               <>
-                                <span className="mr-1.5 text-slate-400 line-through">
+                                <span className="mr-1.5 text-slate-600 line-through">
                                   {formatCurrency(p.precioRegular)}
                                 </span>
                                 <strong className="text-brand-700">
@@ -698,7 +698,7 @@ export const MenusEspecialesPage: React.FC = () => {
             <button
               type="submit"
               disabled={guardandoMenu}
-              className="min-h-[44px] rounded-xl bg-brand-600 px-5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+              className="min-h-[44px] rounded-xl bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
             >
               {guardandoMenu ? 'Guardando…' : 'Guardar Menú Especial'}
             </button>
@@ -722,7 +722,7 @@ export const MenusEspecialesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCatModal(true)}
-                  className="text-xs font-bold text-brand-600 hover:underline"
+                  className="text-xs font-bold text-brand-700 hover:underline"
                 >
                   + Nueva categoría
                 </button>
@@ -787,7 +787,7 @@ export const MenusEspecialesPage: React.FC = () => {
           <button
             type="submit"
             disabled={receta.length === 0 || guardandoPlatillo}
-            className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
+            className="min-h-[46px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {guardandoPlatillo ? 'Guardando…' : 'Guardar Platillo'}
           </button>

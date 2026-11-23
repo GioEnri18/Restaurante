@@ -71,7 +71,7 @@ export const NuevaCategoriaModal: React.FC<NuevaCategoriaModalProps> = ({
         <button
           type="submit"
           disabled={saving}
-          className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+          className="min-h-[46px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
         >
           {saving ? 'Guardando…' : 'Guardar Categoría'}
         </button>

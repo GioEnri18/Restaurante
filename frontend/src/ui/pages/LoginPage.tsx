@@ -49,7 +49,7 @@ export const LoginPage: React.FC = () => {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-teal-950 p-4">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
         <div className="mb-7 text-center">
-          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-700 text-white shadow-lg shadow-brand-900/30">
             <ChefHat className="h-9 w-9" aria-hidden="true" />
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900">{env.APP_NAME}</h1>
@@ -124,7 +124,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-base font-bold text-white shadow-lg shadow-brand-600/25 transition hover:bg-brand-700 disabled:opacity-60"
+            className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-5 py-3 text-base font-bold text-white shadow-lg shadow-brand-900/25 transition hover:bg-brand-800 disabled:opacity-60"
           >
             <LogIn className="h-5 w-5" aria-hidden="true" />
             {loading ? 'Ingresando...' : 'Entrar al sistema'}
@@ -138,7 +138,7 @@ export const LoginPage: React.FC = () => {
         {/* Accesos rápidos de prueba únicamente en desarrollo local o con VITE_SHOW_DEMO_LOGIN=true */}
         {MOSTRAR_LOGIN_DEMO && (
           <div className="mt-5 border-t border-slate-200 pt-4">
-            <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <p className="mb-2.5 text-center text-xs font-semibold uppercase tracking-wider text-slate-600">
               Pruebas locales (desarrollo)
             </p>
             <div className="grid grid-cols-3 gap-2">

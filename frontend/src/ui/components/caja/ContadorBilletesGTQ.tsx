@@ -36,7 +36,7 @@ export const ContadorBilletesGTQ: React.FC<ContadorBilletesGTQProps> = ({
           >
             <div>
               <p className="text-sm font-black text-slate-900">{d.label}</p>
-              <p className="text-[10px] font-semibold text-slate-400">
+              <p className="text-xs font-semibold text-slate-600">
                 {sub > 0 ? formatCurrency(sub) : d.tipo}
               </p>
             </div>

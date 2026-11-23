@@ -127,7 +127,7 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
                 <button
                   type="button"
                   onClick={onNuevaCategoria}
-                  className="text-xs font-bold text-brand-600 hover:underline"
+                  className="text-xs font-bold text-brand-700 hover:underline"
                 >
                   + Nueva categoría
                 </button>
@@ -146,7 +146,7 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
                 <button
                   type="button"
                   onClick={onNuevaCategoria}
-                  className="text-xs font-bold text-brand-600 hover:underline"
+                  className="text-xs font-bold text-brand-700 hover:underline"
                 >
                   + Nueva categoría
                 </button>
@@ -234,7 +234,7 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
         <button
           type="submit"
           disabled={guardando || categorias.length === 0}
-          className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+          className="min-h-[46px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
         >
           {guardando ? 'Guardando…' : publicar && receta.length > 0 ? 'Guardar y habilitar venta' : 'Guardar borrador'}
         </button>

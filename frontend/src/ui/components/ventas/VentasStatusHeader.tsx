@@ -80,7 +80,7 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
 
       {/* BANNER FESTIVO SI HAY UN MENÚ ESPECIAL ACTIVO HOY */}
       {menu?.menuEspecialActivo && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-brand-600 to-rose-600 px-5 py-3.5 text-white shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-brand-700 to-rose-700 px-5 py-3.5 text-white shadow-md">
           <div className="flex items-center gap-3">
             <Sparkles className="h-6 w-6 shrink-0 text-amber-200" aria-hidden="true" />
             <div>

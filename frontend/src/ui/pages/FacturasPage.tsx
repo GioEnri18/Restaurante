@@ -211,7 +211,7 @@ export const FacturasPage: React.FC = () => {
             <button
               type="button"
               onClick={() => void cargar(1)}
-              className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-3 text-sm font-bold text-white hover:bg-brand-700"
+              className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-700 px-3 text-sm font-bold text-white hover:bg-brand-800"
             >
               <Search className="h-4 w-4" aria-hidden="true" />
               Buscar
@@ -250,13 +250,13 @@ export const FacturasPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                  <td colSpan={7} className="py-10 text-center text-slate-600">
                     Cargando facturas...
                   </td>
                 </tr>
               ) : facturas.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                  <td colSpan={7} className="py-10 text-center text-slate-600">
                     No hay facturas que coincidan con la búsqueda.
                   </td>
                 </tr>
@@ -266,7 +266,7 @@ export const FacturasPage: React.FC = () => {
                     <td className="py-3 px-2 font-bold text-slate-900">
                       {f.numeroCompleto}
                       {f.reimpresionesCount > 0 && (
-                        <span className="ml-1.5 text-xs font-normal text-slate-400">
+                        <span className="ml-1.5 text-xs font-normal text-slate-600">
                           ({f.reimpresionesCount} reimp.)
                         </span>
                       )}

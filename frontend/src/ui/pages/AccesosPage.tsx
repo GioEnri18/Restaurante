@@ -289,7 +289,7 @@ export const AccesosPage: React.FC = () => {
           <button
             type="button"
             onClick={() => abrirNuevoUsuario()}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-700 px-4 text-sm font-bold text-white hover:bg-brand-800"
           >
             <UserPlus className="h-4 w-4" aria-hidden="true" />
             Agregar persona
@@ -467,7 +467,7 @@ export const AccesosPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => void handleGuardarPermisosRol()}
-                  className="min-h-[40px] rounded-xl bg-brand-600 px-4 text-xs font-bold text-white hover:bg-brand-700"
+                  className="min-h-[40px] rounded-xl bg-brand-700 px-4 text-xs font-bold text-white hover:bg-brand-800"
                 >
                   Guardar Permisos
                 </button>
@@ -630,7 +630,7 @@ export const AccesosPage: React.FC = () => {
           <button
             type="submit"
             disabled={guardandoUsuario || roles.length === 0}
-            className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-50"
+            className="min-h-[46px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
           >
             {guardandoUsuario ? 'Guardando…' : editingUser ? 'Guardar Cambios' : 'Crear Usuario'}
           </button>

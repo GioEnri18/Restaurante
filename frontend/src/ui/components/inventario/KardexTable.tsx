@@ -63,7 +63,7 @@ export const KardexTable: React.FC<KardexTableProps> = ({
                 </td>
                 <td className="py-2.5 px-2 text-xs text-slate-600">
                   <p>{m.motivo || '—'}</p>
-                  <p className="text-slate-400">{m.usuarioNombre}</p>
+                  <p className="text-slate-600">{m.usuarioNombre}</p>
                 </td>
               </tr>
             ))}

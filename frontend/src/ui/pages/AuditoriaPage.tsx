@@ -214,13 +214,13 @@ export const AuditoriaPage: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-slate-400">
+                  <td colSpan={6} className="py-10 text-center text-slate-600">
                     Cargando registros de auditoría...
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-slate-400">
+                  <td colSpan={6} className="py-10 text-center text-slate-600">
                     No se encontraron registros con esos filtros.
                   </td>
                 </tr>
@@ -230,7 +230,7 @@ export const AuditoriaPage: React.FC = () => {
                     <td className="py-2.5 px-2 text-xs text-slate-600">{formatDateTime(l.createdAt)}</td>
                     <td className="py-2.5 px-2">
                       <p className="font-semibold text-slate-900">{l.usuarioNombre}</p>
-                      <p className="text-xs text-slate-400">{l.rolNombre}</p>
+                      <p className="text-xs text-slate-600">{l.rolNombre}</p>
                     </td>
                     <td className="py-2.5 px-2">
                       <Badge
@@ -251,7 +251,7 @@ export const AuditoriaPage: React.FC = () => {
                     </td>
                     <td className="py-2.5 px-2 text-xs text-slate-600">
                       <p>{l.motivo || '—'}</p>
-                      <p className="text-slate-400">IP: {l.ipAddress || '—'}</p>
+                      <p className="text-slate-600">IP: {l.ipAddress || '—'}</p>
                     </td>
                     <td className="py-2.5 px-2 text-right">
                       <button

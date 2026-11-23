@@ -79,7 +79,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
               <button
                 type="button"
                 onClick={onNuevoPlatillo}
-                className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-brand-600 px-3.5 text-xs font-bold text-white hover:bg-brand-700"
+                className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-brand-700 px-3.5 text-xs font-bold text-white hover:bg-brand-800"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Nuevo Platillo
@@ -133,7 +133,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
                   type="button"
                   onClick={() => setBusqueda('')}
                   aria-label="Limpiar búsqueda de platillos"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-slate-700"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
@@ -194,7 +194,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
                 </div>
                 <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
                   {p.receta.length === 0 ? (
-                    <p className="italic text-slate-400">Sin receta configurada todavía</p>
+                    <p className="italic text-slate-600">Sin receta configurada todavía</p>
                   ) : (
                     p.receta.map((r) => (
                       <div key={r.ingredienteId} className="flex justify-between">

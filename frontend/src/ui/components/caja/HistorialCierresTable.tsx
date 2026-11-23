@@ -41,7 +41,7 @@ export const HistorialCierresTable: React.FC<HistorialCierresTableProps> = ({
           <tbody className="divide-y divide-slate-100">
             {historial.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-10 text-center text-slate-400">
+                <td colSpan={8} className="py-10 text-center text-slate-600">
                   Aún no hay sesiones de caja registradas.
                 </td>
               </tr>
@@ -68,7 +68,7 @@ export const HistorialCierresTable: React.FC<HistorialCierresTableProps> = ({
                   </td>
                   <td className="py-3 px-2 text-right">
                     {s.diferencia === null ? (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-slate-600">—</span>
                     ) : s.diferencia === 0 ? (
                       <Badge variant="success">Exacto Q 0.00</Badge>
                     ) : s.diferencia > 0 ? (

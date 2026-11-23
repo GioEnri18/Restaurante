@@ -258,7 +258,7 @@ export const MermasPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {(listado?.items ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-400">
+                    <td colSpan={6} className="py-10 text-center text-slate-600">
                       No hay mermas registradas.
                     </td>
                   </tr>

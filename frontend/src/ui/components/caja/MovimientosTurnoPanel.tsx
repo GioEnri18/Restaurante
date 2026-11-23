@@ -61,7 +61,7 @@ export const MovimientosTurnoPanel: React.FC = () => {
         {error ? <Alert type="error" message={error} /> : !resultado ? (
           <p role="status" className="py-8 text-center text-sm text-slate-600">Cargando movimientos...</p>
         ) : resultado.items.length === 0 ? (
-          <p className="py-10 text-center text-sm text-slate-400">
+          <p className="py-10 text-center text-sm text-slate-600">
             No hay movimientos en esta categoría durante el turno actual.
           </p>
         ) : (

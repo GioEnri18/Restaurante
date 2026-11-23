@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
             <h1 className="truncate text-sm font-extrabold leading-tight text-white">
               {env.APP_NAME}
             </h1>
-            <p className="mt-0.5 text-[11px] font-medium text-slate-400">
+            <p className="mt-0.5 text-xs font-medium text-slate-300">
               {usuario?.sucursal.codigo ?? 'POS GT'} · Sistema POS
             </p>
           </div>
@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
         <button
           type="button"
           onClick={onCloseMobile}
-          className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-800 lg:hidden"
+          className="rounded-xl p-1.5 text-slate-300 hover:bg-slate-800 lg:hidden"
           aria-label="Cerrar menú"
         >
           <X className="h-5 w-5" aria-hidden="true" />
@@ -117,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
       <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
         {visibleGroups.map((group) => (
           <div key={group.title}>
-            <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-slate-400">
               {group.title}
             </p>
             <div className="space-y-1">
@@ -129,8 +129,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
                   className={({ isActive }) =>
                     `group flex min-h-[50px] items-center gap-3 rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
                       isActive
-                        ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-md shadow-brand-950/50'
-                        : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+                        ? 'bg-gradient-to-r from-brand-700 to-brand-800 text-white shadow-md shadow-brand-950/50'
+                        : 'text-slate-200 hover:bg-slate-900 hover:text-white'
                     }`
                   }
                 >
@@ -140,8 +140,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
                       <div className="min-w-0">
                         <span className="block truncate leading-tight">{label}</span>
                         <span
-                          className={`block truncate text-[11px] font-normal ${
-                            isActive ? 'text-white/85' : 'text-slate-400 group-hover:text-slate-300'
+                          className={`block truncate text-xs font-normal ${
+                            isActive ? 'text-white/90' : 'text-slate-400 group-hover:text-slate-200'
                           }`}
                         >
                           {hint}

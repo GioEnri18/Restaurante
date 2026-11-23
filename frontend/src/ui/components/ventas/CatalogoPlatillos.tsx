@@ -50,8 +50,8 @@ function getCategoriaVisual(nombre: string) {
     };
   }
   return {
-    gradient: 'from-amber-600 to-brand-500',
-    pillActive: 'bg-brand-600 text-white shadow-brand-200',
+    gradient: 'from-amber-700 to-brand-700',
+    pillActive: 'bg-brand-700 text-white shadow-brand-200',
     Icon: UtensilsCrossed,
   };
 }
@@ -139,7 +139,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                     type="button"
                     onClick={() => onSearchChange('')}
                     aria-label="Limpiar búsqueda de platillos"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -172,7 +172,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
             <button
               type="button"
               onClick={onNuevoPlatillo}
-              className="inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-brand-700"
+              className="inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-xl bg-brand-700 px-4 text-xs font-bold text-white shadow-sm hover:bg-brand-800"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               Nuevo Platillo
@@ -207,7 +207,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
               onClick={() => onSelectCat('ESPECIAL')}
               aria-pressed={selectedCat === 'ESPECIAL'}
               className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${selectedCat === 'ESPECIAL'
-                ? 'bg-gradient-to-r from-brand-600 to-rose-600 text-white shadow-md'
+                ? 'bg-gradient-to-r from-brand-700 to-rose-700 text-white shadow-md'
                 : menu.menuEspecialActivo.esMenuPrincipal
                   ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-400 hover:bg-amber-200'
                   : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100'
@@ -302,7 +302,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                   }`}
               >
                 <div
-                  className={`flex items-center justify-between bg-gradient-to-r ${p.esEspecialHoy ? 'from-brand-600 to-rose-600' : visual.gradient
+                  className={`flex items-center justify-between bg-gradient-to-r ${p.esEspecialHoy ? 'from-brand-700 to-rose-700' : visual.gradient
                     } px-4 py-2 text-white`}
                 >
                   <div className="flex items-center gap-1.5 text-xs font-bold">
@@ -315,7 +315,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                       {p.esEspecialHoy ? 'Especial Hoy' : p.categoriaNombre}
                     </span>
                   </div>
-                  <span className="rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[10px] font-bold">
+                  <span className="rounded-md bg-black/25 px-1.5 py-0.5 font-mono text-xs font-bold">
                     {p.sku}
                   </span>
                 </div>
@@ -323,7 +323,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                 <FotoPlatillo ruta={p.imagenUrl} className="h-28 w-full bg-slate-100 object-cover" />
 
                 {inCartQty > 0 && (
-                  <div className="absolute right-3 top-11 flex h-8 min-w-[32px] items-center justify-center rounded-full bg-brand-600 px-2 text-sm font-black text-white shadow-lg ring-2 ring-white">
+                  <div className="absolute right-3 top-11 flex h-8 min-w-[32px] items-center justify-center rounded-full bg-brand-700 px-2 text-sm font-black text-white shadow-lg ring-2 ring-white">
                     {inCartQty}
                   </div>
                 )}
@@ -334,7 +334,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                       {p.nombre}
                     </h3>
                     {p.descripcion && (
-                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-600">
                         {p.descripcion}
                       </p>
                     )}
@@ -347,7 +347,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                           {p.precioVenta > 0 ? formatCurrency(p.precioVenta) : 'Precio pendiente'}
                         </p>
                         {p.esEspecialHoy && p.precioVenta !== p.precioRegular && (
-                          <span className="text-xs text-slate-400 line-through">
+                          <span className="text-xs text-slate-600 line-through">
                             {formatCurrency(p.precioRegular)}
                           </span>
                         )}
@@ -358,14 +358,14 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                           e.stopPropagation();
                           onVerReceta(p);
                         }}
-                        className="text-[11px] font-semibold text-slate-400 underline-offset-2 hover:text-brand-600 hover:underline"
+                        className="text-xs font-semibold text-slate-600 underline-offset-2 hover:text-brand-700 hover:underline"
                       >
                         Ver receta ({p.receta.length} ing.)
                       </button>
                     </div>
 
                     {disabled ? (
-                      <span className="rounded-xl bg-amber-100 px-2.5 py-1.5 text-xs font-bold text-amber-800">
+                      <span className="rounded-xl bg-amber-100 px-2.5 py-1.5 text-xs font-bold text-amber-900">
                         {p.precioVenta <= 0
                           ? 'Falta precio'
                           : !p.disponible
@@ -388,14 +388,14 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                         <button
                           type="button"
                           onClick={() => onAddItem(p)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white shadow-sm hover:bg-brand-700"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-700 text-white shadow-sm hover:bg-brand-800"
                           aria-label={`Sumar una unidad de ${p.nombre}`}
                         >
                           <Plus className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>
                     ) : (
-                      <span className="inline-flex h-10 items-center gap-1 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition group-hover:bg-brand-600">
+                      <span className="inline-flex h-10 items-center gap-1 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition group-hover:bg-brand-700">
                         <Plus className="h-4 w-4" aria-hidden="true" />
                         Agregar
                       </span>

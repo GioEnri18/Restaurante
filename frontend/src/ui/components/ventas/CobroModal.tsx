@@ -145,7 +145,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
 
         <div className="flex items-center justify-between rounded-2xl bg-slate-900 p-4 text-white">
           <div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-300">
               {tipoServicio === 'MOSTRADOR'
                 ? 'En Mostrador'
                 : tipoServicio === 'LLEVAR'
@@ -172,12 +172,12 @@ export const CobroModal: React.FC<CobroModalProps> = ({
                 setClienteNombre('Consumidor Final');
                 setClienteDireccion('Ciudad');
               }}
-              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-brand-700 ring-1 ring-slate-200 hover:bg-brand-50"
+              className="rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-brand-700 ring-1 ring-slate-200 hover:bg-brand-50"
             >
               Usar Consumidor Final (CF)
             </button>
           </div>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-xs text-slate-600">
             Si el cliente no pide factura con NIT, puedes dejar «Consumidor Final» y pasar directo al cobro.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
