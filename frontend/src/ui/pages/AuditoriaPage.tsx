@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { ShieldCheck, Eye, RotateCcw } from 'lucide-react';
 import { AuditoriaLogModel, PaginationMeta } from '../../models';
 import { auditoriaService } from '../../services/auditoria.service';
+import { isAbortError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
@@ -66,35 +67,58 @@ export const AuditoriaPage: React.FC = () => {
   const [selectedLog, setSelectedLog] = useState<AuditoriaLogModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
+    const controller = new AbortController();
     void auditoriaService
-      .obtenerCatalogo()
+      .obtenerCatalogo(controller.signal)
       .then((cat) => {
+        if (controller.signal.aborted) return;
         setAcciones(cat.acciones);
         setUsuarios(cat.usuarios);
       })
-      .catch(() => null);
+      .catch((err) => {
+        if (!isAbortError(err)) {
+          console.error('[AuditoriaPage] Error cargando catálogo de filtros:', err);
+        }
+      });
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   const cargar = useCallback(
     async (page = 1) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const reqId = ++requestIdRef.current;
+
       setLoading(true);
       setError(null);
       try {
-        const res = await auditoriaService.listar({
-          page,
-          usuarioId: usuarioId || undefined,
-          accion: accion || undefined,
-          fechaDesde: fechaDesde || undefined,
-          fechaHasta: fechaHasta || undefined,
-        });
+        const res = await auditoriaService.listar(
+          {
+            page,
+            usuarioId: usuarioId || undefined,
+            accion: accion || undefined,
+            fechaDesde: fechaDesde || undefined,
+            fechaHasta: fechaHasta || undefined,
+          },
+          controller.signal,
+        );
+        if (reqId !== requestIdRef.current || controller.signal.aborted) return;
         setLogs(res.items);
         setMeta(res.meta);
       } catch (err) {
+        if (isAbortError(err) || reqId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : 'Error cargando bitácora de auditoría');
       } finally {
-        setLoading(false);
+        if (reqId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [usuarioId, accion, fechaDesde, fechaHasta],
@@ -102,6 +126,9 @@ export const AuditoriaPage: React.FC = () => {
 
   useEffect(() => {
     void cargar(1);
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [cargar]);
 
   return (

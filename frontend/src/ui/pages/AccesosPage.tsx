@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Users, Shield, UserPlus, Plus, Power, Edit } from 'lucide-react';
 import { PaginationMeta, PermisoModel, RolModel, UsuarioAdminModel } from '../../models';
 import { accesosService } from '../../services/accesos.service';
-import { ApiError } from '../../services/httpClient';
+import { ApiError, isAbortError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
 import { env } from '../../config/env';
 import { formatDateTime, getTodayISO } from '../../utils/formatters';
@@ -93,14 +93,23 @@ export const AccesosPage: React.FC = () => {
     permisoIds: [] as number[],
   });
 
+  const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+
   const cargarTodo = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const reqId = ++requestIdRef.current;
+
     setError(null);
     try {
       const [u, r, p] = await Promise.all([
-        accesosService.listarUsuarios(),
-        accesosService.listarRoles(),
-        accesosService.listarPermisos(),
+        accesosService.listarUsuarios(1, controller.signal),
+        accesosService.listarRoles(controller.signal),
+        accesosService.listarPermisos(controller.signal),
       ]);
+      if (reqId !== requestIdRef.current || controller.signal.aborted) return;
       setUsuarios(u.items);
       setMetaUsuarios(u.meta);
       setRoles(r);
@@ -115,17 +124,25 @@ export const AccesosPage: React.FC = () => {
         });
       }
     } catch (err) {
+      if (isAbortError(err) || reqId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Error cargando administración de accesos');
     }
   }, []);
 
   const cargarUsuarios = async (page: number) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const reqId = ++requestIdRef.current;
+
     setError(null);
     try {
-      const resultado = await accesosService.listarUsuarios(page);
+      const resultado = await accesosService.listarUsuarios(page, controller.signal);
+      if (reqId !== requestIdRef.current || controller.signal.aborted) return;
       setUsuarios(resultado.items);
       setMetaUsuarios(resultado.meta);
     } catch (err) {
+      if (isAbortError(err) || reqId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'No se pudo cargar la página de personal');
     }
   };
@@ -135,6 +152,9 @@ export const AccesosPage: React.FC = () => {
     void accesosService.obtenerLongitudMinimaPassword().then(setLongitudMinima).catch(() => {
       // La validación de la API sigue vigente si el servidor todavía no expone la política.
     });
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [cargarTodo]);
 
   const abrirNuevoUsuario = (rolCodigoPreseleccionado?: string) => {

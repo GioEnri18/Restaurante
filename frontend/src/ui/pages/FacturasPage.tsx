@@ -1,8 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Search, Eye, Printer, Ban, RotateCcw } from 'lucide-react';
 import { env } from '../../config/env';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { FacturaDetalleModel, FacturaResumenModel, PaginationMeta } from '../../models';
 import { facturasService } from '../../services/facturas.service';
+import { isAbortError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
@@ -36,6 +38,16 @@ export const FacturasPage: React.FC = () => {
   const [montoMax, setMontoMax] = useState('');
   const [estado, setEstado] = useState('');
 
+  // Debounce de 350ms solo para filtros de texto y monto; fechas y estado se aplican de inmediato
+  const debouncedNumero = useDebouncedValue(numero, 350);
+  const debouncedCliente = useDebouncedValue(cliente, 350);
+  const debouncedMontoMin = useDebouncedValue(montoMin, 350);
+  const debouncedMontoMax = useDebouncedValue(montoMax, 350);
+
+  // Control de cancelación y orden de respuestas para evitar condiciones de carrera
+  const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+
   // Modales
   const [detalle, setDetalle] = useState<FacturaDetalleModel | null>(null);
   const [ticketReimpresion, setTicketReimpresion] = useState<FacturaDetalleModel | null>(null);
@@ -45,33 +57,58 @@ export const FacturasPage: React.FC = () => {
   const [procesando, setProcesando] = useState(false);
 
   const cargar = useCallback(
-    async (page = 1) => {
+    async (
+      page = 1,
+      filtrosOverride?: {
+        numero: string;
+        cliente: string;
+        montoMin: string;
+        montoMax: string;
+      },
+    ) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const reqId = ++requestIdRef.current;
+
       setLoading(true);
       setError(null);
       try {
-        const res = await facturasService.listar({
-          page,
-          numero,
-          cliente,
-          fechaDesde,
-          fechaHasta,
-          montoMin,
-          montoMax,
-          estado,
-        });
+        const res = await facturasService.listar(
+          {
+            page,
+            numero: filtrosOverride ? filtrosOverride.numero : debouncedNumero,
+            cliente: filtrosOverride ? filtrosOverride.cliente : debouncedCliente,
+            fechaDesde,
+            fechaHasta,
+            montoMin: filtrosOverride ? filtrosOverride.montoMin : debouncedMontoMin,
+            montoMax: filtrosOverride ? filtrosOverride.montoMax : debouncedMontoMax,
+            estado,
+          },
+          controller.signal,
+        );
+        // Ignorar respuestas obsoletas si ya se disparó una búsqueda posterior
+        if (reqId !== requestIdRef.current || controller.signal.aborted) return;
         setFacturas(res.items);
         setMeta(res.meta);
       } catch (err) {
+        if (isAbortError(err) || reqId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : 'Error al cargar facturas');
       } finally {
-        setLoading(false);
+        if (reqId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
-    [numero, cliente, fechaDesde, fechaHasta, montoMin, montoMax, estado],
+    [debouncedNumero, debouncedCliente, fechaDesde, fechaHasta, debouncedMontoMin, debouncedMontoMax, estado],
   );
 
+  // Al cambiar cualquier filtro vuelve automáticamente a la página 1 y cancela la petición previa al limpiar
   useEffect(() => {
     void cargar(1);
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [cargar]);
 
   const limpiarFiltros = () => {
@@ -210,7 +247,7 @@ export const FacturasPage: React.FC = () => {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => void cargar(1)}
+              onClick={() => void cargar(1, { numero, cliente, montoMin, montoMax })}
               className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-700 px-3 text-sm font-bold text-white hover:bg-brand-800"
             >
               <Search className="h-4 w-4" aria-hidden="true" />

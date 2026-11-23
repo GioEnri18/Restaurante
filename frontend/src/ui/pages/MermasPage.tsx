@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Trash2 } from 'lucide-react';
 import { IngredienteModel, MermasListadoModel, MotivoMerma, UnidadMedida } from '../../models';
+import { isAbortError } from '../../services/httpClient';
 import { inventarioService } from '../../services/inventario.service';
 import { mermasService } from '../../services/mermas.service';
 import { useAuthStore } from '../../store/auth.store';
@@ -29,6 +30,8 @@ export const MermasPage: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const intento = useRef<{ datos: string; clave: string } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   const [form, setForm] = useState({
     ingredienteId: '',
@@ -40,15 +43,24 @@ export const MermasPage: React.FC = () => {
 
   const cargar = useCallback(
     async (page = 1, refrescarIngredientes = false) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const reqId = ++requestIdRef.current;
+
       setError(null);
       try {
         const [ings, data] = await Promise.all([
-          refrescarIngredientes && canCreate ? inventarioService.listarIngredientes() : null,
-          mermasService.listar({ page, motivo: filtroMotivo || undefined }),
+          refrescarIngredientes && canCreate
+            ? inventarioService.listarIngredientes(undefined, controller.signal)
+            : null,
+          mermasService.listar({ page, motivo: filtroMotivo || undefined }, controller.signal),
         ]);
+        if (reqId !== requestIdRef.current || controller.signal.aborted) return;
         if (ings) setIngredientes(ings);
         setListado(data);
       } catch (err) {
+        if (isAbortError(err) || reqId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : 'Error cargando mermas');
       }
     },
@@ -57,6 +69,9 @@ export const MermasPage: React.FC = () => {
 
   useEffect(() => {
     void cargar(1, true);
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [cargar]);
 
   const handleSubmit = async (e: React.FormEvent) => {

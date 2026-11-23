@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Plus,
@@ -8,6 +8,7 @@ import {
   BookOpen,
   Scale,
 } from 'lucide-react';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import {
   CategoriaModel,
   CompraModel,
@@ -18,6 +19,7 @@ import {
   ProveedorModel,
   UnidadMedida,
 } from '../../models';
+import { isAbortError } from '../../services/httpClient';
 import { inventarioService } from '../../services/inventario.service';
 import { ventasService } from '../../services/ventas.service';
 import { useAuthStore } from '../../store/auth.store';
@@ -86,9 +88,12 @@ export const InventarioPage: React.FC = () => {
   const [paginaExistencias, setPaginaExistencias] = useState(1);
   const [versionExistencias, actualizarExistencias] = useState(0);
   const [busquedaExistencias, setBusquedaExistencias] = useState('');
+  const debouncedBusquedaExistencias = useDebouncedValue(busquedaExistencias, 350);
   const [soloPorReponer, setSoloPorReponer] = useState(false);
   const [enfocarPendientes, setEnfocarPendientes] = useState(false);
   const tablaExistencias = React.useRef<HTMLDivElement>(null);
+  const abortTodoRef = useRef<AbortController | null>(null);
+  const abortPaginaRef = useRef<AbortController | null>(null);
   const [proveedores, setProveedores] = useState<ProveedorModel[]>([]);
   const [compras, setCompras] = useState<CompraModel[]>([]);
   const [comprasMeta, setComprasMeta] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
@@ -144,17 +149,22 @@ export const InventarioPage: React.FC = () => {
   };
 
   const cargarTodo = useCallback(async () => {
+    abortTodoRef.current?.abort();
+    const controller = new AbortController();
+    abortTodoRef.current = controller;
+
     setError(null);
     if (tab === 'existencias') actualizarExistencias((version) => version + 1);
     try {
       const [ings, provs, comp, movs, menu, pendientes] = await Promise.all([
-        tab === 'compras' || tab === 'recetas' ? inventarioService.listarIngredientes() : null,
-        canManage || tab === 'compras' || tab === 'proveedores' ? inventarioService.listarProveedores() : null,
-        tab === 'compras' ? inventarioService.listarCompras(1) : null,
-        tab === 'kardex' ? inventarioService.listarMovimientos({ page: 1 }) : null,
+        tab === 'compras' || tab === 'recetas' ? inventarioService.listarIngredientes(undefined, controller.signal) : null,
+        canManage || tab === 'compras' || tab === 'proveedores' ? inventarioService.listarProveedores(controller.signal) : null,
+        tab === 'compras' ? inventarioService.listarCompras(1, controller.signal) : null,
+        tab === 'kardex' ? inventarioService.listarMovimientos({ page: 1 }, controller.signal) : null,
         tab === 'recetas' ? ventasService.obtenerMenu().catch(() => null) : null,
-        tab === 'existencias' || tab === 'compras' ? inventarioService.listarAlertas() : null,
+        tab === 'existencias' || tab === 'compras' ? inventarioService.listarAlertas(controller.signal) : null,
       ]);
+      if (controller.signal.aborted) return;
       if (ings) setIngredientes(ings);
       if (pendientes) setAlertas(pendientes);
       if (provs) setProveedores(provs);
@@ -171,41 +181,44 @@ export const InventarioPage: React.FC = () => {
         setCategorias(menu.categorias);
       }
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'Error al cargar inventario');
     }
   }, [canManage, tab]);
 
   useEffect(() => {
     void cargarTodo();
+    return () => {
+      abortTodoRef.current?.abort();
+      abortPaginaRef.current?.abort();
+    };
   }, [cargarTodo]);
 
   useEffect(() => {
     if (tab !== 'existencias') return;
-    let vigente = true;
+    const controller = new AbortController();
     setExistenciasCargando(true);
-    const espera = window.setTimeout(() => {
-      void inventarioService.listarExistencias(paginaExistencias, busquedaExistencias, soloPorReponer)
-        .then(({ items, meta }) => {
-          if (!vigente) return;
-          if (paginaExistencias > meta.totalPages) {
-            setPaginaExistencias(meta.totalPages);
-            return;
-          }
-          setExistencias(items);
-          setMetaExistencias(meta);
-          setExistenciasCargando(false);
-        }).catch((err: unknown) => {
-          if (vigente) {
-            setExistenciasCargando(false);
-            setError(err instanceof Error ? err.message : 'No se pudieron cargar las existencias');
-          }
-        });
-    }, 180);
+    void inventarioService
+      .listarExistencias(paginaExistencias, debouncedBusquedaExistencias, soloPorReponer, controller.signal)
+      .then(({ items, meta }) => {
+        if (controller.signal.aborted) return;
+        if (paginaExistencias > meta.totalPages) {
+          setPaginaExistencias(meta.totalPages);
+          return;
+        }
+        setExistencias(items);
+        setMetaExistencias(meta);
+        setExistenciasCargando(false);
+      })
+      .catch((err: unknown) => {
+        if (isAbortError(err) || controller.signal.aborted) return;
+        setExistenciasCargando(false);
+        setError(err instanceof Error ? err.message : 'No se pudieron cargar las existencias');
+      });
     return () => {
-      vigente = false;
-      window.clearTimeout(espera);
+      controller.abort();
     };
-  }, [tab, paginaExistencias, busquedaExistencias, soloPorReponer, versionExistencias]);
+  }, [tab, paginaExistencias, debouncedBusquedaExistencias, soloPorReponer, versionExistencias]);
 
   const buscarExistencias = (busqueda: string) => {
     setBusquedaExistencias(busqueda);
@@ -329,20 +342,35 @@ export const InventarioPage: React.FC = () => {
   };
 
   const cargarComprasPagina = async (page: number) => {
+    abortPaginaRef.current?.abort();
+    const controller = new AbortController();
+    abortPaginaRef.current = controller;
     setError(null);
     try {
-      const resultado = await inventarioService.listarCompras(page);
+      const resultado = await inventarioService.listarCompras(page, controller.signal);
+      if (controller.signal.aborted) return;
       setCompras(resultado.items);
       setComprasMeta(resultado.meta);
     } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'No se pudo cargar la página de compras');
     }
   };
 
   const cargarMovimientosPagina = async (page: number) => {
-    const res = await inventarioService.listarMovimientos({ page });
-    setMovimientos(res.items);
-    setMovMeta(res.meta);
+    abortPaginaRef.current?.abort();
+    const controller = new AbortController();
+    abortPaginaRef.current = controller;
+    setError(null);
+    try {
+      const res = await inventarioService.listarMovimientos({ page }, controller.signal);
+      if (controller.signal.aborted) return;
+      setMovimientos(res.items);
+      setMovMeta(res.meta);
+    } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
+      setError(err instanceof Error ? err.message : 'No se pudo cargar el historial de movimientos');
+    }
   };
 
   const abrirReceta = (platillo: PlatilloModel) => {

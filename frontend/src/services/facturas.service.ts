@@ -14,12 +14,15 @@ export interface FacturasQuery {
 }
 
 export const facturasService = {
-  async listar(query: FacturasQuery): Promise<{ items: FacturaResumenModel[]; meta: PaginationMeta }> {
+  async listar(
+    query: FacturasQuery,
+    signal?: AbortSignal,
+  ): Promise<{ items: FacturaResumenModel[]; meta: PaginationMeta }> {
     const qs = buildQueryString({
       ...query,
       limit: 15,
     });
-    const res = await httpClient.get<unknown[]>(`/facturas${qs}`);
+    const res = await httpClient.get<unknown[]>(`/facturas${qs}`, { signal });
     return {
       items: (res.data ?? []).map((item) => facturasAdapter.fromResumenJson(item)),
       meta: res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },

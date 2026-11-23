@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PersonaNominaModel } from '../../../models';
 import { auditoriaService } from '../../../services/auditoria.service';
+import { isAbortError } from '../../../services/httpClient';
 import { formatCurrency } from '../../../utils/formatters';
 import { Alert } from '../common/Alert';
 import { Badge } from '../common/Badge';
@@ -14,12 +15,22 @@ export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
   const pagina = usePaginacionLocal(personas);
 
   useEffect(() => {
-    let mounted = true;
-    void auditoriaService.listarNomina()
-      .then((datos) => { if (mounted) setPersonas(datos); })
-      .catch((err: unknown) => { if (mounted) setError(err instanceof Error ? err.message : 'No se pudo consultar la nómina'); })
-      .finally(() => { if (mounted) setCargando(false); });
-    return () => { mounted = false; };
+    const controller = new AbortController();
+    void auditoriaService
+      .listarNomina(controller.signal)
+      .then((datos) => {
+        if (!controller.signal.aborted) setPersonas(datos);
+      })
+      .catch((err: unknown) => {
+        if (isAbortError(err) || controller.signal.aborted) return;
+        setError(err instanceof Error ? err.message : 'No se pudo consultar la nómina');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCargando(false);
+      });
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   if (cargando) return <p role="status" className="text-sm text-slate-600">Cargando nómina…</p>;

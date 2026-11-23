@@ -52,16 +52,43 @@ export function buildQueryString(
   return str ? `?${str}` : '';
 }
 
+export function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof DOMException && error.name === 'AbortError') ||
+    (error instanceof Error && error.name === 'AbortError')
+  );
+}
+
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
 /**
  * Cliente HTTP con autenticación mediante cookie `httpOnly` (`credentials: 'include'`)
  * y encabezado personalizado `X-Requested-With: XMLHttpRequest` para protección CSRF (Fase 2.7).
+ * Soporta cancelación externa vía AbortSignal combinada con el timeout configurado.
  */
 async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; headers?: Record<string, string> } = {},
+  options: { method?: string; body?: unknown; headers?: Record<string, string>; signal?: AbortSignal } = {},
 ): Promise<ApiEnvelope<T>> {
+  const externalSignal = options.signal;
+  if (externalSignal?.aborted) {
+    throw new DOMException('Solicitud cancelada', 'AbortError');
+  }
+
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), env.API_TIMEOUT_MS);
+  let timedOut = false;
+
+  const onExternalAbort = () => {
+    controller.abort();
+  };
+  externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
+
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, env.API_TIMEOUT_MS);
 
   try {
     const formData = options.body instanceof FormData ? options.body : null;
@@ -98,12 +125,16 @@ async function request<T>(
     return json;
   } catch (err) {
     if (err instanceof ApiError) throw err;
-    if (err instanceof DOMException && err.name === 'AbortError') {
+    if (isAbortError(err)) {
+      if (externalSignal?.aborted && !timedOut) {
+        throw err;
+      }
       throw new ApiError('Tiempo de espera agotado al conectar con el servidor', 408, 'TIMEOUT');
     }
     throw new ApiError('No se pudo conectar con la API del servidor', 0, 'NETWORK_ERROR');
   } finally {
     clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', onExternalAbort);
   }
 }
 
@@ -130,10 +161,15 @@ async function downloadFile(path: string, filename: string): Promise<void> {
 }
 
 export const httpClient = {
-  get: <T>(path: string) => request<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
-  put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
-  patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  get: <T>(path: string, options?: RequestOptions) =>
+    request<T>(path, { method: 'GET', signal: options?.signal }),
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    request<T>(path, { method: 'POST', body, signal: options?.signal }),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    request<T>(path, { method: 'PUT', body, signal: options?.signal }),
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    request<T>(path, { method: 'PATCH', body, signal: options?.signal }),
+  delete: <T>(path: string, options?: RequestOptions) =>
+    request<T>(path, { method: 'DELETE', signal: options?.signal }),
   downloadFile,
 };

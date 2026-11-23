@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { FileDown, FileSpreadsheet, Filter } from 'lucide-react';
 import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../../models';
+import { isAbortError } from '../../services/httpClient';
 import { reportesService } from '../../services/reportes.service';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
@@ -43,31 +44,34 @@ export const ReportesPage: React.FC = () => {
   const [metaProductos, setMetaProductos] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const solicitudActual = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const cargar = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const solicitud = ++solicitudActual.current;
     setLoading(true);
     setCargandoDetalle(false);
     setError(null);
     try {
       const [res, ser, top] = await Promise.all([
-        reportesService.obtenerResumen(fechaDesde, fechaHasta),
-        reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta),
-        reportesService.obtenerTopProductos(fechaDesde, fechaHasta),
+        reportesService.obtenerResumen(fechaDesde, fechaHasta, controller.signal),
+        reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta, 1, controller.signal),
+        reportesService.obtenerTopProductos(fechaDesde, fechaHasta, 1, controller.signal),
       ]);
-      if (solicitud !== solicitudActual.current) return;
+      if (solicitud !== solicitudActual.current || controller.signal.aborted) return;
       setResumen(res);
       setSerie(ser.items);
       setMetaDetalle(ser.meta);
       setTopProductos(top.items);
       setMetaProductos(top.meta);
     } catch (err) {
-      if (solicitud === solicitudActual.current) {
-        setError(err instanceof Error ? err.message : 'Error cargando reportes');
-        setResumen(null);
-        setSerie([]);
-        setTopProductos([]);
-      }
+      if (isAbortError(err) || solicitud !== solicitudActual.current) return;
+      setError(err instanceof Error ? err.message : 'Error cargando reportes');
+      setResumen(null);
+      setSerie([]);
+      setTopProductos([]);
     } finally {
       if (solicitud === solicitudActual.current) setLoading(false);
     }
@@ -75,28 +79,43 @@ export const ReportesPage: React.FC = () => {
 
   useEffect(() => {
     void cargar();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [cargar]);
 
   const cargarPaginaDetalle = async (page: number, listado: 'dias' | 'productos') => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const solicitud = ++solicitudActual.current;
     setCargandoDetalle(true);
     setError(null);
     try {
       if (listado === 'dias') {
-        const { items, meta } = await reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta, page);
-        if (solicitud !== solicitudActual.current) return;
+        const { items, meta } = await reportesService.obtenerVentasPeriodo(
+          fechaDesde,
+          fechaHasta,
+          page,
+          controller.signal,
+        );
+        if (solicitud !== solicitudActual.current || controller.signal.aborted) return;
         setSerie(items);
         setMetaDetalle(meta);
       } else {
-        const { items, meta } = await reportesService.obtenerTopProductos(fechaDesde, fechaHasta, page);
-        if (solicitud !== solicitudActual.current) return;
+        const { items, meta } = await reportesService.obtenerTopProductos(
+          fechaDesde,
+          fechaHasta,
+          page,
+          controller.signal,
+        );
+        if (solicitud !== solicitudActual.current || controller.signal.aborted) return;
         setTopProductos(items);
         setMetaProductos(meta);
       }
     } catch (err) {
-      if (solicitud === solicitudActual.current) {
-        setError(err instanceof Error ? err.message : 'No se pudo cargar la página del reporte');
-      }
+      if (isAbortError(err) || solicitud !== solicitudActual.current) return;
+      setError(err instanceof Error ? err.message : 'No se pudo cargar la página del reporte');
     } finally {
       if (solicitud === solicitudActual.current) setCargandoDetalle(false);
     }

@@ -3,8 +3,8 @@ import { PaginationMeta, PermisoModel, RolModel, UsuarioAdminModel } from '../mo
 import { buildQueryString, httpClient } from './httpClient';
 
 export const accesosService = {
-  async listarUsuarios(page = 1): Promise<{ items: UsuarioAdminModel[]; meta: PaginationMeta }> {
-    const res = await httpClient.get<unknown[]>(`/accesos/usuarios${buildQueryString({ page })}`);
+  async listarUsuarios(page = 1, signal?: AbortSignal): Promise<{ items: UsuarioAdminModel[]; meta: PaginationMeta }> {
+    const res = await httpClient.get<unknown[]>(`/accesos/usuarios${buildQueryString({ page })}`, { signal });
     return {
       items: (res.data ?? []).map((u) => accesosAdapter.fromUsuarioJson(u)),
       meta: res.meta ?? { page: 1, limit: 15, total: res.data?.length ?? 0, totalPages: 1 },
@@ -48,8 +48,8 @@ export const accesosService = {
     return httpClient.patch(`/accesos/usuarios/${id}/estado`, { activo });
   },
 
-  async listarRoles(): Promise<RolModel[]> {
-    const res = await httpClient.get<unknown[]>('/accesos/roles');
+  async listarRoles(signal?: AbortSignal): Promise<RolModel[]> {
+    const res = await httpClient.get<unknown[]>('/accesos/roles', { signal });
     return (res.data ?? []).map((r) => accesosAdapter.fromRolJson(r));
   },
 
@@ -67,8 +67,8 @@ export const accesosService = {
     return httpClient.put(`/accesos/roles/${rolId}/permisos`, { permisoIds, vistaInicial });
   },
 
-  async listarPermisos(): Promise<{ lista: PermisoModel[]; porVista: Record<string, PermisoModel[]> }> {
-    const res = await httpClient.get<unknown>('/accesos/permisos');
+  async listarPermisos(signal?: AbortSignal): Promise<{ lista: PermisoModel[]; porVista: Record<string, PermisoModel[]> }> {
+    const res = await httpClient.get<unknown>('/accesos/permisos', { signal });
     return accesosAdapter.fromPermisosJson(res.data);
   },
 };

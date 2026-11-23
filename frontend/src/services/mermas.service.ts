@@ -3,15 +3,18 @@ import { MermaModel, MermasListadoModel, MotivoMerma, UnidadMedida } from '../mo
 import { buildQueryString, httpClient } from './httpClient';
 
 export const mermasService = {
-  async listar(params: {
-    page?: number;
-    motivo?: string;
-    ingredienteId?: string;
-    fechaDesde?: string;
-    fechaHasta?: string;
-  }): Promise<MermasListadoModel> {
+  async listar(
+    params: {
+      page?: number;
+      motivo?: string;
+      ingredienteId?: string;
+      fechaDesde?: string;
+      fechaHasta?: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<MermasListadoModel> {
     const qs = buildQueryString({ ...params, limit: 15 });
-    const res = await httpClient.get<unknown>(`/mermas${qs}`);
+    const res = await httpClient.get<unknown>(`/mermas${qs}`, { signal });
     return mermasAdapter.fromListadoJson(
       res.data,
       res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
