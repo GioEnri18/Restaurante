@@ -10,7 +10,13 @@ export interface VoucherConciliado {
 
 interface VouchersTurno {
   cajaId: number;
-  ventas: { ventaId: number; monto: number; fecha: string }[];
+  ventas: {
+    ventaId: number;
+    monto: number;
+    referenciaPago?: string | null;
+    numeroFactura?: string | null;
+    fecha: string;
+  }[];
   montoInicial?: number;
   totalIngresosExtra?: number;
   totalEgresosEfectivo?: number;

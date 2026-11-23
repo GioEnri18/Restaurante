@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calculator, CheckCircle2, AlertCircle, Coins } from 'lucide-react';
+import { Calculator, CheckCircle2, AlertCircle, Coins, CheckCheck } from 'lucide-react';
 import { env } from '../../../config/env';
 import { CajaSesionModel } from '../../../models';
 import { cajaService } from '../../../services/caja.service';
@@ -24,6 +24,14 @@ interface ArqueoCierreModalProps {
   onConfirmarCierre: (payload: Parameters<typeof cajaService.cerrar>[0]) => Promise<void>;
 }
 
+interface CapturaVoucherState {
+  confirmado: boolean;
+  referencia: string;
+  monto: string;
+  montoEsperado: number;
+  referenciaOriginal: string | null;
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -38,11 +46,12 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
   const [modoArqueo, setModoArqueo] = useState<'denominaciones' | 'directo'>('denominaciones');
   const [conteoBilletes, setConteoBilletes] = useState<Record<string, string>>({});
   const [montoContadoDirecto, setMontoContadoDirecto] = useState('');
-  const [confirmarGavetaVacia, setConfirmarGavetaVacia] = useState(false);
   const [obsCierre, setObsCierre] = useState('');
   const [autorizacion, setAutorizacion] = useState<AutorizacionSupervisor>(AUTORIZACION_VACIA);
   const [turno, setTurno] = useState<Awaited<ReturnType<typeof cajaService.obtenerVouchersTurno>> | null>(null);
-  const [capturas, setCapturas] = useState<Record<number, { referencia: string; monto: string }>>({});
+  const [capturas, setCapturas] = useState<Record<number, CapturaVoucherState>>({});
+  const [avisoVouchers, setAvisoVouchers] = useState<string | null>(null);
+  const [marcandoTodos, setMarcandoTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
   const [pagina, setPagina] = useState(1);
@@ -52,11 +61,11 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
     if (open && actual) {
       setConteoBilletes({});
       setMontoContadoDirecto('');
-      setConfirmarGavetaVacia(false);
       setObsCierre('');
       setModoArqueo('denominaciones');
       setAutorizacion(AUTORIZACION_VACIA);
       setCapturas({});
+      setAvisoVouchers(null);
       setError(null);
     }
   }, [open, actual]);
@@ -78,38 +87,124 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
         return;
       }
       setTurno(datos);
+      // Precargar referencia (si existía al cobrar) y monto exacto para validar en 1 clic
+      setCapturas((prev) => {
+        const next = { ...prev };
+        for (const v of datos.ventas) {
+          if (!next[v.ventaId]) {
+            const ref = v.referenciaPago?.trim() ?? '';
+            next[v.ventaId] = {
+              confirmado: false,
+              referencia: ref,
+              monto: round2(v.monto).toFixed(2),
+              montoEsperado: round2(v.monto),
+              referenciaOriginal: ref || null,
+            };
+          }
+        }
+        return next;
+      });
     }).catch((err: unknown) => {
       if (vigente) setError(err instanceof Error ? err.message : 'No se pudo cargar la lista de vouchers');
     });
     return () => { vigente = false; };
   }, [open, cajaId, pagina, recarga]);
 
-  // Mapa de montos esperados por venta de tarjeta en la página actual para validar discrepancias en vivo
-  const ventasTarjetaPaginaMap = useMemo(() => {
-    const mapa = new Map<number, number>();
-    for (const v of turno?.ventas ?? []) {
-      mapa.set(v.ventaId, round2(v.monto));
-    }
-    return mapa;
-  }, [turno]);
+  const esVoucherValido = (v: CapturaVoucherState) => {
+    const montoNum = round2(Number(v.monto));
+    const montoOk = v.monto.trim() !== '' && Number.isFinite(montoNum) && montoNum === v.montoEsperado;
+    const refOk =
+      v.referencia.trim().length > 0 &&
+      (!v.referenciaOriginal ||
+        v.referencia.trim().toUpperCase() === v.referenciaOriginal.toUpperCase());
+    return montoOk && refOk;
+  };
 
-  const vouchersCapturados = Object.entries(capturas)
-    .filter(([, voucher]) => voucher.referencia.trim() && Number(voucher.monto) > 0)
-    .map(([ventaId, voucher]) => ({
-      ventaId: Number(ventaId),
-      referencia: voucher.referencia.trim(),
-      monto: round2(Number(voucher.monto)),
-    }));
-
-  const vouchersConMontoIncorrecto = vouchersCapturados.filter((v) => {
-    const esperado = ventasTarjetaPaginaMap.get(v.ventaId);
-    return esperado !== undefined && round2(v.monto) !== esperado;
-  });
+  const vouchersVerificados = useMemo(
+    () =>
+      Object.entries(capturas)
+        .filter(([, v]) => v.confirmado && esVoucherValido(v))
+        .map(([ventaId, v]) => ({
+          ventaId: Number(ventaId),
+          referencia: v.referencia.trim(),
+          monto: round2(Number(v.monto)),
+        })),
+    [capturas],
+  );
 
   const conciliacionCompleta =
-    turno !== null &&
-    vouchersCapturados.length === turno.meta.total &&
-    vouchersConMontoIncorrecto.length === 0;
+    turno !== null && vouchersVerificados.length === turno.meta.total;
+
+  // Marca o desmarca todos los vouchers del turno (cargando todas las páginas si hay más de 1)
+  async function handleToggleMarcarTodos() {
+    if (!turno || marcandoTodos || cerrando) return;
+    setAvisoVouchers(null);
+
+    if (conciliacionCompleta) {
+      setCapturas((prev) => {
+        const next: Record<number, CapturaVoucherState> = {};
+        for (const [id, v] of Object.entries(prev)) {
+          next[Number(id)] = { ...v, confirmado: false };
+        }
+        return next;
+      });
+      return;
+    }
+
+    setMarcandoTodos(true);
+    try {
+      const todasVentas = [...turno.ventas];
+      if (turno.meta.totalPages > 1) {
+        const paginasFaltantes: number[] = [];
+        for (let p = 1; p <= turno.meta.totalPages; p++) {
+          if (p !== pagina) paginasFaltantes.push(p);
+        }
+        const resultados = await Promise.all(
+          paginasFaltantes.map((p) => cajaService.obtenerVouchersTurno(p)),
+        );
+        for (const res of resultados) {
+          if (res.cajaId === turno.cajaId) {
+            todasVentas.push(...res.ventas);
+          }
+        }
+      }
+
+      let faltantesRef = 0;
+      setCapturas((prev) => {
+        const next = { ...prev };
+        for (const v of todasVentas) {
+          const existente = next[v.ventaId];
+          const refOriginal = v.referenciaPago?.trim() || null;
+          const refActual = (existente?.referencia ?? refOriginal ?? '').trim();
+          const montoEsperado = round2(v.monto);
+          const candidato: CapturaVoucherState = {
+            confirmado: false,
+            referencia: refActual,
+            monto: existente?.monto ?? montoEsperado.toFixed(2),
+            montoEsperado,
+            referenciaOriginal: refOriginal,
+          };
+          if (esVoucherValido(candidato)) {
+            candidato.confirmado = true;
+          } else {
+            faltantesRef++;
+          }
+          next[v.ventaId] = candidato;
+        }
+        return next;
+      });
+
+      if (faltantesRef > 0) {
+        setAvisoVouchers(
+          `${faltantesRef} venta(s) con tarjeta no tenían número de voucher guardado al cobrar. Escribe el número del comprobante y márcalas.`,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudieron cargar todos los vouchers del turno');
+    } finally {
+      setMarcandoTodos(false);
+    }
+  }
 
   function cambiarPagina(nuevaPagina: number) {
     setTurno(null);
@@ -157,15 +252,16 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
   const ingresosExtraPrevios = turno?.totalIngresosExtra ?? actual?.totalIngresosExtra ?? 0;
   const efectivoEsperado = round2(turno?.montoEsperadoEfectivo ?? actual?.montoEsperadoEfectivo ?? 0);
 
-  // Evita cierres accidentales en Q 0.00 sin haber contado efectivo cuando se espera efectivo en gaveta
+  // Exige conteo de efectivo y cuadre exacto (sin faltante ni excedente) para permitir el cierre
   const conteoEfectivoListo =
     modoArqueo === 'directo'
       ? montoDirectoValido
-      : efectivoEsperado <= 0 || hayAlgunaDenominacion || confirmarGavetaVacia;
+      : efectivoEsperado === 0 || hayAlgunaDenominacion;
 
   const diferenciaPreview = round2(montoContadoFinal - efectivoEsperado);
+  const cuadreExacto = conteoEfectivoListo && diferenciaPreview === 0;
   const tarjetaIngresada = round2(
-    vouchersCapturados.reduce((suma, voucher) => suma + voucher.monto, 0),
+    vouchersVerificados.reduce((suma, voucher) => suma + voucher.monto, 0),
   );
   const tarjetaNetaIngresada = round2(tarjetaIngresada + (turno?.ajusteTarjeta ?? 0));
   const totalIngresado = round2(montoContadoFinal + tarjetaNetaIngresada);
@@ -175,16 +271,18 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
     : !conteoEfectivoListo
       ? modoArqueo === 'directo'
         ? 'Ingresa el total de efectivo físico contado en gaveta.'
-        : 'Ingresa el conteo de billetes/monedas (o confirma si la gaveta está en Q 0.00).'
-      : vouchersConMontoIncorrecto.length > 0
-        ? 'Corrige el monto de los vouchers que no coinciden con su venta.'
-        : !conciliacionCompleta
-          ? `Faltan ${turno.meta.total - vouchersCapturados.length} voucher(s) de tarjeta por cotejar.`
-          : null;
+        : 'Ingresa el conteo de billetes y monedas de la gaveta.'
+      : diferenciaPreview > 0
+        ? `Hay un excedente de ${formatCurrency(diferenciaPreview)}. No se puede cerrar hasta cuadrar exacto en Q 0.00.`
+        : diferenciaPreview < 0
+          ? `Hay un faltante de ${formatCurrency(Math.abs(diferenciaPreview))}. No se puede cerrar hasta cuadrar exacto en Q 0.00.`
+          : !conciliacionCompleta
+            ? `Faltan ${turno.meta.total - vouchersVerificados.length} voucher(s) de tarjeta por confirmar.`
+            : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!turno || !conciliacionCompleta || !conteoEfectivoListo || cerrando) return;
+    if (!turno || !conciliacionCompleta || !cuadreExacto || cerrando) return;
     setCerrando(true);
     setError(null);
     try {
@@ -193,7 +291,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
         montoContadoEfectivo: montoContadoFinal,
         observacionesCierre: obsCierre || undefined,
         autorizacion: requiereAutorizacion ? autorizacion : undefined,
-        vouchers: vouchersCapturados,
+        vouchers: vouchersVerificados,
       });
       setPagina(1);
       setTurno(null);
@@ -276,21 +374,9 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
               <ContadorBilletesGTQ
                 conteoBilletes={conteoBilletes}
                 onChange={(key, value) => {
-                  setConfirmarGavetaVacia(false);
                   setConteoBilletes((prev) => ({ ...prev, [key]: value }));
                 }}
               />
-              {efectivoEsperado > 0 && !hayAlgunaDenominacion && (
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-                  <input
-                    type="checkbox"
-                    checked={confirmarGavetaVacia}
-                    onChange={(e) => setConfirmarGavetaVacia(e.target.checked)}
-                    className="h-4 w-4 rounded border-amber-400"
-                  />
-                  Confirmo que la gaveta tiene exactamente Q 0.00 en efectivo físico
-                </label>
-              )}
             </div>
           ) : (
             <Field
@@ -351,15 +437,13 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
                   ? 'bg-slate-200 text-slate-700'
                   : diferenciaPreview === 0
                     ? 'bg-emerald-100 text-emerald-900'
-                    : diferenciaPreview > 0
-                      ? 'bg-sky-100 text-sky-900'
-                      : 'bg-red-100 text-red-900'
+                    : 'bg-red-100 text-red-900'
               }`}
             >
               {!conteoEfectivoListo ? (
                 <>
                   <Calculator className="h-4 w-4" aria-hidden="true" />
-                  Ingresa el efectivo contado para calcular la diferencia del arqueo
+                  Ingresa el efectivo contado para verificar el cuadre exacto
                 </>
               ) : diferenciaPreview === 0 ? (
                 <>
@@ -369,122 +453,231 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
               ) : diferenciaPreview > 0 ? (
                 <>
                   <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                  Sobrante de efectivo por {formatCurrency(diferenciaPreview)}
+                  Excedente de efectivo por {formatCurrency(diferenciaPreview)} — Ajusta el conteo para poder cerrar
                 </>
               ) : (
                 <>
                   <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                  Faltante de efectivo por {formatCurrency(Math.abs(diferenciaPreview))}
+                  Faltante de efectivo por {formatCurrency(Math.abs(diferenciaPreview))} — Ajusta el conteo para poder cerrar
                 </>
               )}
             </div>
           </div>
 
+          {/* Lista con check rápido de vouchers de tarjeta */}
           <section className="space-y-3 rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h4 className="font-bold text-slate-900">Vouchers de tarjeta</h4>
-              <button
-                type="button"
-                disabled={cerrando}
-                onClick={() => {
-                  setCapturas({});
-                  cambiarPagina(1);
-                  setRecarga((n) => n + 1);
-                }}
-                className="text-sm font-semibold text-brand-700 underline"
-              >
-                Actualizar lista
-              </button>
+              <div>
+                <h4 className="font-bold text-slate-900">Vouchers de tarjeta</h4>
+                {turno && turno.meta.total > 0 && (
+                  <p className="text-xs text-slate-600">
+                    <strong className={conciliacionCompleta ? 'text-emerald-700' : 'text-slate-900'}>
+                      {vouchersVerificados.length} de {turno.meta.total}
+                    </strong>{' '}
+                    verificados
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {turno && turno.meta.total > 0 && (
+                  <button
+                    type="button"
+                    disabled={cerrando || marcandoTodos}
+                    onClick={() => void handleToggleMarcarTodos()}
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-xs font-extrabold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    <CheckCheck className="h-4 w-4" aria-hidden="true" />
+                    {marcandoTodos
+                      ? 'Marcando…'
+                      : conciliacionCompleta
+                        ? 'Desmarcar todos'
+                        : `Marcar todos (${turno.meta.total})`}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={cerrando || marcandoTodos}
+                  onClick={() => {
+                    setCapturas({});
+                    setAvisoVouchers(null);
+                    cambiarPagina(1);
+                    setRecarga((n) => n + 1);
+                  }}
+                  className="text-xs font-semibold text-brand-700 underline"
+                >
+                  Actualizar lista
+                </button>
+              </div>
             </div>
+
             {error && <Alert type="error" message={error} />}
+            {avisoVouchers && <Alert type="warning" message={avisoVouchers} />}
             {!turno && !error && <p className="text-sm text-slate-600">Cargando ventas con tarjeta…</p>}
             {turno?.ventas.length === 0 && (
               <p className="text-sm text-slate-600">Sin ventas con tarjeta por cotejar.</p>
             )}
             {!!turno?.ventas.length && (
-              <p className="text-sm text-slate-600">
-                Copia el número y el monto de cada comprobante de la terminal.{' '}
-                <strong>
-                  {vouchersCapturados.length} de {turno.meta.total}
-                </strong>{' '}
-                ingresados.
+              <p className="text-xs text-slate-600">
+                Los montos y referencias registradas al cobrar vienen precargados. Marca cada comprobante que cuadra con la terminal o usa <strong>Marcar todos</strong>.
               </p>
             )}
-            {turno?.ventas.map(({ ventaId, monto, fecha }) => {
-              const captura = capturas[ventaId] ?? { referencia: '', monto: '' };
-              const montoEsperadoVenta = round2(monto);
-              const montoIngresado = captura.monto.trim() !== '' ? round2(Number(captura.monto)) : null;
-              const montoCoincide = montoIngresado !== null && montoIngresado === montoEsperadoVenta;
-              const voucherOk = captura.referencia.trim().length > 0 && montoCoincide;
-              const montoErroneo = montoIngresado !== null && !montoCoincide;
 
-              return (
-                <fieldset
-                  key={ventaId}
-                  className={`grid gap-2 rounded-lg border p-3 sm:grid-cols-2 ${
-                    voucherOk
-                      ? 'border-emerald-200 bg-emerald-50/40'
-                      : montoErroneo
-                        ? 'border-red-300 bg-red-50/40'
-                        : 'border-slate-200 bg-slate-50'
-                  }`}
-                >
-                  <legend className="flex flex-wrap items-center gap-2 px-1 text-xs font-bold text-slate-700">
-                    <span>
-                      Venta #{ventaId} · {formatDateTime(fecha)} · {formatCurrency(montoEsperadoVenta)}
-                    </span>
-                    {voucherOk && (
-                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-extrabold text-emerald-800">
-                        Cuadra
-                      </span>
-                    )}
-                    {montoErroneo && (
-                      <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-extrabold text-red-800">
-                        Debe ser {formatCurrency(montoEsperadoVenta)}
-                      </span>
-                    )}
-                  </legend>
-                  <Field
-                    label="Número de voucher"
-                    required
-                    labelClassName="mb-1 block text-xs font-bold text-slate-700"
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-0.5">
+              {turno?.ventas.map(({ ventaId, monto, referenciaPago, numeroFactura, fecha }) => {
+                const montoEsperadoVenta = round2(monto);
+                const refOrig = referenciaPago?.trim() || null;
+                const captura: CapturaVoucherState = capturas[ventaId] ?? {
+                  confirmado: false,
+                  referencia: refOrig ?? '',
+                  monto: montoEsperadoVenta.toFixed(2),
+                  montoEsperado: montoEsperadoVenta,
+                  referenciaOriginal: refOrig,
+                };
+
+                const montoIngresado =
+                  captura.monto.trim() !== '' ? round2(Number(captura.monto)) : null;
+                const montoErroneo =
+                  montoIngresado === null || montoIngresado !== montoEsperadoVenta;
+                const refNoCoincide =
+                  Boolean(captura.referenciaOriginal) &&
+                  captura.referencia.trim().length > 0 &&
+                  captura.referencia.trim().toUpperCase() !==
+                    captura.referenciaOriginal!.toUpperCase();
+                const faltaRef = captura.referencia.trim().length === 0;
+                const valido = !montoErroneo && !refNoCoincide && !faltaRef;
+                const verificado = captura.confirmado && valido;
+
+                return (
+                  <div
+                    key={ventaId}
+                    className={`rounded-xl border p-3 transition ${
+                      verificado
+                        ? 'border-emerald-300 bg-emerald-50/60'
+                        : montoErroneo || refNoCoincide
+                          ? 'border-red-300 bg-red-50/40'
+                          : 'border-slate-200 bg-slate-50'
+                    }`}
                   >
-                    <input
-                      autoComplete="off"
-                      maxLength={80}
-                      value={captura.referencia}
-                      onChange={(e) =>
-                        setCapturas({
-                          ...capturas,
-                          [ventaId]: { ...captura, referencia: e.target.value },
-                        })
-                      }
-                      className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                    />
-                  </Field>
-                  <Field
-                    label={`Monto del voucher (${env.CURRENCY_SYMBOL})`}
-                    required
-                    labelClassName="mb-1 block text-xs font-bold text-slate-700"
-                  >
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min="0.01"
-                      step="0.01"
-                      value={captura.monto}
-                      onChange={(e) =>
-                        setCapturas({
-                          ...capturas,
-                          [ventaId]: { ...captura, monto: e.target.value },
-                        })
-                      }
-                      className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
-                    />
-                  </Field>
-                </fieldset>
-              );
-            })}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="flex min-h-[36px] cursor-pointer items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={verificado}
+                          onChange={(e) => {
+                            const marcar = e.target.checked;
+                            if (marcar && !valido) {
+                              setAvisoVouchers(
+                                faltaRef
+                                  ? `Escribe el número de voucher de ${numeroFactura ?? `Venta #${ventaId}`} para poder marcarla.`
+                                  : `Revisa los datos de ${numeroFactura ?? `Venta #${ventaId}`} antes de marcarla.`,
+                              );
+                              return;
+                            }
+                            setAvisoVouchers(null);
+                            setCapturas((prev) => ({
+                              ...prev,
+                              [ventaId]: { ...captura, confirmado: marcar },
+                            }));
+                          }}
+                          className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="text-xs font-extrabold text-slate-900">
+                          {numeroFactura ? `Factura ${numeroFactura}` : `Venta #${ventaId}`}
+                          <span className="ml-1.5 font-normal text-slate-600">
+                            · {formatDateTime(fecha)}
+                          </span>
+                        </span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-black text-slate-900">
+                          {formatCurrency(montoEsperadoVenta)}
+                        </span>
+                        {verificado ? (
+                          <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-extrabold text-emerald-800">
+                            Verificado
+                          </span>
+                        ) : (
+                          <span className="rounded-md bg-slate-200 px-2 py-0.5 text-xs font-bold text-slate-700">
+                            Pendiente
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <Field
+                        label={
+                          captura.referenciaOriginal
+                            ? 'No. voucher (registrado en venta)'
+                            : 'No. voucher (ingresar del POS)'
+                        }
+                        required
+                        labelClassName="mb-1 block text-xs font-bold text-slate-700"
+                      >
+                        <input
+                          autoComplete="off"
+                          maxLength={80}
+                          placeholder="Ej. 000123 / AUT-456"
+                          value={captura.referencia}
+                          onChange={(e) => {
+                            const nuevaRef = e.target.value;
+                            const actualizado: CapturaVoucherState = {
+                              ...captura,
+                              referencia: nuevaRef,
+                            };
+                            setCapturas((prev) => ({
+                              ...prev,
+                              [ventaId]: {
+                                ...actualizado,
+                                confirmado: esVoucherValido(actualizado) ? captura.confirmado : false,
+                              },
+                            }));
+                          }}
+                          className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                        />
+                      </Field>
+                      <Field
+                        label={`Monto del voucher (${env.CURRENCY_SYMBOL})`}
+                        required
+                        labelClassName="mb-1 block text-xs font-bold text-slate-700"
+                      >
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min="0.01"
+                          step="0.01"
+                          value={captura.monto}
+                          onChange={(e) => {
+                            const nuevoMonto = e.target.value;
+                            const actualizado: CapturaVoucherState = {
+                              ...captura,
+                              monto: nuevoMonto,
+                            };
+                            setCapturas((prev) => ({
+                              ...prev,
+                              [ventaId]: {
+                                ...actualizado,
+                                confirmado: esVoucherValido(actualizado) ? captura.confirmado : false,
+                              },
+                            }));
+                          }}
+                          className="min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
+                        />
+                      </Field>
+                    </div>
+
+                    {(refNoCoincide || montoErroneo) && (
+                      <p className="mt-1.5 text-xs font-bold text-red-700">
+                        {refNoCoincide
+                          ? `La referencia registrada en esta venta es "${captura.referenciaOriginal}".`
+                          : `El monto del voucher debe coincidir con ${formatCurrency(montoEsperadoVenta)}.`}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
             {turno && turno.meta.totalPages > 1 && !cerrando && (
               <Pagination meta={turno.meta} onPageChange={cambiarPagina} />
             )}
@@ -516,7 +709,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
                   <dd className="font-bold">{formatCurrency(turno.totalGeneralEsperado)}</dd>
                 </div>
                 <div>
-                  <dt>Tarjeta ingresada (neta)</dt>
+                  <dt>Tarjeta verificada (neta)</dt>
                   <dd className="font-bold">{formatCurrency(tarjetaNetaIngresada)}</dd>
                 </div>
                 <div>
@@ -572,7 +765,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!conciliacionCompleta || !conteoEfectivoListo || cerrando}
+              disabled={!conciliacionCompleta || !cuadreExacto || cerrando}
               className="min-h-[46px] rounded-xl bg-red-600 px-6 text-sm font-extrabold text-white shadow-md hover:bg-red-700 disabled:opacity-50"
             >
               {cerrando ? 'Cerrando turno…' : 'Confirmar cierre'}

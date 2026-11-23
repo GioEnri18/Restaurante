@@ -412,16 +412,44 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
       CLIENT_META,
     );
 
-    // 5. Cierre de caja con faltante de Q75 (>= AUDIT_DIFERENCIA_CAJA_ALTA_Q) -> ALTA + aprobador
+    // 5. Cierre de caja exige cuadre exacto (bloquea excedente y faltante) y registra aprobador al cuadrar
     const estadoCaja = await CajaService.obtenerCajaActual(sucursal.id, false);
     const esperadoEfectivo = Number(estadoCaja.montoEsperadoEfectivo);
-    const diferenciaEsperada = -75;
-    const montoContado = Number((esperadoEfectivo + diferenciaEsperada).toFixed(2));
+
+    // Excedente (+Q25) -> rechazado con 400
+    await assert.rejects(
+      () =>
+        CajaService.cerrarCaja(
+          cajeroActor,
+          {
+            montoContadoEfectivo: Number((esperadoEfectivo + 25).toFixed(2)),
+            autorizacion: { identifier: auditorActor.username, password: CLAVE_QA },
+          },
+          CLIENT_META,
+        ),
+      (err) => err.statusCode === 400 && /excedente/i.test(err.message),
+    );
+
+    // Faltante (-Q75) -> rechazado con 400
+    await assert.rejects(
+      () =>
+        CajaService.cerrarCaja(
+          cajeroActor,
+          {
+            montoContadoEfectivo: Math.max(0, Number((esperadoEfectivo - 75).toFixed(2))),
+            autorizacion: { identifier: auditorActor.username, password: CLAVE_QA },
+          },
+          CLIENT_META,
+        ),
+      (err) => err.statusCode === 400 && /faltante/i.test(err.message),
+    );
+
+    // Cuadre exacto -> cierra correctamente y registra aprobador
     await CajaService.cerrarCaja(
       cajeroActor,
       {
-        montoContadoEfectivo: montoContado,
-        observaciones: 'Arqueo con diferencia para QA',
+        montoContadoEfectivo: esperadoEfectivo,
+        observaciones: 'Arqueo exacto para QA',
         autorizacion: { identifier: auditorActor.username, password: CLAVE_QA },
       },
       CLIENT_META,
@@ -432,9 +460,9 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
     });
     assert.ok(logCierre);
     assert.equal(logCierre.aprobadorId, auditorActor.id);
-    assert.equal(logCierre.severidad, SEVERIDADES_AUDITORIA.ALTA);
-    assert.equal(Number(logCierre.impactoFinanciero), diferenciaEsperada);
-    assert.equal(logCierre.codigoMotivo, CODIGOS_MOTIVO_AUDITORIA.DIFERENCIA_DE_CAJA);
+    assert.equal(logCierre.severidad, SEVERIDADES_AUDITORIA.BAJA);
+    assert.equal(Number(logCierre.impactoFinanciero), 0);
+    assert.equal(logCierre.codigoMotivo, CODIGOS_MOTIVO_AUDITORIA.AUTORIZACION_SUPERVISOR);
   });
 
   it('garantiza rollback atómico (sin logs huérfanos) y mantiene inmutabilidad APPEND-ONLY', async () => {

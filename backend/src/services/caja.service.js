@@ -1,7 +1,7 @@
 const { UniqueConstraintError, col, fn } = require('sequelize');
 const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { getPgErrorCode, withTransaction } = require('../config/database');
-const { CajaMovimiento, CajaSesion, EstadoCaja, EstadoVenta, MetodoPago, TipoMovimientoCaja, Usuario, Venta } = require('../models');
+const { CajaMovimiento, CajaSesion, EstadoCaja, EstadoVenta, Factura, MetodoPago, TipoMovimientoCaja, Usuario, Venta } = require('../models');
 const { BadRequestError, ConflictError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { normalizarCodigoMotivo } = require('../shared/utils/auditoriaSeveridad');
@@ -141,11 +141,13 @@ class CajaService {
         const [{ rows, count }, sumaVentas] = await Promise.all([
             Venta.findAndCountAll({
                 where,
-                attributes: ['id', 'total', 'createdAt'],
+                attributes: ['id', 'total', 'referenciaPago', 'createdAt'],
+                include: [
+                    { model: Factura, as: 'factura', attributes: ['numeroCompleto'], required: false },
+                ],
                 order: [['createdAt', 'ASC'], ['id', 'ASC']],
                 limit,
                 offset: skip,
-                raw: true,
             }),
             Venta.sum('total', { where }),
         ]);
@@ -153,7 +155,13 @@ class CajaService {
         return {
             data: {
                 cajaId: sesion.id,
-                ventas: rows.map(({ id, total, createdAt }) => ({ ventaId: id, monto: Number(total), fecha: createdAt })),
+                ventas: rows.map((venta) => ({
+                    ventaId: venta.id,
+                    monto: Number(venta.total),
+                    referenciaPago: venta.referenciaPago?.trim() || null,
+                    numeroFactura: venta.factura?.numeroCompleto || null,
+                    fecha: venta.createdAt,
+                })),
                 montoInicial: desglose.montoInicial,
                 totalIngresosExtra: desglose.totalIngresosExtra,
                 totalEgresosEfectivo: desglose.totalEgresosEfectivo,
@@ -352,6 +360,12 @@ class CajaService {
             const desglose = this.calcularDesgloseCaja(sesion);
             const montoContadoEfectivo = round2(input.montoContadoEfectivo);
             const diferencia = round2(montoContadoEfectivo - desglose.montoEsperadoEfectivo);
+            if (diferencia !== 0) {
+                const tipoDiff = diferencia > 0 ? 'excedente' : 'faltante';
+                throw new BadRequestError(
+                    `No se puede cerrar la caja con ${tipoDiff} de Q ${Math.abs(diferencia).toFixed(2)}. El efectivo contado debe cuadrar exactamente con el esperado (Q ${desglose.montoEsperadoEfectivo.toFixed(2)}).`,
+                );
+            }
             const totalVouchersConciliados = round2(vouchersConciliados.reduce((suma, voucher) => suma + voucher.monto, 0));
             const montoContadoGeneral = round2(montoContadoEfectivo + desglose.totalTarjetaNeto);
             const diferenciaGeneral = round2(montoContadoGeneral - desglose.totalGeneralEsperado);
