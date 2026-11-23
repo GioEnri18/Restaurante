@@ -6,6 +6,7 @@ import { AlertaMenuEspecialModel } from '../../../models';
 import { ventasService } from '../../../services/ventas.service';
 import { useAuthStore } from '../../../store/auth.store';
 import { formatDateOnly } from '../../../utils/formatters';
+import { ErrorBoundary } from '../common/ErrorBoundary';
 import { QuickHelpModal } from '../common/QuickHelpModal';
 import { Sidebar } from './Sidebar';
 
@@ -152,9 +153,11 @@ export const MainLayout: React.FC = () => {
 
         {/* Contenido principal */}
         <main className="flex-1 p-4 lg:p-6">
-          <Suspense fallback={<p role="status" className="py-10 text-center text-sm text-slate-600">Cargando módulo…</p>}>
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary resetKey={location.pathname}>
+            <Suspense fallback={<p role="status" className="py-10 text-center text-sm text-slate-600">Cargando módulo…</p>}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
 

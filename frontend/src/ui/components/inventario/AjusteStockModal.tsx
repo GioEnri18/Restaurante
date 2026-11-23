@@ -121,7 +121,7 @@ export const AjusteStockModal: React.FC<AjusteStockModalProps> = ({
             className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
           />
         </Field>
-        {error && <div role="alert"><Alert type="error" message={error} /></div>}
+        {error && <Alert type="error" message={error} />}
         <button
           type="submit"
           disabled={guardando}

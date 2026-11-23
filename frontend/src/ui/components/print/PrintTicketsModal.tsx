@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { Printer, X } from 'lucide-react';
 import { env } from '../../../config/env';
 import { TicketImprimibleModel } from '../../../models';
@@ -21,6 +21,15 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   autoPrint = false,
   onClose,
 }) => {
+  const titleId = useId();
+  const printBtnRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const mouseDownOnBackdropRef = useRef(false);
+
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (ticket && autoPrint && env.AUTO_PRINT_ENABLED) {
       const timer = setTimeout(() => {
@@ -30,21 +39,84 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
     }
   }, [ticket, autoPrint]);
 
+  useEffect(() => {
+    if (!ticket) return;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const focusTimer = window.requestAnimationFrame(() => {
+      printBtnRef.current?.focus();
+    });
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = Array.from(
+          dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+      const prev = previousFocusRef.current;
+      if (prev && prev.isConnected) prev.focus();
+      previousFocusRef.current = null;
+    };
+  }, [ticket]);
+
   if (!ticket) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        mouseDownOnBackdropRef.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (mouseDownOnBackdropRef.current && e.target === e.currentTarget) {
+          onClose();
+        }
+        mouseDownOnBackdropRef.current = false;
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
         {/* Barra superior (oculta al imprimir) */}
         <div className="no-print flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-900">
+            <h3 id={titleId} className="text-lg font-bold text-slate-900">
               {includeComanda ? 'Factura y Comanda de Cocina' : `Reimpresión Factura ${ticket.factura.numeroCompleto}`}
             </h3>
-            <p className="text-xs text-slate-500">Formato optimizado para impresora térmica de 80 mm</p>
+            <p className="text-xs text-slate-600">Formato optimizado para impresora térmica de 80 mm</p>
           </div>
           <div className="flex items-center gap-2">
             <button
+              ref={printBtnRef}
               type="button"
               onClick={() => window.print()}
               className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-800"

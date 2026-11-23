@@ -16,8 +16,12 @@ export const Alert: React.FC<{ type?: AlertType; message: string; className?: st
   className = '',
 }) => {
   const { wrapper, Icon } = config[type];
+  const role = type === 'error' || type === 'warning' ? 'alert' : 'status';
   return (
-    <div className={`flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm ${wrapper} ${className}`}>
+    <div
+      role={role}
+      className={`flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm ${wrapper} ${className}`}
+    >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <span className="font-medium">{message}</span>
     </div>

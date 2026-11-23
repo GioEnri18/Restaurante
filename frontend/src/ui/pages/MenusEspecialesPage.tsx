@@ -20,6 +20,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateOnly } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination, usePaginacionLocal } from '../components/common/Pagination';
@@ -59,6 +60,8 @@ export const MenusEspecialesPage: React.FC = () => {
   const [errorMenu, setErrorMenu] = useState<string | null>(null);
   const [guardandoMenu, setGuardandoMenu] = useState(false);
   const [editing, setEditing] = useState<MenuEspecialModel | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MenuEspecialModel | null>(null);
+  const [eliminando, setEliminando] = useState(false);
   const paginaMenus = usePaginacionLocal(menus);
   const paginaCatalogo = usePaginacionLocal(platillosCatalogo, modalOpen ? String(editing?.id ?? 'nuevo') : 'cerrado');
   const [form, setForm] = useState({
@@ -227,15 +230,19 @@ export const MenusEspecialesPage: React.FC = () => {
     }
   };
 
-  const handleEliminar = async (m: MenuEspecialModel) => {
-    if (!window.confirm(`¿Eliminar el menú especial "${m.nombre}"?`)) return;
+  const confirmarEliminacion = async () => {
+    if (!deleteTarget || eliminando) return;
+    setEliminando(true);
     setError(null);
     try {
-      await ventasService.eliminarMenuEspecial(m.id);
-      setSuccess(`Menú especial "${m.nombre}" eliminado.`);
+      await ventasService.eliminarMenuEspecial(deleteTarget.id);
+      setSuccess(`Menú especial "${deleteTarget.nombre}" eliminado.`);
+      setDeleteTarget(null);
       await cargar();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo eliminar');
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -520,7 +527,7 @@ export const MenusEspecialesPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleEliminar(m)}
+                  onClick={() => setDeleteTarget(m)}
                   aria-label={`Eliminar menú especial ${m.nombre}`}
                   className="inline-flex h-9 items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100"
                 >
@@ -685,7 +692,7 @@ export const MenusEspecialesPage: React.FC = () => {
             {paginaCatalogo.meta.totalPages > 1 && <Pagination meta={paginaCatalogo.meta} onPageChange={paginaCatalogo.onPageChange} />}
           </div>
 
-          {errorMenu && <div role="alert"><Alert type="error" message={errorMenu} /></div>}
+          {errorMenu && <Alert type="error" message={errorMenu} />}
           <div className="flex justify-end gap-2">
             <button
               type="button"
@@ -793,6 +800,17 @@ export const MenusEspecialesPage: React.FC = () => {
           </button>
         </form>
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Eliminar menú especial"
+        message={`¿Seguro que deseas eliminar el menú especial "${deleteTarget?.nombre ?? ''}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Sí, eliminar"
+        variant="danger"
+        loading={eliminando}
+        onConfirm={confirmarEliminacion}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {puedeSubirFoto && (
         <NuevaCategoriaModal

@@ -626,7 +626,7 @@ export const AccesosPage: React.FC = () => {
               />
             </Field>
           </fieldset>
-          {errorUsuario && <div role="alert"><Alert type="error" message={errorUsuario} /></div>}
+          {errorUsuario && <Alert type="error" message={errorUsuario} />}
           <button
             type="submit"
             disabled={guardandoUsuario || roles.length === 0}

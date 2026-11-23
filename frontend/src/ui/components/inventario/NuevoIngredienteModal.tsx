@@ -162,7 +162,7 @@ export const NuevoIngredienteModal: React.FC<NuevoIngredienteModalProps> = ({
           </div>
           <p className="text-xs text-slate-600">El inventario avisa al alcanzar este mínimo.</p>
         </fieldset>
-        {error && <div role="alert"><Alert type="error" message={error} /></div>}
+        {error && <Alert type="error" message={error} />}
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" disabled={guardando} onClick={cerrar}
             className="min-h-[44px] rounded-xl border border-slate-300 px-4 text-sm font-bold disabled:opacity-50">
