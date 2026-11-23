@@ -11,6 +11,7 @@ import {
   Users,
   CalendarClock,
   LogOut,
+  PanelLeftClose,
   X,
   ChefHat,
 } from 'lucide-react';
@@ -68,9 +69,16 @@ const NAV_GROUPS: NavGroup[] = [
 interface SidebarProps {
   openMobile: boolean;
   onCloseMobile: () => void;
+  collapsedDesktop: boolean;
+  onToggleCollapseDesktop: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  openMobile,
+  onCloseMobile,
+  collapsedDesktop,
+  onToggleCollapseDesktop,
+}) => {
   const { usuario, can, isAdmin, logout } = useAuthStore();
 
   // Filtra estrictamente cada grupo y vista según el rol y permisos efectivos
@@ -87,22 +95,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
   };
 
   const sidebarContent = (
-    <div className="flex h-full flex-col overflow-hidden bg-slate-950 text-slate-100">
+    <div className="flex h-full w-64 flex-col overflow-hidden bg-slate-950 text-slate-100">
       {/* Encabezado marca (siempre fijo arriba) */}
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-800/80 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg shadow-brand-900/40">
-            <ChefHat className="h-6 w-6" aria-hidden="true" />
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-800/80 px-4 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg shadow-brand-900/40">
+            <ChefHat className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-extrabold leading-tight text-white">
               {env.APP_NAME}
             </h1>
-            <p className="mt-0.5 text-xs font-medium text-slate-300">
+            <p className="mt-0.5 truncate text-xs font-medium text-slate-300">
               {usuario?.sucursal.codigo ?? 'POS GT'} · Sistema POS
             </p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={onToggleCollapseDesktop}
+          className="hidden rounded-xl p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white lg:inline-flex"
+          aria-label="Colapsar menú lateral"
+          title="Ocultar menú lateral"
+        >
+          <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+        </button>
         <button
           type="button"
           onClick={onCloseMobile}
@@ -113,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
         </button>
       </div>
 
-      {/* Navegación agrupada por contexto operativo (scroll interno solo si no cabe en pantallas bajas) */}
+      {/* Navegación agrupada por contexto operativo */}
       <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {visibleGroups.map((group) => (
           <div key={group.title}>
@@ -184,14 +201,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 supports-[height:100dvh]:h-dvh lg:block">
-        {sidebarContent}
+      {/* Sidebar escritorio colapsable con transición suave para expandir la vista principal */}
+      <aside
+        aria-hidden={collapsedDesktop}
+        className={`sticky top-0 hidden h-screen shrink-0 overflow-hidden transition-[width] duration-200 ease-in-out supports-[height:100dvh]:h-dvh lg:block ${
+          collapsedDesktop ? 'w-0' : 'w-64'
+        }`}
+      >
+        {!collapsedDesktop && sidebarContent}
       </aside>
 
+      {/* Drawer móvil */}
       {openMobile && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onCloseMobile} />
-          <aside className="relative z-50 h-screen w-72 max-w-[85vw] supports-[height:100dvh]:h-dvh">
+          <aside className="relative z-50 h-screen w-64 max-w-[85vw] supports-[height:100dvh]:h-dvh">
             {sidebarContent}
           </aside>
         </div>

@@ -1,8 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Calculator, CheckCircle2, AlertCircle, Coins, CheckCheck, CreditCard } from 'lucide-react';
+import {
+  Calculator,
+  CheckCircle2,
+  AlertCircle,
+  Coins,
+  CheckCheck,
+  CreditCard,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { env } from '../../../config/env';
 import { CajaSesionModel } from '../../../models';
-import { cajaService } from '../../../services/caja.service';
+import { cajaService, VoucherTurnoItem } from '../../../services/caja.service';
 import { formatCurrency, formatDateTime } from '../../../utils/formatters';
 import { Alert } from '../common/Alert';
 import { Field } from '../common/Field';
@@ -31,15 +40,18 @@ interface VoucherSeleccionable {
   seleccionado: boolean;
 }
 
+const ETIQUETA_SERVICIO: Record<string, string> = {
+  MOSTRADOR: 'Mostrador',
+  LLEVAR: 'Para llevar',
+  MESA: 'En mesa',
+  DELIVERY: 'Delivery',
+};
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function resolverReferenciaVoucher(v: {
-  ventaId: number;
-  referenciaPago?: string | null;
-  numeroFactura?: string | null;
-}): string {
+function resolverReferenciaVoucher(v: Pick<VoucherTurnoItem, 'ventaId' | 'referenciaPago' | 'numeroFactura'>): string {
   const ref = v.referenciaPago?.trim();
   if (ref) return ref;
   const fac = v.numeroFactura?.trim();
@@ -61,6 +73,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
   const [autorizacion, setAutorizacion] = useState<AutorizacionSupervisor>(AUTORIZACION_VACIA);
   const [turno, setTurno] = useState<Awaited<ReturnType<typeof cajaService.obtenerVouchersTurno>> | null>(null);
   const [vouchersMap, setVouchersMap] = useState<Record<number, VoucherSeleccionable>>({});
+  const [expandidos, setExpandidos] = useState<Record<number, boolean>>({});
   const [seleccionandoTodos, setSeleccionandoTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
@@ -75,6 +88,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
       setModoArqueo('denominaciones');
       setAutorizacion(AUTORIZACION_VACIA);
       setVouchersMap({});
+      setExpandidos({});
       setError(null);
     }
   }, [open, actual]);
@@ -180,12 +194,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
     }
   }
 
-  function toggleVoucher(v: {
-    ventaId: number;
-    monto: number;
-    referenciaPago?: string | null;
-    numeroFactura?: string | null;
-  }) {
+  function toggleVoucher(v: VoucherTurnoItem) {
     setVouchersMap((prev) => {
       const actualItem = prev[v.ventaId] ?? {
         ventaId: v.ventaId,
@@ -201,6 +210,10 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
         },
       };
     });
+  }
+
+  function toggleExpandir(ventaId: number) {
+    setExpandidos((prev) => ({ ...prev, [ventaId]: !prev[ventaId] }));
   }
 
   function cambiarPagina(nuevaPagina: number) {
@@ -461,7 +474,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
             </div>
           </div>
 
-          {/* Selector de vouchers de tarjeta (sin llenado manual) */}
+          {/* Selector de vouchers de tarjeta con detalle colapsable */}
           <section className="space-y-3 rounded-xl border border-slate-200 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -499,6 +512,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
                   disabled={cerrando || seleccionandoTodos}
                   onClick={() => {
                     setVouchersMap({});
+                    setExpandidos({});
                     cambiarPagina(1);
                     setRecarga((n) => n + 1);
                   }}
@@ -516,57 +530,155 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
             )}
             {!!turno?.ventas.length && (
               <p className="text-xs text-slate-600">
-                Selecciona únicamente los vouchers que sí tienes físicamente de la terminal.
+                Selecciona los vouchers que tienes físicamente. Usa <strong>Ver detalle</strong> para cotejar número de voucher, factura, hora y consumo.
               </p>
             )}
 
-            <div className="max-h-64 space-y-2 overflow-y-auto pr-0.5">
+            <div className="max-h-72 space-y-2 overflow-y-auto pr-0.5">
               {turno?.ventas.map((v) => {
                 const seleccionado = Boolean(vouchersMap[v.ventaId]?.seleccionado);
-                const refLabel = v.referenciaPago?.trim();
+                const abierto = Boolean(expandidos[v.ventaId]);
+                const numVoucher = v.referenciaPago?.trim() || null;
+
                 return (
-                  <label
+                  <div
                     key={v.ventaId}
-                    className={`flex min-h-[52px] cursor-pointer items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition ${
+                    className={`rounded-xl border transition ${
                       seleccionado
                         ? 'border-emerald-400 bg-emerald-50/70 shadow-sm'
-                        : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-white'
+                        : 'border-slate-200 bg-slate-50 hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={seleccionado}
-                        onChange={() => toggleVoucher(v)}
-                        className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div>
-                        <p className="text-sm font-extrabold text-slate-900">
-                          {v.numeroFactura ? `Factura ${v.numeroFactura}` : `Venta #${v.ventaId}`}
-                          {refLabel && (
-                            <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-xs font-bold text-sky-900">
-                              Ref. {refLabel}
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
+                      <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={seleccionado}
+                          onChange={() => toggleVoucher(v)}
+                          className="h-5 w-5 shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-md bg-sky-100 px-2 py-0.5 text-xs font-extrabold text-sky-900">
+                              {numVoucher ? `Voucher #${numVoucher}` : `Sin No. voucher`}
                             </span>
+                            <span className="text-xs font-bold text-slate-800">
+                              {v.numeroFactura ? `Factura ${v.numeroFactura}` : `Venta #${v.ventaId}`}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-slate-600">
+                            {formatDateTime(v.fecha)}
+                            {v.cajeroNombre ? ` · ${v.cajeroNombre}` : ''}
+                          </p>
+                        </div>
+                      </label>
+
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <p className="text-base font-black text-slate-900">
+                            {formatCurrency(round2(v.monto))}
+                          </p>
+                          <span
+                            className={`inline-block rounded px-1.5 py-0.5 text-xs font-bold ${
+                              seleccionado
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {seleccionado ? 'Presente' : 'Pendiente'}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          aria-expanded={abierto}
+                          onClick={() => toggleExpandir(v.ventaId)}
+                          className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                          title="Comparar datos completos del voucher"
+                        >
+                          <span>Detalle</span>
+                          {abierto ? (
+                            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
                           )}
-                        </p>
-                        <p className="text-xs text-slate-600">{formatDateTime(v.fecha)}</p>
+                        </button>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-base font-black text-slate-900">
-                        {formatCurrency(round2(v.monto))}
-                      </p>
-                      <span
-                        className={`inline-block rounded px-1.5 py-0.5 text-xs font-bold ${
-                          seleccionado
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        {seleccionado ? 'Presente' : 'Pendiente'}
-                      </span>
-                    </div>
-                  </label>
+
+                    {/* Panel colapsable para comparar todos los datos contra el voucher físico */}
+                    {abierto && (
+                      <div className="border-t border-slate-200/80 bg-white/90 px-3.5 py-3 text-xs text-slate-700 rounded-b-xl space-y-2.5">
+                        <dl className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                          <div className="flex justify-between gap-2">
+                            <dt className="font-semibold text-slate-500">No. de voucher / autorización:</dt>
+                            <dd className="font-extrabold text-slate-900">
+                              {numVoucher ?? 'No capturado al cobrar'}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <dt className="font-semibold text-slate-500">Comprobante:</dt>
+                            <dd className="font-bold text-slate-900">
+                              {v.numeroFactura ? `${v.numeroFactura} (Venta #${v.ventaId})` : `Venta #${v.ventaId}`}
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <dt className="font-semibold text-slate-500">Fecha y hora:</dt>
+                            <dd className="font-semibold text-slate-900">{formatDateTime(v.fecha)}</dd>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <dt className="font-semibold text-slate-500">Cajero:</dt>
+                            <dd className="font-semibold text-slate-900">{v.cajeroNombre ?? '—'}</dd>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <dt className="font-semibold text-slate-500">Cliente / NIT:</dt>
+                            <dd className="font-semibold text-slate-900">
+                              {v.clienteNombre ?? 'Consumidor Final'} ({v.clienteNit ?? 'CF'})
+                            </dd>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <dt className="font-semibold text-slate-500">Tipo de servicio:</dt>
+                            <dd className="font-semibold text-slate-900">
+                              {(v.tipoServicio && ETIQUETA_SERVICIO[v.tipoServicio]) || v.tipoServicio || 'Mostrador'}
+                            </dd>
+                          </div>
+                          {v.subtotalSinIva !== undefined && v.ivaMonto !== undefined && (
+                            <div className="flex justify-between gap-2 sm:col-span-2 border-t border-slate-100 pt-1.5">
+                              <dt className="font-semibold text-slate-500">Desglose fiscal:</dt>
+                              <dd className="font-semibold text-slate-900">
+                                Base {formatCurrency(v.subtotalSinIva)} + IVA {formatCurrency(v.ivaMonto)} ={' '}
+                                <strong>{formatCurrency(round2(v.monto))}</strong>
+                              </dd>
+                            </div>
+                          )}
+                        </dl>
+
+                        {v.items && v.items.length > 0 && (
+                          <div className="border-t border-slate-100 pt-2">
+                            <p className="mb-1 font-bold text-slate-800">Consumo cobrado:</p>
+                            <ul className="space-y-0.5 text-slate-700">
+                              {v.items.map((item, idx) => (
+                                <li key={idx} className="flex justify-between gap-2">
+                                  <span>
+                                    {item.cantidad} × {item.nombrePlatillo}
+                                  </span>
+                                  <span className="font-semibold text-slate-900">
+                                    {formatCurrency(item.subtotal)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {v.observaciones && (
+                          <p className="border-t border-slate-100 pt-1.5 text-slate-600">
+                            <strong>Nota:</strong> {v.observaciones}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

@@ -8,15 +8,30 @@ export interface VoucherConciliado {
   monto: number;
 }
 
+export interface VoucherTurnoItem {
+  ventaId: number;
+  monto: number;
+  subtotalSinIva?: number;
+  ivaMonto?: number;
+  tipoServicio?: string;
+  referenciaPago?: string | null;
+  numeroFactura?: string | null;
+  clienteNombre?: string;
+  clienteNit?: string;
+  cajeroNombre?: string;
+  observaciones?: string | null;
+  fecha: string;
+  items?: {
+    nombrePlatillo: string;
+    cantidad: number;
+    precioUnitario: number;
+    subtotal: number;
+  }[];
+}
+
 interface VouchersTurno {
   cajaId: number;
-  ventas: {
-    ventaId: number;
-    monto: number;
-    referenciaPago?: string | null;
-    numeroFactura?: string | null;
-    fecha: string;
-  }[];
+  ventas: VoucherTurnoItem[];
   montoInicial?: number;
   totalIngresosExtra?: number;
   totalEgresosEfectivo?: number;

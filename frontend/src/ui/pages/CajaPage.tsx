@@ -17,6 +17,8 @@ export const CajaPage: React.FC = () => {
   const canOpen = useAuthStore((s) => s.can('caja:abrir'));
   const canClose = useAuthStore((s) => s.can('caja:cerrar'));
   const canRegisterWaste = useAuthStore((s) => s.can('mermas:ver') && s.can('mermas:crear'));
+  const esCajero = useAuthStore((s) => s.usuario?.rol?.codigo === 'CAJERO');
+  const puedeVerHistorial = !esCajero;
   // Control dual: sin caja:autorizar (p. ej. un cajero) se piden credenciales de un supervisor
   const requiereAutorizacion = !useAuthStore((s) => s.can('caja:autorizar'));
 
@@ -35,17 +37,21 @@ export const CajaPage: React.FC = () => {
     try {
       const [cajaActual, hist] = await Promise.all([
         cajaService.obtenerActual(),
-        cajaService.listarHistorial(page),
+        puedeVerHistorial ? cajaService.listarHistorial(page) : Promise.resolve(null),
       ]);
       setActual(cajaActual);
-      setHistorial(hist.items);
-      setMeta(hist.meta);
+      if (hist) {
+        setHistorial(hist.items);
+        setMeta(hist.meta);
+      } else {
+        setHistorial([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error cargando información de caja');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [puedeVerHistorial]);
 
   useEffect(() => {
     void cargar(1);
@@ -164,12 +170,14 @@ export const CajaPage: React.FC = () => {
         </div>
       )}
 
-      <HistorialCierresTable
-        historial={historial}
-        loading={loading}
-        meta={meta}
-        onPageChange={(p) => void cargar(p)}
-      />
+      {puedeVerHistorial && (
+        <HistorialCierresTable
+          historial={historial}
+          loading={loading}
+          meta={meta}
+          onPageChange={(p) => void cargar(p)}
+        />
+      )}
 
       <ArqueoCierreModal
         open={closeModal}

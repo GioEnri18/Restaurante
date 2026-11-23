@@ -1,25 +1,45 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { AlertTriangle, BellRing, CalendarClock, HelpCircle, Menu, Store, X } from 'lucide-react';
-import { env } from '../../../config/env';
+import { AlertTriangle, CalendarClock, X } from 'lucide-react';
 import { AlertaMenuEspecialModel } from '../../../models';
 import { ventasService } from '../../../services/ventas.service';
 import { useAuthStore } from '../../../store/auth.store';
 import { formatDateOnly } from '../../../utils/formatters';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { QuickHelpModal } from '../common/QuickHelpModal';
+import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
+
+const SIDEBAR_STORAGE_KEY = 'pos_sidebar_collapsed';
 
 export const MainLayout: React.FC = () => {
   const location = useLocation();
   const [openMobile, setOpenMobile] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return window.sessionStorage.getItem(SIDEBAR_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [helpOpen, setHelpOpen] = useState(false);
   const [alertasMenus, setAlertasMenus] = useState<AlertaMenuEspecialModel[]>([]);
   const [alertasError, setAlertasError] = useState(false);
   const [avisoErrorOculto, setAvisoErrorOculto] = useState(false);
   const [avisoOculto, setAvisoOculto] = useState<string | null>(null);
-  const usuario = useAuthStore((s) => s.usuario);
   const isAdmin = useAuthStore((s) => s.isAdmin());
+
+  const toggleSidebarDesktop = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.sessionStorage.setItem(SIDEBAR_STORAGE_KEY, next ? '1' : '0');
+      } catch {
+        // Ignorar si sessionStorage no está disponible
+      }
+      return next;
+    });
+  }, []);
 
   const cargarAlertasMenus = useCallback(async () => {
     try {
@@ -69,60 +89,21 @@ export const MainLayout: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-slate-100">
-      <Sidebar openMobile={openMobile} onCloseMobile={() => setOpenMobile(false)} />
+      <Sidebar
+        openMobile={openMobile}
+        onCloseMobile={() => setOpenMobile(false)}
+        collapsedDesktop={sidebarCollapsed}
+        onToggleCollapseDesktop={toggleSidebarDesktop}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Barra superior responsive */}
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 shadow-sm lg:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setOpenMobile(true)}
-              className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 lg:hidden"
-              aria-label="Abrir menú"
-            >
-              <Menu className="h-5 w-5" aria-hidden="true" />
-              <span>Menú</span>
-            </button>
-            <div className="flex items-center gap-2 text-slate-700">
-              <Store className="h-5 w-5 text-brand-600" aria-hidden="true" />
-              <div>
-                <p className="text-sm font-bold text-slate-900">
-                  {usuario?.sucursal.nombre ?? env.APP_NAME}
-                </p>
-                <p className="hidden text-xs text-slate-500 sm:block">
-                  NIT: {usuario?.sucursal.nit} ·{' '}
-                  {env.ENABLE_TABLE_SERVICE ? 'Mostrador y mesas' : 'Servicio en mostrador'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {isAdmin && alertasMenus.length > 0 && (
-              <Link
-                to="/menus-especiales"
-                className="hidden items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900 hover:bg-amber-200 md:inline-flex"
-              >
-                <BellRing className="h-3.5 w-3.5 text-amber-700" aria-hidden="true" />
-                {alertasMenus.length} aviso(s) de menú
-              </Link>
-            )}
-            <button
-              type="button"
-              onClick={() => setHelpOpen(true)}
-              aria-label="Guía rápida de esta pantalla"
-              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
-              title="Guía rápida de esta pantalla"
-            >
-              <HelpCircle className="h-4 w-4 text-brand-600" aria-hidden="true" />
-              <span className="hidden sm:inline">¿Cómo usar?</span>
-            </button>
-            <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-bold text-brand-700">
-              {usuario?.rol.nombre}
-            </span>
-          </div>
-        </header>
+        <Navbar
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebarDesktop={toggleSidebarDesktop}
+          onOpenSidebarMobile={() => setOpenMobile(true)}
+          alertasMenusCount={alertasMenus.length}
+          onOpenHelp={() => setHelpOpen(true)}
+        />
 
         {/* Aviso discreto al Administrador si falló la carga de alertas de menús especiales */}
         {isAdmin && alertasError && !avisoErrorOculto && (
@@ -159,15 +140,17 @@ export const MainLayout: React.FC = () => {
         {/* Aviso proactivo global de Menú por Fecha Especial (exclusivo Administrador) */}
         {isAdmin && alertaDestacada && idAviso !== avisoOculto && (
           <div
-            className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5 text-sm lg:px-6 ${alertaDestacada.requiereAtencion
-              ? 'border-amber-200 bg-amber-50 text-amber-950'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
-              }`}
+            className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5 text-sm lg:px-6 ${
+              alertaDestacada.requiereAtencion
+                ? 'border-amber-200 bg-amber-50 text-amber-950'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+            }`}
           >
             <div className="flex items-center gap-2.5">
               <CalendarClock
-                className={`h-5 w-5 shrink-0 ${alertaDestacada.requiereAtencion ? 'text-amber-600' : 'text-emerald-600'
-                  }`}
+                className={`h-5 w-5 shrink-0 ${
+                  alertaDestacada.requiereAtencion ? 'text-amber-600' : 'text-emerald-600'
+                }`}
                 aria-hidden="true"
               />
               <p className="text-xs sm:text-sm">
@@ -199,7 +182,7 @@ export const MainLayout: React.FC = () => {
           </div>
         )}
 
-        {/* Contenido principal */}
+        {/* Contenido principal (se expande automáticamente cuando el Sidebar está colapsado) */}
         <main className="flex-1 p-4 lg:p-6">
           <ErrorBoundary resetKey={location.pathname}>
             <Suspense fallback={<p role="status" className="py-10 text-center text-sm text-slate-600">Cargando módulo…</p>}>

@@ -36,6 +36,8 @@ class MermasService {
             where.motivo = query.motivo;
         if (query.ingredienteId)
             where.ingredienteId = Number(query.ingredienteId);
+        if (query.usuarioId)
+            where.usuarioId = Number(query.usuarioId);
         if (query.fechaDesde || query.fechaHasta) {
             const rango = {};
             if (query.fechaDesde)

@@ -1,7 +1,7 @@
 const { UniqueConstraintError, col, fn } = require('sequelize');
 const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { getPgErrorCode, withTransaction } = require('../config/database');
-const { CajaMovimiento, CajaSesion, EstadoCaja, EstadoVenta, Factura, MetodoPago, TipoMovimientoCaja, Usuario, Venta } = require('../models');
+const { CajaMovimiento, CajaSesion, EstadoCaja, EstadoVenta, Factura, MetodoPago, TipoMovimientoCaja, Usuario, Venta, VentaDetalle } = require('../models');
 const { BadRequestError, ConflictError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { normalizarCodigoMotivo } = require('../shared/utils/auditoriaSeveridad');
@@ -141,9 +141,35 @@ class CajaService {
         const [{ rows, count }, sumaVentas] = await Promise.all([
             Venta.findAndCountAll({
                 where,
-                attributes: ['id', 'total', 'referenciaPago', 'createdAt'],
+                attributes: [
+                    'id',
+                    'total',
+                    'subtotalSinIva',
+                    'ivaMonto',
+                    'tipoServicio',
+                    'referenciaPago',
+                    'observaciones',
+                    'createdAt',
+                ],
                 include: [
-                    { model: Factura, as: 'factura', attributes: ['numeroCompleto'], required: false },
+                    {
+                        model: Factura,
+                        as: 'factura',
+                        attributes: ['numeroCompleto', 'clienteNombre', 'clienteNit'],
+                        required: false,
+                    },
+                    {
+                        model: Usuario,
+                        as: 'usuario',
+                        attributes: ['nombreCompleto', 'username'],
+                        required: false,
+                    },
+                    {
+                        model: VentaDetalle,
+                        as: 'detalles',
+                        attributes: ['nombrePlatillo', 'cantidad', 'precioUnitario', 'subtotal'],
+                        separate: true,
+                    },
                 ],
                 order: [['createdAt', 'ASC'], ['id', 'ASC']],
                 limit,
@@ -158,9 +184,22 @@ class CajaService {
                 ventas: rows.map((venta) => ({
                     ventaId: venta.id,
                     monto: Number(venta.total),
+                    subtotalSinIva: Number(venta.subtotalSinIva),
+                    ivaMonto: Number(venta.ivaMonto),
+                    tipoServicio: venta.tipoServicio,
                     referenciaPago: venta.referenciaPago?.trim() || null,
                     numeroFactura: venta.factura?.numeroCompleto || null,
+                    clienteNombre: venta.factura?.clienteNombre || 'Consumidor Final',
+                    clienteNit: venta.factura?.clienteNit || 'CF',
+                    cajeroNombre: venta.usuario?.nombreCompleto || '—',
+                    observaciones: venta.observaciones?.trim() || null,
                     fecha: venta.createdAt,
+                    items: (venta.detalles ?? []).map((d) => ({
+                        nombrePlatillo: d.nombrePlatillo,
+                        cantidad: Number(d.cantidad),
+                        precioUnitario: Number(d.precioUnitario),
+                        subtotal: Number(d.subtotal),
+                    })),
                 })),
                 montoInicial: desglose.montoInicial,
                 totalIngresosExtra: desglose.totalIngresosExtra,

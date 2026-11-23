@@ -4,7 +4,8 @@ const { toIsoDateInTimezone } = require('../shared/utils/dates');
 class MermasController {
     static async listar(req, res, next) {
         try {
-            const diaCajero = req.user.rolCodigo === 'CAJERO' ? toIsoDateInTimezone() : undefined;
+            const esCajero = req.user.rolCodigo === 'CAJERO';
+            const diaCajero = esCajero ? toIsoDateInTimezone() : undefined;
             const { items, resumen, meta } = await MermasService.listar(req.user.sucursalId, {
                 page: req.query.page,
                 limit: req.query.limit,
@@ -13,6 +14,8 @@ class MermasController {
                     ? req.query.motivo
                     : undefined,
                 ingredienteId: typeof req.query.ingredienteId === 'string' ? req.query.ingredienteId : undefined,
+                // El cajero solo puede consultar las mermas que él mismo registró hoy
+                usuarioId: esCajero ? req.user.id : undefined,
                 fechaDesde: diaCajero ?? req.query.fechaDesde,
                 fechaHasta: diaCajero ?? req.query.fechaHasta,
             });

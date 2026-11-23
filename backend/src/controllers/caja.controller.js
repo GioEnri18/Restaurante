@@ -1,4 +1,5 @@
 const { CajaService } = require('../services/caja.service');
+const { ForbiddenError } = require('../shared/errors/AppError');
 class CajaController {
     static async actual(req, res, next) {
         try {
@@ -56,6 +57,10 @@ class CajaController {
     }
     static async historial(req, res, next) {
         try {
+            // El cajero no tiene acceso al historial de cierres y cuadres de turnos anteriores
+            if (req.user.rolCodigo === 'CAJERO') {
+                throw new ForbiddenError('El rol Cajero no tiene acceso al historial de cierres de caja');
+            }
             const { items, meta } = await CajaService.listarHistorial(req.user.sucursalId, req.query.page, req.query.limit);
             res.status(200).json({ ok: true, data: items, meta });
         }

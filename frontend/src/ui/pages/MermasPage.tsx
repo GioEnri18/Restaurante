@@ -134,7 +134,7 @@ export const MermasPage: React.FC = () => {
         <h1 className="text-2xl font-extrabold text-slate-900">{esCajero ? 'Mermas de hoy' : 'Mermas y pérdidas'}</h1>
         <p className="text-sm text-slate-500">
           {esCajero
-            ? 'Registra las pérdidas del turno abierto. La cantidad se descuenta del inventario.'
+            ? 'Registra las pérdidas del turno abierto. Solo se muestran las mermas que ingresaste hoy.'
             : 'Registra ingredientes dañados, vencidos o desperdiciados. La cantidad se descuenta del inventario.'}
         </p>
       </div>
@@ -254,7 +254,9 @@ export const MermasPage: React.FC = () => {
 
         <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${canCreate ? 'lg:col-span-8' : 'lg:col-span-12'}`}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-bold text-slate-900">Historial de Mermas</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              {esCajero ? 'Mis mermas de hoy' : 'Historial de Mermas'}
+            </h2>
             <Field label="Filtrar mermas por motivo" srOnlyLabel>
               <select
                 value={filtroMotivo}
