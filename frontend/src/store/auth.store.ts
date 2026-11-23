@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { env } from '../config/env';
 import { UsuarioSesionModel } from '../models';
 import { authService } from '../services/auth.service';
+import { useCartStore } from './cart.store';
 
 interface AuthState {
   usuario: UsuarioSesionModel | null;
@@ -56,6 +57,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Ignora fallo de red al cerrar sesión
     } finally {
+      // Limpia el carrito persistido al cerrar sesión para no filtrar pedidos entre usuarios
+      useCartStore.getState().clearCart();
+      useCartStore.persist.clearStorage();
       set({ usuario: null, initialized: true });
     }
   },
@@ -70,6 +74,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   clearSession: () => {
+    useCartStore.getState().clearCart();
+    useCartStore.persist.clearStorage();
     set({ usuario: null });
   },
 

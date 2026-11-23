@@ -8,9 +8,11 @@ import { env } from '../../config/env';
 import { formatDateTime, getTodayISO } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { EmptyState } from '../components/common/EmptyState';
 import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination, usePaginacionLocal } from '../components/common/Pagination';
+import { TableSkeleton } from '../components/common/TableSkeleton';
 
 const VISTAS_RUTAS = [
   '/ventas',
@@ -53,12 +55,14 @@ function mensajeErrorUsuario(error: unknown): string {
 
 export const AccesosPage: React.FC = () => {
   const currentUser = useAuthStore((s) => s.usuario);
+  const canManage = useAuthStore((s) => s.can('accesos:gestionar'));
   const [tab, setTab] = useState<'usuarios' | 'roles'>('usuarios');
   const [usuarios, setUsuarios] = useState<UsuarioAdminModel[]>([]);
   const [roles, setRoles] = useState<RolModel[]>([]);
   const [metaUsuarios, setMetaUsuarios] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const paginaRoles = usePaginacionLocal(roles);
   const [permisosPorVista, setPermisosPorVista] = useState<Record<string, PermisoModel[]>>({});
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -102,6 +106,7 @@ export const AccesosPage: React.FC = () => {
     abortRef.current = controller;
     const reqId = ++requestIdRef.current;
 
+    setLoading(true);
     setError(null);
     try {
       const [u, r, p] = await Promise.all([
@@ -126,6 +131,8 @@ export const AccesosPage: React.FC = () => {
     } catch (err) {
       if (isAbortError(err) || reqId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'Error cargando administración de accesos');
+    } finally {
+      if (reqId === requestIdRef.current) setLoading(false);
     }
   }, []);
 
@@ -135,6 +142,7 @@ export const AccesosPage: React.FC = () => {
     abortRef.current = controller;
     const reqId = ++requestIdRef.current;
 
+    setLoading(true);
     setError(null);
     try {
       const resultado = await accesosService.listarUsuarios(page, controller.signal);
@@ -144,6 +152,8 @@ export const AccesosPage: React.FC = () => {
     } catch (err) {
       if (isAbortError(err) || reqId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : 'No se pudo cargar la página de personal');
+    } finally {
+      if (reqId === requestIdRef.current) setLoading(false);
     }
   };
 
@@ -385,48 +395,67 @@ export const AccesosPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {usuarios.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50">
-                  <td className="py-3 px-2">
-                    <p className="font-bold text-slate-900">{u.nombreCompleto}</p>
-                    <p className="text-xs text-slate-500">@{u.username}</p>
-                  </td>
-                  <td className="py-3 px-2 text-slate-600">{u.email}</td>
-                  <td className="py-3 px-2">
-                    <Badge variant="info">{u.rol.nombre}</Badge>
-                  </td>
-                  <td className="py-3 px-2 text-xs text-slate-600">{u.fechaIngreso ? u.fechaIngreso.split('-').reverse().join('/') : 'Pendiente'}</td>
-                  <td className="py-3 px-2 text-xs text-slate-500">{formatDateTime(u.ultimoAcceso)}</td>
-                  <td className="py-3 px-2">
-                    <Badge variant={u.activo ? 'success' : 'danger'}>
-                      {u.activo ? 'Activo' : 'Inactivo'}
-                    </Badge>
-                  </td>
-                  <td className="py-3 px-2">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => abrirEditarUsuario(u)}
-                        aria-label={`Editar usuario ${u.nombreCompleto}`}
-                        className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
-                      >
-                        <Edit className="h-3.5 w-3.5" aria-hidden="true" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={currentUser?.id === u.id}
-                        onClick={() => void toggleActivo(u)}
-                        aria-label={`${u.activo ? 'Desactivar' : 'Activar'} usuario ${u.nombreCompleto}`}
-                        className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
-                      >
-                        <Power className="h-3.5 w-3.5" aria-hidden="true" />
-                        {u.activo ? 'Desactivar' : 'Activar'}
-                      </button>
-                    </div>
+              {loading ? (
+                <TableSkeleton rows={5} cols={7} label="Cargando personal registrado..." />
+              ) : usuarios.length === 0 ? (
+                <tr>
+                  <td colSpan={7}>
+                    <EmptyState
+                      icon={Users}
+                      title="No hay personal registrado"
+                      description="Registra al primer integrante del equipo para asignarle un rol y permisos."
+                      action={
+                        canManage
+                          ? { label: 'Agregar primera persona', onClick: () => abrirNuevoUsuario() }
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
-              ))}
+              ) : (
+                usuarios.map((u) => (
+                  <tr key={u.id} className="hover:bg-slate-50">
+                    <td className="py-3 px-2">
+                      <p className="font-bold text-slate-900">{u.nombreCompleto}</p>
+                      <p className="text-xs text-slate-500">@{u.username}</p>
+                    </td>
+                    <td className="py-3 px-2 text-slate-600">{u.email}</td>
+                    <td className="py-3 px-2">
+                      <Badge variant="info">{u.rol.nombre}</Badge>
+                    </td>
+                    <td className="py-3 px-2 text-xs text-slate-600">{u.fechaIngreso ? u.fechaIngreso.split('-').reverse().join('/') : 'Pendiente'}</td>
+                    <td className="py-3 px-2 text-xs text-slate-500">{formatDateTime(u.ultimoAcceso)}</td>
+                    <td className="py-3 px-2">
+                      <Badge variant={u.activo ? 'success' : 'danger'}>
+                        {u.activo ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => abrirEditarUsuario(u)}
+                          aria-label={`Editar usuario ${u.nombreCompleto}`}
+                          className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+                        >
+                          <Edit className="h-3.5 w-3.5" aria-hidden="true" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={currentUser?.id === u.id}
+                          onClick={() => void toggleActivo(u)}
+                          aria-label={`${u.activo ? 'Desactivar' : 'Activar'} usuario ${u.nombreCompleto}`}
+                          className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                        >
+                          <Power className="h-3.5 w-3.5" aria-hidden="true" />
+                          {u.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
           {metaUsuarios.totalPages > 1 && <Pagination meta={metaUsuarios} onPageChange={(page) => void cargarUsuarios(page)} />}

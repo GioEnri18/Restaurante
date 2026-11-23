@@ -47,6 +47,7 @@ export const VentasPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedCat, setSelectedCat] = useState<number | 'ESPECIAL' | null>(null);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
@@ -72,7 +73,23 @@ export const VentasPage: React.FC = () => {
     try {
       const data = await ventasService.obtenerMenu();
       setMenu(data);
-      useCartStore.getState().actualizarPrecios(data.platillos);
+      const eliminados = useCartStore.getState().sincronizarConMenu(data.platillos);
+      if (eliminados.length > 0) {
+        const nombres = eliminados.map((item) => item.nombre).filter((n): n is string => Boolean(n));
+        if (nombres.length === eliminados.length && nombres.length === 1) {
+          setCartNotice(
+            `Se quitó "${nombres[0]}" del pedido porque ya no está disponible en el menú actual.`,
+          );
+        } else if (nombres.length === eliminados.length) {
+          setCartNotice(
+            `Se quitaron del pedido porque ya no están disponibles: ${nombres.join(', ')}.`,
+          );
+        } else {
+          setCartNotice(
+            `Se quitaron ${eliminados.length} platillo(s) del pedido porque ya no existen o no están disponibles en el menú.`,
+          );
+        }
+      }
       // Si el servicio en mesas está deshabilitado actualmente, asegurar servicio en MOSTRADOR
       if (!data.habilitarMesas && useCartStore.getState().tipoServicio === 'MESA') {
         useCartStore.getState().setTipoServicio('MOSTRADOR');
@@ -189,6 +206,7 @@ export const VentasPage: React.FC = () => {
 
   const handleVentaConfirmada = async (ticket: TicketImprimibleModel) => {
     clearCart();
+    setCartNotice(null);
     setIdempotencyKey('');
     setCheckoutOpen(false);
     setUltimoTicket(ticket);
@@ -209,6 +227,7 @@ export const VentasPage: React.FC = () => {
       />
 
       {error && <Alert type="error" message={error} />}
+      {cartNotice && <Alert type="warning" message={cartNotice} />}
       {success && <Alert type="success" message={success} />}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
@@ -253,7 +272,10 @@ export const VentasPage: React.FC = () => {
           onUpdateQty={updateQty}
           onUpdateNotes={updateNotes}
           onRemoveItem={removeItem}
-          onClearCart={clearCart}
+          onClearCart={() => {
+            clearCart();
+            setCartNotice(null);
+          }}
           onAbrirCobro={abrirCobro}
         />
       </div>
@@ -281,7 +303,10 @@ export const VentasPage: React.FC = () => {
         onUpdateQty={updateQty}
         onUpdateNotes={updateNotes}
         onRemoveItem={removeItem}
-        onClearCart={clearCart}
+        onClearCart={() => {
+          clearCart();
+          setCartNotice(null);
+        }}
         onAbrirCobro={abrirCobro}
       />
 

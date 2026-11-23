@@ -82,6 +82,7 @@ export const InventarioPage: React.FC = () => {
   const [proveedorCompraNuevo, setProveedorCompraNuevo] = useState<number | null>(null);
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
   const [alertas, setAlertas] = useState<IngredienteModel[] | null>(null);
+  const [cargandoTab, setCargandoTab] = useState(true);
   const [existencias, setExistencias] = useState<IngredienteModel[]>([]);
   const [existenciasCargando, setExistenciasCargando] = useState(true);
   const [metaExistencias, setMetaExistencias] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
@@ -153,6 +154,7 @@ export const InventarioPage: React.FC = () => {
     const controller = new AbortController();
     abortTodoRef.current = controller;
 
+    setCargandoTab(true);
     setError(null);
     if (tab === 'existencias') actualizarExistencias((version) => version + 1);
     try {
@@ -183,6 +185,8 @@ export const InventarioPage: React.FC = () => {
     } catch (err) {
       if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'Error al cargar inventario');
+    } finally {
+      if (!controller.signal.aborted) setCargandoTab(false);
     }
   }, [canManage, tab]);
 
@@ -345,6 +349,7 @@ export const InventarioPage: React.FC = () => {
     abortPaginaRef.current?.abort();
     const controller = new AbortController();
     abortPaginaRef.current = controller;
+    setCargandoTab(true);
     setError(null);
     try {
       const resultado = await inventarioService.listarCompras(page, controller.signal);
@@ -354,6 +359,8 @@ export const InventarioPage: React.FC = () => {
     } catch (err) {
       if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'No se pudo cargar la página de compras');
+    } finally {
+      if (!controller.signal.aborted) setCargandoTab(false);
     }
   };
 
@@ -361,6 +368,7 @@ export const InventarioPage: React.FC = () => {
     abortPaginaRef.current?.abort();
     const controller = new AbortController();
     abortPaginaRef.current = controller;
+    setCargandoTab(true);
     setError(null);
     try {
       const res = await inventarioService.listarMovimientos({ page }, controller.signal);
@@ -370,6 +378,8 @@ export const InventarioPage: React.FC = () => {
     } catch (err) {
       if (isAbortError(err) || controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : 'No se pudo cargar el historial de movimientos');
+    } finally {
+      if (!controller.signal.aborted) setCargandoTab(false);
     }
   };
 
@@ -480,6 +490,7 @@ export const InventarioPage: React.FC = () => {
                 setPaginaExistencias(1);
                 setSoloPorReponer((actual) => !actual);
               }}
+              onNuevoIngrediente={canManage ? () => setIngModal(true) : undefined}
               onComprar={abrirCompra} onAjustar={setAjusteTarget} />
           </div>
           {alertasStock}
@@ -490,6 +501,7 @@ export const InventarioPage: React.FC = () => {
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
         <ComprasPanel
           key={ingredienteCompra?.id ?? 'compras'}
+          cargando={cargandoTab}
           canBuy={canBuy}
           ingredienteInicial={ingredienteCompra}
           proveedorCompraNuevo={proveedorCompraNuevo}
@@ -505,19 +517,28 @@ export const InventarioPage: React.FC = () => {
         </div>
       )}
 
-      {tab === 'proveedores' && <ProveedoresGrid proveedores={proveedores} />}
+      {tab === 'proveedores' && (
+        <ProveedoresGrid
+          proveedores={proveedores}
+          cargando={cargandoTab}
+          onNuevoProveedor={canManage ? () => setProvModal(true) : undefined}
+        />
+      )}
 
       {tab === 'kardex' && (
         <KardexTable
           movimientos={movimientos}
+          cargando={cargandoTab}
           meta={movMeta}
           onPageChange={(p) => void cargarMovimientosPagina(p)}
+          onIrACompras={canBuy ? () => cambiarTab('compras') : undefined}
         />
       )}
 
       {tab === 'recetas' && (
         <RecetasPreciosGrid
           platillos={platillos}
+          cargando={cargandoTab}
           canManage={canManageMenu}
           canEditRecipe={canManage && canManageMenu}
           canCreateMenu={isAdmin && canManageMenu}

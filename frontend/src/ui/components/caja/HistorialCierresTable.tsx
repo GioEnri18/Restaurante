@@ -3,16 +3,20 @@ import { History } from 'lucide-react';
 import { CajaSesionModel, PaginationMeta } from '../../../models';
 import { formatCurrency, formatDateTime } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
+import { EmptyState } from '../common/EmptyState';
 import { Pagination } from '../common/Pagination';
+import { TableSkeleton } from '../common/TableSkeleton';
 
 interface HistorialCierresTableProps {
   historial: CajaSesionModel[];
+  loading?: boolean;
   meta: PaginationMeta;
   onPageChange: (page: number) => void;
 }
 
 export const HistorialCierresTable: React.FC<HistorialCierresTableProps> = ({
   historial,
+  loading = false,
   meta,
   onPageChange,
 }) => {
@@ -39,10 +43,16 @@ export const HistorialCierresTable: React.FC<HistorialCierresTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {historial.length === 0 ? (
+            {loading ? (
+              <TableSkeleton rows={5} cols={8} label="Cargando historial de cierres de caja..." />
+            ) : historial.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-10 text-center text-slate-600">
-                  Aún no hay sesiones de caja registradas.
+                <td colSpan={8}>
+                  <EmptyState
+                    icon={History}
+                    title="Aún no hay sesiones de caja"
+                    description="Cuando se abran y cierren turnos de caja, el historial de cuadres aparecerá aquí."
+                  />
                 </td>
               </tr>
             ) : (

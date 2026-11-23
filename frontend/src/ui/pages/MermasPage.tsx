@@ -9,8 +9,10 @@ import { formatCurrency, formatDateTime, lbToOzPreview } from '../../utils/forma
 import { generarUuid } from '../../utils/idempotency';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { EmptyState } from '../components/common/EmptyState';
 import { Field } from '../components/common/Field';
 import { Pagination } from '../components/common/Pagination';
+import { TableSkeleton } from '../components/common/TableSkeleton';
 
 const MOTIVOS: Array<{ value: MotivoMerma; label: string }> = [
   { value: 'VENCIMIENTO', label: 'Vencimiento' },
@@ -25,6 +27,7 @@ export const MermasPage: React.FC = () => {
   const esCajero = useAuthStore((s) => s.usuario?.rol?.codigo === 'CAJERO');
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
   const [listado, setListado] = useState<MermasListadoModel | null>(null);
+  const [loading, setLoading] = useState(true);
   const [filtroMotivo, setFiltroMotivo] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -32,6 +35,7 @@ export const MermasPage: React.FC = () => {
   const intento = useRef<{ datos: string; clave: string } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
+  const ingredienteSelectRef = useRef<HTMLSelectElement | null>(null);
 
   const [form, setForm] = useState({
     ingredienteId: '',
@@ -48,6 +52,7 @@ export const MermasPage: React.FC = () => {
       abortRef.current = controller;
       const reqId = ++requestIdRef.current;
 
+      setLoading(true);
       setError(null);
       try {
         const [ings, data] = await Promise.all([
@@ -62,6 +67,8 @@ export const MermasPage: React.FC = () => {
       } catch (err) {
         if (isAbortError(err) || reqId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : 'Error cargando mermas');
+      } finally {
+        if (reqId === requestIdRef.current) setLoading(false);
       }
     },
     [canCreate, filtroMotivo],
@@ -162,6 +169,7 @@ export const MermasPage: React.FC = () => {
 
             <Field label="Ingrediente" required labelClassName="mb-1 block text-sm font-bold text-slate-700">
               <select
+                ref={ingredienteSelectRef}
                 value={form.ingredienteId}
                 onChange={(e) => setForm({ ...form, ingredienteId: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -271,10 +279,34 @@ export const MermasPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(listado?.items ?? []).length === 0 ? (
+                {loading ? (
+                  <TableSkeleton rows={5} cols={6} label="Cargando historial de mermas..." />
+                ) : (listado?.items ?? []).length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-600">
-                      No hay mermas registradas.
+                    <td colSpan={6}>
+                      <EmptyState
+                        icon={Trash2}
+                        title="No hay mermas registradas"
+                        description={
+                          filtroMotivo
+                            ? 'No se encontraron pérdidas con el motivo seleccionado.'
+                            : 'Las pérdidas de ingredientes que registres aparecerán aquí junto con su costo.'
+                        }
+                        action={
+                          filtroMotivo
+                            ? {
+                              label: 'Ver todos los motivos',
+                              onClick: () => setFiltroMotivo(''),
+                              variant: 'secondary',
+                            }
+                            : canCreate
+                              ? {
+                                label: 'Registrar la primera merma',
+                                onClick: () => ingredienteSelectRef.current?.focus(),
+                              }
+                              : undefined
+                        }
+                      />
                     </td>
                   </tr>
                 ) : (

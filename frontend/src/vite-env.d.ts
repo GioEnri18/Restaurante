@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_DEFAULT_PAGE_SIZE?: string;
   readonly VITE_ADMIN_ROLE_CODE?: string;
   readonly VITE_AUTH_STORAGE_KEY?: string;
+  readonly VITE_CART_STORAGE_KEY?: string;
   readonly VITE_AUTO_PRINT_ENABLED?: string;
   readonly VITE_ENABLE_TABLE_SERVICE?: string;
   readonly VITE_DEFAULT_SERVICE_TYPE?: string;

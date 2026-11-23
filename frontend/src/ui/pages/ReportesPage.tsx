@@ -9,15 +9,17 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
-import { FileDown, FileSpreadsheet, Filter } from 'lucide-react';
+import { BarChart3, FileDown, FileSpreadsheet, Filter, UtensilsCrossed } from 'lucide-react';
 import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../../models';
 import { isAbortError } from '../../services/httpClient';
 import { reportesService } from '../../services/reportes.service';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
+import { EmptyState } from '../components/common/EmptyState';
 import { Field } from '../components/common/Field';
 import { Pagination } from '../components/common/Pagination';
+import { TableSkeleton } from '../components/common/TableSkeleton';
 
 const fechaGuatemala = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Guatemala', dateStyle: 'short' });
 
@@ -306,7 +308,12 @@ export const ReportesPage: React.FC = () => {
               Ventas, costos y ganancia por día
             </h2>
             {serie.length === 0 ? (
-              <p className="py-16 text-center text-sm text-slate-600">Sin ventas ni mermas en este período.</p>
+              <EmptyState
+                compact
+                icon={BarChart3}
+                title="Sin ventas ni mermas en este período"
+                description="Selecciona otro rango de fechas o usa los accesos rápidos para consultar otros días."
+              />
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -333,7 +340,12 @@ export const ReportesPage: React.FC = () => {
               Platillos Más Vendidos (Unidades)
             </h2>
             {topProductos.length === 0 ? (
-              <p className="py-16 text-center text-sm text-slate-600">Sin datos de productos.</p>
+              <EmptyState
+                compact
+                icon={UtensilsCrossed}
+                title="Sin datos de platillos"
+                description="Cuando se registren ventas en el rango elegido, aquí aparecerán los más vendidos."
+              />
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -368,17 +380,40 @@ export const ReportesPage: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {topProductos.map((p) => (
-              <tr key={p.platilloId}>
-                <td className="py-2.5 px-2 font-bold text-slate-900">{p.nombre}</td>
-                <td className="py-2.5 px-2 text-right">{p.cantidadVendida}</td>
-                <td className="py-2.5 px-2 text-right font-semibold">{formatCurrency(p.ingresos)}</td>
-                <td className="py-2.5 px-2 text-right text-slate-600">{formatCurrency(p.costoTotal)}</td>
-                <td className="py-2.5 px-2 text-right font-bold text-emerald-700">
-                  {formatCurrency(p.utilidad)}
+            {loading || cargandoDetalle ? (
+              <TableSkeleton rows={5} cols={5} label="Cargando rentabilidad por platillo..." />
+            ) : topProductos.length === 0 ? (
+              <tr>
+                <td colSpan={5}>
+                  <EmptyState
+                    icon={BarChart3}
+                    title="Sin ventas de platillos en este período"
+                    description="No se registraron platillos vendidos en las fechas seleccionadas."
+                    action={{
+                      label: 'Ver este mes',
+                      variant: 'secondary',
+                      onClick: () => {
+                        const { desde, hasta } = rangoActual('mes');
+                        setFechaDesde(desde);
+                        setFechaHasta(hasta);
+                      },
+                    }}
+                  />
                 </td>
               </tr>
-            ))}
+            ) : (
+              topProductos.map((p) => (
+                <tr key={p.platilloId}>
+                  <td className="py-2.5 px-2 font-bold text-slate-900">{p.nombre}</td>
+                  <td className="py-2.5 px-2 text-right">{p.cantidadVendida}</td>
+                  <td className="py-2.5 px-2 text-right font-semibold">{formatCurrency(p.ingresos)}</td>
+                  <td className="py-2.5 px-2 text-right text-slate-600">{formatCurrency(p.costoTotal)}</td>
+                  <td className="py-2.5 px-2 text-right font-bold text-emerald-700">
+                    {formatCurrency(p.utilidad)}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
         {!loading && !cargandoDetalle && metaProductos.totalPages > 1 && (

@@ -1,14 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { FolderPlus, Plus, Search, X } from 'lucide-react';
+import { BookOpen, FolderPlus, Plus, Search, X } from 'lucide-react';
 import { PlatilloModel } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
+import { EmptyState } from '../common/EmptyState';
 import { Field } from '../common/Field';
 import { FotoPlatillo } from '../common/FotoPlatillo';
 import { Pagination, usePaginacionLocal } from '../common/Pagination';
 
 interface RecetasPreciosGridProps {
   platillos: PlatilloModel[];
+  cargando?: boolean;
   canManage: boolean;
   canEditRecipe: boolean;
   canCreateMenu?: boolean;
@@ -21,6 +23,7 @@ interface RecetasPreciosGridProps {
 
 export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
   platillos,
+  cargando = false,
   canManage,
   canEditRecipe,
   canCreateMenu = false,
@@ -155,10 +158,64 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {filtrados.length === 0 ? (
-          <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-            No se encontraron platillos con ese filtro.
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy={cargando}>
+        {cargando ? (
+          <>
+            <p role="status" className="sr-only">
+              Cargando recetas y precios...
+            </p>
+            {[1, 2, 3, 4].map((n) => (
+              <div
+                key={n}
+                aria-hidden="true"
+                className="animate-pulse space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-14 w-14 rounded-xl bg-slate-200" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-36 rounded bg-slate-200" />
+                      <div className="h-3 w-24 rounded bg-slate-200" />
+                    </div>
+                  </div>
+                  <div className="h-5 w-16 rounded bg-slate-200" />
+                </div>
+                <div className="space-y-1.5 border-t border-slate-100 pt-2">
+                  <div className="h-3 w-full rounded bg-slate-200" />
+                  <div className="h-3 w-4/5 rounded bg-slate-200" />
+                </div>
+              </div>
+            ))}
+          </>
+        ) : filtrados.length === 0 ? (
+          <div className="col-span-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <EmptyState
+              icon={BookOpen}
+              title={
+                busqueda || soloPendientes
+                  ? 'Sin platillos con ese filtro'
+                  : 'Aún no hay platillos en el catálogo'
+              }
+              description={
+                busqueda || soloPendientes
+                  ? 'Prueba ajustando el buscador o quitando el filtro de pendientes.'
+                  : 'Agrega platillos con su receta y precio para empezar a vender en el POS.'
+              }
+              action={
+                busqueda || soloPendientes
+                  ? {
+                      label: 'Limpiar filtros',
+                      variant: 'secondary',
+                      onClick: () => {
+                        setBusqueda('');
+                        setSoloPendientes(false);
+                      },
+                    }
+                  : canCreateMenu && onNuevoPlatillo
+                    ? { label: 'Crear primer platillo', onClick: onNuevoPlatillo }
+                    : undefined
+              }
+            />
           </div>
         ) : (
           pagina.items.map((p) => {

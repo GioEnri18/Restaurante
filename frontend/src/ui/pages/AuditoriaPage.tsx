@@ -7,9 +7,11 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { EmptyState } from '../components/common/EmptyState';
 import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination } from '../components/common/Pagination';
+import { TableSkeleton } from '../components/common/TableSkeleton';
 import { NominaPanel } from '../components/auditoria/NominaPanel';
 
 function nombreAccion(accion: string): string {
@@ -123,6 +125,14 @@ export const AuditoriaPage: React.FC = () => {
     },
     [usuarioId, accion, fechaDesde, fechaHasta],
   );
+
+  const hayFiltros = Boolean(usuarioId || accion || fechaDesde || fechaHasta);
+  const limpiarFiltros = () => {
+    setUsuarioId('');
+    setAccion('');
+    setFechaDesde('');
+    setFechaHasta('');
+  };
 
   useEffect(() => {
     void cargar(1);
@@ -240,15 +250,24 @@ export const AuditoriaPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-10 text-center text-slate-600">
-                    Cargando registros de auditoría...
-                  </td>
-                </tr>
+                <TableSkeleton rows={6} cols={6} label="Cargando registros de auditoría..." />
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-slate-600">
-                    No se encontraron registros con esos filtros.
+                  <td colSpan={6}>
+                    <EmptyState
+                      icon={ShieldCheck}
+                      title="Sin registros de auditoría"
+                      description={
+                        hayFiltros
+                          ? 'No se encontraron eventos que coincidan con los filtros seleccionados.'
+                          : 'Aún no se han registrado eventos en la bitácora del sistema.'
+                      }
+                      action={
+                        hayFiltros
+                          ? { label: 'Limpiar filtros', onClick: limpiarFiltros, variant: 'secondary' }
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
               ) : (

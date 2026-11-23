@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { ShoppingBag } from 'lucide-react';
 import { env } from '../../../config/env';
 import { CompraModel, IngredienteModel, PaginationMeta, ProveedorModel, UnidadMedida } from '../../../models';
 import { formatCurrency, formatDateTime, lbToOzPreview } from '../../../utils/formatters';
+import { EmptyState } from '../common/EmptyState';
 import { Field } from '../common/Field';
 import { Pagination } from '../common/Pagination';
 
 interface ComprasPanelProps {
+  cargando?: boolean;
   canBuy: boolean;
   proveedores: ProveedorModel[];
   ingredientes: IngredienteModel[];
@@ -37,6 +40,7 @@ const INITIAL_COMPRA_FORM = {
 };
 
 export const ComprasPanel: React.FC<ComprasPanelProps> = ({
+  cargando = false,
   canBuy,
   proveedores,
   ingredientes,
@@ -231,9 +235,38 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
 
       <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${canBuy ? 'lg:col-span-12 2xl:col-span-6' : 'lg:col-span-12'}`}>
         <h2 className="mb-4 text-lg font-bold text-slate-900">Compras recientes</h2>
-        <div className="space-y-3">
-          {compras.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-600">Sin compras registradas todavía.</p>
+        <div className="space-y-3" aria-busy={cargando}>
+          {cargando ? (
+            <>
+              <p role="status" className="sr-only">
+                Cargando compras recientes...
+              </p>
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={n}
+                  aria-hidden="true"
+                  className="animate-pulse space-y-2 rounded-xl border border-slate-200 p-3.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="h-4 w-40 rounded bg-slate-200" />
+                    <div className="h-5 w-20 rounded bg-slate-200" />
+                  </div>
+                  <div className="h-3 w-56 rounded bg-slate-200" />
+                  <div className="h-3 w-48 rounded bg-slate-200" />
+                </div>
+              ))}
+            </>
+          ) : compras.length === 0 ? (
+            <EmptyState
+              compact
+              icon={ShoppingBag}
+              title="Sin compras registradas"
+              description={
+                canBuy
+                  ? 'Ingresa tu primera compra en el formulario para sumar existencias y actualizar el costo promedio.'
+                  : 'Todavía no se han registrado compras de ingredientes.'
+              }
+            />
           ) : (
             compras.map((c) => (
               <div key={c.id} className="rounded-xl border border-slate-200 p-3.5 text-sm">

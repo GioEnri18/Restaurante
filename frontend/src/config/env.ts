@@ -39,6 +39,7 @@ export const env = {
   DEFAULT_PAGE_SIZE: getEnvNumber(import.meta.env.VITE_DEFAULT_PAGE_SIZE, 15),
   ADMIN_ROLE_CODE: import.meta.env.VITE_ADMIN_ROLE_CODE || 'ADMIN',
   AUTH_STORAGE_KEY: import.meta.env.VITE_AUTH_STORAGE_KEY || 'pos_restaurante_gt_session',
+  CART_STORAGE_KEY: import.meta.env.VITE_CART_STORAGE_KEY || 'pos_cart_v1',
   AUTO_PRINT_ENABLED: getEnvBoolean(import.meta.env.VITE_AUTO_PRINT_ENABLED, true),
   ENABLE_TABLE_SERVICE: getEnvBoolean(import.meta.env.VITE_ENABLE_TABLE_SERVICE, false),
   DEFAULT_SERVICE_TYPE: (import.meta.env.VITE_DEFAULT_SERVICE_TYPE || 'MOSTRADOR') as

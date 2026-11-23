@@ -1,10 +1,12 @@
 import React from 'react';
-import { PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { PackageOpen, PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { IngredienteModel, PaginationMeta } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
+import { EmptyState } from '../common/EmptyState';
 import { Field } from '../common/Field';
 import { Pagination } from '../common/Pagination';
+import { TableSkeleton } from '../common/TableSkeleton';
 
 interface ExistenciasTableProps {
   ingredientes: IngredienteModel[];
@@ -17,6 +19,7 @@ interface ExistenciasTableProps {
   onAlternarPorReponer: () => void;
   meta: PaginationMeta;
   onPageChange: (pagina: number) => void;
+  onNuevoIngrediente?: () => void;
   onComprar: (ingrediente: IngredienteModel) => void;
   onAjustar: (ingrediente: IngredienteModel) => void;
 }
@@ -32,9 +35,12 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
   onAlternarPorReponer,
   meta,
   onPageChange,
+  onNuevoIngrediente,
   onComprar,
   onAjustar,
 }) => {
+  const hayFiltros = Boolean(busqueda.trim() || soloPorReponer);
+  const cols = canBuy || canAdjust ? 8 : 7;
   return (
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -99,10 +105,38 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {cargando || ingredientes.length === 0 ? (
+            {cargando ? (
+              <TableSkeleton rows={6} cols={cols} label="Cargando existencias de inventario..." />
+            ) : ingredientes.length === 0 ? (
               <tr>
-                <td colSpan={canBuy || canAdjust ? 8 : 7} className="py-8 text-center text-sm text-slate-500">
-                  {cargando ? 'Cargando existencias…' : 'No se encontraron ingredientes con ese filtro.'}
+                <td colSpan={cols}>
+                  <EmptyState
+                    icon={PackageOpen}
+                    title={
+                      hayFiltros
+                        ? 'No se encontraron ingredientes'
+                        : 'Aún no hay ingredientes registrados'
+                    }
+                    description={
+                      hayFiltros
+                        ? 'Ningún ingrediente coincide con la búsqueda o filtro activo.'
+                        : 'Registra los insumos de cocina para llevar control de existencias y costos.'
+                    }
+                    action={
+                      hayFiltros
+                        ? {
+                            label: 'Limpiar filtros',
+                            variant: 'secondary',
+                            onClick: () => {
+                              onBuscar('');
+                              if (soloPorReponer) onAlternarPorReponer();
+                            },
+                          }
+                        : onNuevoIngrediente
+                          ? { label: 'Registrar primer ingrediente', onClick: onNuevoIngrediente }
+                          : undefined
+                    }
+                  />
                 </td>
               </tr>
             ) : (

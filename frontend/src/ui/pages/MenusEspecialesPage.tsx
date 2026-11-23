@@ -21,6 +21,7 @@ import { formatCurrency, formatDateOnly } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { EmptyState } from '../components/common/EmptyState';
 import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination, usePaginacionLocal } from '../components/common/Pagination';
@@ -437,12 +438,13 @@ export const MenusEspecialesPage: React.FC = () => {
           Cargando calendario de menús...
         </div>
       ) : menus.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <CalendarClock className="mx-auto mb-2 h-10 w-10 text-slate-300" aria-hidden="true" />
-          <p className="font-bold text-slate-700">Aún no hay menús especiales programados</p>
-          <p className="mt-1 text-sm text-slate-500">
-            Crea tu primer menú por fecha especial (Día de la Madre, Navidad, Fin de Semana) y recibe avisos anticipados.
-          </p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <EmptyState
+            icon={CalendarClock}
+            title="Aún no hay menús especiales programados"
+            description="Crea tu primer menú por fecha especial (Día de la Madre, Navidad, Fin de Semana) y recibe avisos anticipados."
+            action={{ label: 'Programar primera temporada', onClick: abrirNuevo }}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

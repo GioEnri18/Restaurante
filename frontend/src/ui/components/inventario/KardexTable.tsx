@@ -1,19 +1,26 @@
 import React from 'react';
+import { History } from 'lucide-react';
 import { InventarioMovimientoModel, PaginationMeta } from '../../../models';
 import { formatDateTime } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
+import { EmptyState } from '../common/EmptyState';
 import { Pagination } from '../common/Pagination';
+import { TableSkeleton } from '../common/TableSkeleton';
 
 interface KardexTableProps {
   movimientos: InventarioMovimientoModel[];
+  cargando?: boolean;
   meta: PaginationMeta;
   onPageChange: (page: number) => void;
+  onIrACompras?: () => void;
 }
 
 export const KardexTable: React.FC<KardexTableProps> = ({
   movimientos,
+  cargando = false,
   meta,
   onPageChange,
+  onIrACompras,
 }) => {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -33,40 +40,59 @@ export const KardexTable: React.FC<KardexTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {movimientos.map((m) => (
-              <tr key={m.id}>
-                <td className="py-2.5 px-2 text-slate-500">{formatDateTime(m.createdAt)}</td>
-                <td className="py-2.5 px-2 font-semibold">{m.ingredienteNombre}</td>
-                <td className="py-2.5 px-2">
-                  <Badge
-                    variant={
-                      m.cantidadOz >= 0
-                        ? 'success'
-                        : m.tipo === 'SALIDA_MERMA'
-                          ? 'danger'
-                          : 'warning'
+            {cargando ? (
+              <TableSkeleton rows={6} cols={6} label="Cargando historial de movimientos..." />
+            ) : movimientos.length === 0 ? (
+              <tr>
+                <td colSpan={6}>
+                  <EmptyState
+                    icon={History}
+                    title="Sin movimientos de inventario"
+                    description="Las compras, consumos por venta, ajustes y mermas aparecerán aquí automáticamente."
+                    action={
+                      onIrACompras
+                        ? { label: 'Registrar una compra', onClick: onIrACompras, variant: 'secondary' }
+                        : undefined
                     }
-                  >
-                    {m.tipo}
-                  </Badge>
-                </td>
-                <td
-                  className={`py-2.5 px-2 text-right font-bold ${
-                    m.cantidadOz >= 0 ? 'text-emerald-700' : 'text-red-600'
-                  }`}
-                >
-                  {m.cantidadOz >= 0 ? '+' : ''}
-                  {m.cantidadOz.toFixed(2)} oz
-                </td>
-                <td className="py-2.5 px-2 text-right text-slate-600">
-                  {m.stockAnteriorOz.toFixed(1)} → <strong>{m.stockNuevoOz.toFixed(1)} oz</strong>
-                </td>
-                <td className="py-2.5 px-2 text-xs text-slate-600">
-                  <p>{m.motivo || '—'}</p>
-                  <p className="text-slate-600">{m.usuarioNombre}</p>
+                  />
                 </td>
               </tr>
-            ))}
+            ) : (
+              movimientos.map((m) => (
+                <tr key={m.id}>
+                  <td className="py-2.5 px-2 text-slate-500">{formatDateTime(m.createdAt)}</td>
+                  <td className="py-2.5 px-2 font-semibold">{m.ingredienteNombre}</td>
+                  <td className="py-2.5 px-2">
+                    <Badge
+                      variant={
+                        m.cantidadOz >= 0
+                          ? 'success'
+                          : m.tipo === 'SALIDA_MERMA'
+                            ? 'danger'
+                            : 'warning'
+                      }
+                    >
+                      {m.tipo}
+                    </Badge>
+                  </td>
+                  <td
+                    className={`py-2.5 px-2 text-right font-bold ${
+                      m.cantidadOz >= 0 ? 'text-emerald-700' : 'text-red-600'
+                    }`}
+                  >
+                    {m.cantidadOz >= 0 ? '+' : ''}
+                    {m.cantidadOz.toFixed(2)} oz
+                  </td>
+                  <td className="py-2.5 px-2 text-right text-slate-600">
+                    {m.stockAnteriorOz.toFixed(1)} → <strong>{m.stockNuevoOz.toFixed(1)} oz</strong>
+                  </td>
+                  <td className="py-2.5 px-2 text-xs text-slate-600">
+                    <p>{m.motivo || '—'}</p>
+                    <p className="text-slate-600">{m.usuarioNombre}</p>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Users } from 'lucide-react';
 import { PersonaNominaModel } from '../../../models';
 import { auditoriaService } from '../../../services/auditoria.service';
 import { isAbortError } from '../../../services/httpClient';
 import { formatCurrency } from '../../../utils/formatters';
 import { Alert } from '../common/Alert';
 import { Badge } from '../common/Badge';
+import { EmptyState } from '../common/EmptyState';
 import { Pagination, usePaginacionLocal } from '../common/Pagination';
+import { TableSkeleton } from '../common/TableSkeleton';
 
 export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
+  const navigate = useNavigate();
   const [personas, setPersonas] = useState<PersonaNominaModel[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +37,6 @@ export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
     };
   }, []);
 
-  if (cargando) return <p role="status" className="text-sm text-slate-600">Cargando nómina…</p>;
   if (error) return <Alert type="error" message={error} />;
 
   const activas = personas.filter((persona) => persona.activo);
@@ -45,30 +48,50 @@ export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50 p-4">
         <div>
           <h2 className="font-bold text-teal-950">Sueldos mensuales acordados</h2>
-          <p className="text-2xl font-extrabold text-teal-900">{formatCurrency(totalCentavos / 100)}</p>
+          <p className="text-2xl font-extrabold text-teal-900">
+            {cargando ? '—' : formatCurrency(totalCentavos / 100)}
+          </p>
           <p className="text-sm text-teal-900">
-            Base mensual del personal activo, antes de deducciones y pagos. {pendientes > 0 && `${pendientes} con datos pendientes.`}
+            Base mensual del personal activo, antes de deducciones y pagos.{' '}
+            {!cargando && pendientes > 0 && `${pendientes} con datos pendientes.`}
           </p>
         </div>
         {puedeEditar && <Link to="/accesos" className="rounded-xl border border-teal-300 bg-white px-4 py-2 text-sm font-bold text-teal-900">Editar datos del personal</Link>}
       </div>
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4">
-        {personas.length === 0 ? <p className="text-sm text-slate-600">Todavía no hay personal registrado.</p> : (
-          <table className="w-full min-w-[540px] text-left text-sm">
-            <caption className="sr-only">
-              Nómina mensual acordada del personal registrado
-            </caption>
-            <thead className="border-b text-slate-600">
+        <table className="w-full min-w-[540px] text-left text-sm">
+          <caption className="sr-only">
+            Nómina mensual acordada del personal registrado
+          </caption>
+          <thead className="border-b text-slate-600">
+            <tr>
+              <th scope="col" className="p-2">Persona</th>
+              <th scope="col" className="p-2">Rol</th>
+              <th scope="col" className="p-2">Fecha de ingreso</th>
+              <th scope="col" className="p-2 text-right">Sueldo mensual</th>
+              <th scope="col" className="p-2">Estado</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {cargando ? (
+              <TableSkeleton rows={5} cols={5} label="Cargando nómina del personal..." />
+            ) : personas.length === 0 ? (
               <tr>
-                <th scope="col" className="p-2">Persona</th>
-                <th scope="col" className="p-2">Rol</th>
-                <th scope="col" className="p-2">Fecha de ingreso</th>
-                <th scope="col" className="p-2 text-right">Sueldo mensual</th>
-                <th scope="col" className="p-2">Estado</th>
+                <td colSpan={5}>
+                  <EmptyState
+                    icon={Users}
+                    title="Sin personal registrado"
+                    description="Todavía no hay colaboradores en la nómina de la sucursal."
+                    action={
+                      puedeEditar
+                        ? { label: 'Ir a Personal y accesos', onClick: () => navigate('/accesos') }
+                        : undefined
+                    }
+                  />
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pagina.items.map((persona) => (
+            ) : (
+              pagina.items.map((persona) => (
                 <tr key={persona.id}>
                   <th scope="row" className="p-2 font-semibold">{persona.nombreCompleto}</th>
                   <td className="p-2">{persona.rol}</td>
@@ -76,12 +99,12 @@ export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
                   <td className="p-2 text-right">{persona.sueldoMensual === null ? 'Pendiente' : formatCurrency(persona.sueldoMensual)}</td>
                   <td className="p-2"><Badge variant={persona.activo ? 'success' : 'neutral'}>{persona.activo ? 'Activo' : 'Inactivo'}</Badge></td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
-      {pagina.meta.totalPages > 1 && <Pagination meta={pagina.meta} onPageChange={pagina.onPageChange} />}
+      {!cargando && pagina.meta.totalPages > 1 && <Pagination meta={pagina.meta} onPageChange={pagina.onPageChange} />}
     </section>
   );
 }

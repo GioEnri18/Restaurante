@@ -195,6 +195,7 @@ export const CajaPage: React.FC = () => {
 
       <HistorialCierresTable
         historial={historial}
+        loading={loading}
         meta={meta}
         onPageChange={(p) => void cargar(p)}
       />

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Search, Eye, Printer, Ban, RotateCcw } from 'lucide-react';
+import { Search, Eye, Printer, Ban, RotateCcw, Receipt } from 'lucide-react';
 import { env } from '../../config/env';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { FacturaDetalleModel, FacturaResumenModel, PaginationMeta } from '../../models';
@@ -9,9 +9,11 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { EmptyState } from '../components/common/EmptyState';
 import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination } from '../components/common/Pagination';
+import { TableSkeleton } from '../components/common/TableSkeleton';
 import { PrintTicketsModal } from '../components/print/PrintTicketsModal';
 
 export const FacturasPage: React.FC = () => {
@@ -110,6 +112,10 @@ export const FacturasPage: React.FC = () => {
       abortRef.current?.abort();
     };
   }, [cargar]);
+
+  const hayFiltros = Boolean(
+    numero.trim() || cliente.trim() || fechaDesde || fechaHasta || montoMin || montoMax || estado,
+  );
 
   const limpiarFiltros = () => {
     setNumero('');
@@ -286,15 +292,24 @@ export const FacturasPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-600">
-                    Cargando facturas...
-                  </td>
-                </tr>
+                <TableSkeleton rows={6} cols={7} label="Cargando facturas..." />
               ) : facturas.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-600">
-                    No hay facturas que coincidan con la búsqueda.
+                  <td colSpan={7}>
+                    <EmptyState
+                      icon={Receipt}
+                      title="No se encontraron facturas"
+                      description={
+                        hayFiltros
+                          ? 'Ninguna factura coincide con los filtros actuales.'
+                          : 'Todavía no se han emitido facturas en la sucursal.'
+                      }
+                      action={
+                        hayFiltros
+                          ? { label: 'Limpiar filtros', onClick: limpiarFiltros, variant: 'secondary' }
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
