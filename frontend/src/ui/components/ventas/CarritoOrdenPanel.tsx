@@ -12,6 +12,7 @@ import {
   StickyNote,
   UserRound,
   AlertTriangle,
+  X,
 } from 'lucide-react';
 import { env } from '../../../config/env';
 import { CartItemModel, MesaModel, TipoServicio } from '../../../models';
@@ -36,7 +37,7 @@ interface CarritoTotals {
   totalUnidades: number;
 }
 
-interface CarritoOrdenPanelProps {
+export interface CarritoOrdenPanelProps {
   items: CartItemModel[];
   tipoServicio: TipoServicio;
   mesaId: number | null;
@@ -49,6 +50,9 @@ interface CarritoOrdenPanelProps {
   canOpenCaja?: boolean;
   cajaAbierta: boolean;
   faltantes: FaltanteStock[];
+  mode?: 'sidebar' | 'sheet';
+  titleId?: string;
+  onCloseSheet?: () => void;
   onActualizarExistencias: () => void;
   onSetTipoServicio: (tipo: TipoServicio) => void;
   onSetMesaId: (mesaId: number | null) => void;
@@ -73,6 +77,9 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
   canOpenCaja = false,
   cajaAbierta,
   faltantes,
+  mode = 'sidebar',
+  titleId,
+  onCloseSheet,
   onActualizarExistencias,
   onSetTipoServicio,
   onSetMesaId,
@@ -84,6 +91,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
   onAbrirCobro,
 }) => {
   const [expandedNoteId, setExpandedNoteId] = useState<number | null>(null);
+  const isSheet = mode === 'sheet';
 
   const toggleNotaRapida = (platilloId: number, currentNotas: string, chip: string) => {
     const partes = currentNotas
@@ -97,16 +105,23 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
     onUpdateNotes(platilloId, next.join(', '));
   };
 
-  return (
-    <div className="xl:col-span-4">
-      <div className="sticky top-20 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
-        <div className="flex items-center justify-between bg-slate-900 px-4 py-3.5 text-white">
+  const cardContent = (
+      <div
+        className={
+          isSheet
+            ? 'flex max-h-[88dvh] flex-col overflow-hidden bg-white'
+            : 'sticky top-20 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md'
+        }
+      >
+        <div className="flex shrink-0 items-center justify-between bg-slate-900 px-4 py-3.5 text-white">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-700">
               <ShoppingCart className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="text-base font-extrabold leading-tight">Orden de Mostrador</h2>
+              <h2 id={titleId} className="text-base font-extrabold leading-tight">
+                Orden de Mostrador
+              </h2>
               <p className="text-xs text-slate-300">
                 {tipoServicio === 'MOSTRADOR'
                   ? 'Despacho directo en mostrador'
@@ -118,9 +133,21 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               </p>
             </div>
           </div>
-          <span className="rounded-full bg-brand-500/20 px-3 py-1 text-xs font-extrabold text-brand-200 ring-1 ring-brand-400/30">
-            {totals.totalUnidades} ítem(s)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-brand-500/20 px-3 py-1 text-xs font-extrabold text-brand-200 ring-1 ring-brand-400/30">
+              {totals.totalUnidades} ítem(s)
+            </span>
+            {isSheet && onCloseSheet && (
+              <button
+                type="button"
+                onClick={onCloseSheet}
+                aria-label="Cerrar panel del pedido"
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-200 transition hover:bg-slate-800 hover:text-white"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Selector enfocado en Mostrador + Para Llevar (Mesas listas para futuro vía .env) */}
@@ -222,7 +249,9 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
         </div>
 
         {/* Ítems de la orden */}
-        <div className="max-h-[38vh] divide-y divide-slate-100 overflow-y-auto px-4">
+        <div
+          className={`${isSheet ? 'min-h-0 flex-1' : 'max-h-[38vh]'} divide-y divide-slate-100 overflow-y-auto px-4`}
+        >
           {items.length === 0 ? (
             <div className="py-12 text-center">
               <ShoppingCart className="mx-auto mb-2 h-9 w-9 text-slate-300" aria-hidden="true" />
@@ -250,30 +279,30 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                     </p>
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1">
+                  <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => onUpdateQty(item.platillo.id, -1)}
                         aria-label={`Restar una unidad de ${item.platillo.nombre}`}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-200"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-200"
                       >
-                        <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Minus className="h-4 w-4" aria-hidden="true" />
                       </button>
-                      <span className="w-7 text-center text-sm font-extrabold">
+                      <span className="min-w-[2rem] text-center text-sm font-extrabold">
                         {item.cantidad}
                       </span>
                       <button
                         type="button"
                         onClick={() => onUpdateQty(item.platillo.id, 1)}
                         aria-label={`Sumar una unidad de ${item.platillo.nombre}`}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-200"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-700 transition hover:bg-slate-200"
                       >
-                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Plus className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </div>
 
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() =>
@@ -282,20 +311,20 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                           )
                         }
                         aria-label={`Notas de cocina para ${item.platillo.nombre}`}
-                        className={`inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-bold transition ${
+                        className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition ${
                           item.notas
                             ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                         }`}
                       >
-                        <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
+                        <StickyNote className="h-4 w-4" aria-hidden="true" />
                         Nota
                       </button>
                       <button
                         type="button"
                         onClick={() => onRemoveItem(item.platillo.id)}
                         aria-label={`Quitar ${item.platillo.nombre} del pedido`}
-                        className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl text-red-600 transition hover:bg-red-50"
                         title="Quitar ítem"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -342,7 +371,11 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
         </div>
 
         {/* Totales fiscales + Botón Cobrar */}
-        <div className="space-y-2 border-t border-slate-200 bg-slate-50 p-4">
+        <div
+          className={`shrink-0 space-y-2 border-t border-slate-200 bg-slate-50 p-4 ${
+            isSheet ? 'pb-[calc(1rem+env(safe-area-inset-bottom))]' : ''
+          }`}
+        >
           <div className="flex justify-between text-xs font-medium text-slate-500">
             <span>Subtotal sin IVA</span>
             <span>{formatCurrency(totals.subtotalSinIva)}</span>
@@ -407,6 +440,11 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
           </div>
         </div>
       </div>
-    </div>
   );
+
+  if (isSheet) {
+    return cardContent;
+  }
+
+  return <div className="hidden lg:block lg:col-span-5 xl:col-span-4">{cardContent}</div>;
 };

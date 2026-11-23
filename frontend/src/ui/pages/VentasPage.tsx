@@ -14,6 +14,7 @@ import {
 } from '../components/inventario/NuevaCategoriaModal';
 import { NuevoPlatilloModal } from '../components/inventario/NuevoPlatilloModal';
 import { PrintTicketsModal } from '../components/print/PrintTicketsModal';
+import { CarritoMobileSheet } from '../components/ventas/CarritoMobileSheet';
 import { CarritoOrdenPanel } from '../components/ventas/CarritoOrdenPanel';
 import { CatalogoPlatillos } from '../components/ventas/CatalogoPlatillos';
 import { CobroModal } from '../components/ventas/CobroModal';
@@ -54,6 +55,7 @@ export const VentasPage: React.FC = () => {
   const [catModalOpen, setCatModalOpen] = useState(false);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState<string>('');
 
   const [ticketImprimir, setTicketImprimir] = useState<TicketImprimibleModel | null>(null);
@@ -195,7 +197,7 @@ export const VentasPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24 lg:pb-0">
       <VentasStatusHeader
         menu={menu}
         habilitarMesas={habilitarMesas}
@@ -209,7 +211,7 @@ export const VentasPage: React.FC = () => {
       {error && <Alert type="error" message={error} />}
       {success && <Alert type="success" message={success} />}
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <CatalogoPlatillos
           menu={menu}
           loading={loading}
@@ -255,6 +257,33 @@ export const VentasPage: React.FC = () => {
           onAbrirCobro={abrirCobro}
         />
       </div>
+
+      <CarritoMobileSheet
+        open={mobileCartOpen}
+        onOpen={() => setMobileCartOpen(true)}
+        onClose={() => setMobileCartOpen(false)}
+        items={items}
+        tipoServicio={tipoServicio}
+        mesaId={mesaId}
+        mesaSeleccionada={mesaSeleccionada}
+        mesas={menu?.mesas ?? []}
+        nombreTurno={nombreTurno}
+        habilitarMesas={habilitarMesas}
+        totals={totals}
+        canCreate={canCreate}
+        canOpenCaja={canOpenCaja}
+        cajaAbierta={Boolean(menu?.cajaAbierta)}
+        faltantes={faltantesPedido}
+        onActualizarExistencias={() => void cargarMenu()}
+        onSetTipoServicio={setTipoServicio}
+        onSetMesaId={setMesaId}
+        onSetNombreTurno={setNombreTurno}
+        onUpdateQty={updateQty}
+        onUpdateNotes={updateNotes}
+        onRemoveItem={removeItem}
+        onClearCart={clearCart}
+        onAbrirCobro={abrirCobro}
+      />
 
       <PlatilloRecetaModal platillo={infoPlatillo} onClose={() => setInfoPlatillo(null)} />
 

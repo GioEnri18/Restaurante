@@ -99,7 +99,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
 }) => {
   const pagina = usePaginacionLocal(platillosFiltrados, JSON.stringify([search, selectedCat, onlyAvailable]));
   return (
-    <div className="space-y-4 xl:col-span-8">
+    <div className="space-y-4 lg:col-span-7 xl:col-span-8">
       {canCreatePlatillo && pendientesConfigCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
           <div className="flex items-center gap-2.5 text-xs sm:text-sm">
@@ -261,7 +261,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
 
       {/* Grid visual de platillos */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((n) => (
             <div key={n} className="h-48 animate-pulse rounded-2xl bg-white p-4 shadow-sm" />
           ))}
@@ -273,7 +273,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
           <p className="mt-1 text-sm text-slate-500">Prueba cambiando la categoría o limpiando el buscador.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {pagina.items.map((p) => {
             const disabled = !p.disponible || !p.stockDisponible;
             const inCartQty = qtyByPlatillo.get(p.id) ?? 0;
@@ -380,7 +380,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                         <button
                           type="button"
                           onClick={() => onUpdateQty(p.id, -1)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-brand-700 shadow-sm hover:bg-brand-100"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-brand-700 shadow-sm hover:bg-brand-100"
                           aria-label={`Restar una unidad de ${p.nombre}`}
                         >
                           <Minus className="h-4 w-4" aria-hidden="true" />
@@ -388,14 +388,14 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                         <button
                           type="button"
                           onClick={() => onAddItem(p)}
-                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-700 text-white shadow-sm hover:bg-brand-800"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-700 text-white shadow-sm hover:bg-brand-800"
                           aria-label={`Sumar una unidad de ${p.nombre}`}
                         >
                           <Plus className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>
                     ) : (
-                      <span className="inline-flex h-10 items-center gap-1 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition group-hover:bg-brand-700">
+                      <span className="inline-flex min-h-[44px] items-center gap-1 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition group-hover:bg-brand-700">
                         <Plus className="h-4 w-4" aria-hidden="true" />
                         Agregar
                       </span>
