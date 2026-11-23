@@ -7,6 +7,8 @@ interface ModalProps {
   onClose: () => void;
   children: React.ReactNode;
   maxWidthClass?: string;
+  /** 'dialog' (centrado, por defecto) o 'drawer' (panel lateral derecho, pantalla completa en móvil) */
+  variant?: 'dialog' | 'drawer';
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -66,6 +68,7 @@ export const Modal: React.FC<ModalProps> = ({
   onClose,
   children,
   maxWidthClass = 'max-w-2xl',
+  variant = 'dialog',
 }) => {
   const modalId = useId();
   const titleId = `${modalId}-title`;
@@ -157,9 +160,13 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!open) return null;
 
+  const isDrawer = variant === 'drawer';
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex bg-slate-900/60 backdrop-blur-sm ${
+        isDrawer ? 'items-stretch justify-end p-0' : 'items-center justify-center p-4'
+      }`}
       onMouseDown={(e) => {
         mouseDownOnBackdropRef.current = e.target === e.currentTarget;
       }}
@@ -176,22 +183,26 @@ export const Modal: React.FC<ModalProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`flex max-h-[90vh] w-full ${maxWidthClass} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl outline-none`}
+        className={`flex w-full ${maxWidthClass} flex-col overflow-hidden bg-white shadow-2xl outline-none ${
+          isDrawer
+            ? 'h-screen supports-[height:100dvh]:h-dvh rounded-none sm:rounded-l-2xl'
+            : 'max-h-[90vh] rounded-2xl'
+        }`}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h3 id={titleId} className="text-lg font-bold text-slate-900">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h3 id={titleId} className="pr-2 text-lg font-bold text-slate-900">
             {title}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
             aria-label="Cerrar ventana"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
-        <div ref={bodyRef} className="overflow-y-auto p-5">
+        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto p-5">
           {children}
         </div>
       </div>

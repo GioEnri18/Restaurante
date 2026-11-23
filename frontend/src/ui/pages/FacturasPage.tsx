@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Eye, Printer, Ban, RotateCcw, Receipt, SlidersHorizontal } from 'lucide-react';
 import { env } from '../../config/env';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -29,6 +30,7 @@ const ETIQUETA_SERVICIO: Record<string, string> = {
 };
 
 export const FacturasPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const canReprint = useAuthStore((s) => s.can('facturas:reimprimir'));
   const canAnular = useAuthStore((s) => s.can('facturas:anular'));
 
@@ -43,8 +45,8 @@ export const FacturasPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Filtros obligatorios: número, fecha, cliente, monto, estado
-  const [numero, setNumero] = useState('');
+  // Filtros obligatorios: número, fecha, cliente, monto, estado (soporta deep-link ?numero= desde Auditoría)
+  const [numero, setNumero] = useState(() => searchParams.get('numero') ?? '');
   const [cliente, setCliente] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');

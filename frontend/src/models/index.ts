@@ -393,19 +393,130 @@ export interface TopProductoModel {
 }
 
 // --- AUDITORÍA ---
+export type SeveridadAuditoria = 'BAJA' | 'MEDIA' | 'ALTA';
+
 export interface AuditoriaLogModel {
   id: number;
   accion: string;
+  severidad: SeveridadAuditoria;
   entidad: string;
   entidadId: string | null;
+  usuarioId: number | null;
   usuarioNombre: string;
   usuarioUsername: string;
   rolNombre: string;
+  actorRolCodigo: string | null;
+  aprobadorId: number | null;
+  aprobadorNombre: string | null;
+  aprobadorUsername: string | null;
+  cajaSesionId: number | null;
   valorAnterior: unknown;
   valorNuevo: unknown;
+  codigoMotivo: string | null;
   motivo: string | null;
+  impactoFinanciero: number | null;
+  correlacionId: string | null;
   ipAddress: string | null;
   createdAt: string;
+  resumenNatural: string;
+}
+
+export interface AuditoriaEntidadOrigenModel {
+  tipo: string;
+  id: number;
+  etiqueta: string;
+  ruta: string;
+  permisoRequerido: string;
+  soloAdmin?: boolean;
+}
+
+export interface AuditoriaDetalleModel extends AuditoriaLogModel {
+  entidadOrigen: AuditoriaEntidadOrigenModel | null;
+  eventosCorrelacionados: AuditoriaLogModel[];
+}
+
+export interface AuditoriaRankingUsuarioModel {
+  usuarioId: number;
+  username: string;
+  nombreCompleto: string;
+  rolCodigo: string | null;
+  rolNombre: string | null;
+  eventosAlta: number;
+  anulaciones: number;
+  impactoAcumulado: number;
+}
+
+export interface AuditoriaRankingAprobadorModel {
+  aprobadorId: number;
+  username: string;
+  nombreCompleto: string;
+  rolNombre: string | null;
+  totalAutorizaciones: number;
+  cierresConDiferencia: number;
+}
+
+export interface AuditoriaAlertaModel {
+  tipo: 'ANULACIONES_REPETIDAS_TURNO' | 'APROBADOR_RECURRENTE';
+  severidad: SeveridadAuditoria;
+  titulo: string;
+  detalle: string;
+  usuarioId?: number;
+  aprobadorId?: number;
+  cajaSesionId?: number;
+  cantidad: number;
+  montoTotal?: number;
+}
+
+export interface AuditoriaResumenModel {
+  totalEventos: number;
+  porSeveridad: Record<SeveridadAuditoria, number>;
+  impactoTotalAnulado: number;
+  diferenciaNetaCaja: number;
+  cantidadReimpresiones: number;
+  umbrales: {
+    impactoAltoQ: number;
+    diferenciaCajaAltaQ: number;
+    repeticionUmbral: number;
+  };
+  rankingUsuariosRiesgo: AuditoriaRankingUsuarioModel[];
+  rankingAprobadores: AuditoriaRankingAprobadorModel[];
+  alertas: AuditoriaAlertaModel[];
+}
+
+export interface AuditoriaUsuarioFiltroModel {
+  id: number;
+  username: string;
+  nombreCompleto: string;
+  rolCodigo: string | null;
+  rolNombre: string | null;
+}
+
+export interface AuditoriaTurnoFiltroModel {
+  id: number;
+  estado: string;
+  fechaApertura: string;
+  fechaCierre: string | null;
+}
+
+export interface AuditoriaCatalogoModel {
+  acciones: string[];
+  usuarios: AuditoriaUsuarioFiltroModel[];
+  aprobadores: AuditoriaUsuarioFiltroModel[];
+  turnos: AuditoriaTurnoFiltroModel[];
+  severidades: SeveridadAuditoria[];
+  codigosMotivo: string[];
+  entidades: string[];
+}
+
+export interface AuditoriaFiltrosState {
+  fechaDesde: string;
+  fechaHasta: string;
+  usuarioId: string;
+  aprobadorId: string;
+  accion: string;
+  severidad: string;
+  cajaSesionId: string;
+  impactoMin: string;
 }
 
 // --- ACCESOS ---

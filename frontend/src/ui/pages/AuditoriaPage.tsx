@@ -1,357 +1,347 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { ShieldCheck, Eye, RotateCcw } from 'lucide-react';
-import { AuditoriaLogModel, PaginationMeta } from '../../models';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { FileDown, ShieldCheck } from 'lucide-react';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import {
+  AuditoriaAlertaModel,
+  AuditoriaCatalogoModel,
+  AuditoriaDetalleModel,
+  AuditoriaFiltrosState,
+  AuditoriaLogModel,
+  AuditoriaResumenModel,
+  PaginationMeta,
+  SeveridadAuditoria,
+} from '../../models';
 import { auditoriaService } from '../../services/auditoria.service';
 import { isAbortError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
-import { Badge } from '../components/common/Badge';
-import { EmptyState } from '../components/common/EmptyState';
-import { Field } from '../components/common/Field';
-import { Modal } from '../components/common/Modal';
-import { Pagination } from '../components/common/Pagination';
-import { TableSkeleton } from '../components/common/TableSkeleton';
+import { AuditoriaDetalleDrawer } from '../components/auditoria/AuditoriaDetalleDrawer';
+import { AuditoriaFiltros } from '../components/auditoria/AuditoriaFiltros';
+import { AuditoriaResumen } from '../components/auditoria/AuditoriaResumen';
+import { AuditoriaTabla } from '../components/auditoria/AuditoriaTabla';
 import { NominaPanel } from '../components/auditoria/NominaPanel';
 
-function nombreAccion(accion: string): string {
-  if (accion === 'GESTION_NOMINA') return 'Cambio de sueldo o fecha de ingreso';
-  const frase = accion.toLowerCase().replaceAll('_', ' ');
-  return frase.charAt(0).toUpperCase() + frase.slice(1);
-}
+const FILTROS_INICIALES: AuditoriaFiltrosState = {
+  fechaDesde: '',
+  fechaHasta: '',
+  usuarioId: '',
+  aprobadorId: '',
+  accion: '',
+  severidad: '',
+  cajaSesionId: '',
+  impactoMin: '',
+};
 
-function ValoresRegistrados({ titulo, valor }: { titulo: string; valor: unknown }) {
-  const campos = valor && typeof valor === 'object' ? Object.entries(valor) : [];
-  return (
-    <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-      <h3 className="mb-2 text-sm font-bold">{titulo}</h3>
-      {campos.length === 0 ? <p className="text-sm text-slate-600">Sin datos registrados.</p> : (
-        <dl className="divide-y divide-slate-200">
-          {campos.map(([campo, dato]) => {
-            const etiqueta = campo === 'sueldoMensual' ? 'Sueldo mensual' :
-              nombreAccion(campo.replace(/([a-z])([A-Z])/g, '$1 $2'));
-            return (
-              <div key={campo} className="grid grid-cols-2 gap-2 py-2">
-                <dt className="text-slate-600">{etiqueta}</dt>
-                <dd className="break-words font-medium">
-                  {dato == null ? '—' : typeof dato === 'object' ? (
-                    <details>
-                      <summary className="cursor-pointer text-teal-800">Ver detalle</summary>
-                      <pre className="max-h-56 overflow-auto text-xs">{JSON.stringify(dato, null, 2)}</pre>
-                    </details>
-                  ) : campo === 'sueldoMensual' && typeof dato === 'number'
-                    ? formatCurrency(dato)
-                    : typeof dato === 'boolean' ? (dato ? 'Sí' : 'No') : String(dato)}
-                </dd>
-              </div>
-            );
-          })}
-        </dl>
-      )}
-    </section>
-  );
-}
+const CATALOGO_INICIAL: AuditoriaCatalogoModel = {
+  acciones: [],
+  usuarios: [],
+  aprobadores: [],
+  turnos: [],
+  severidades: ['BAJA', 'MEDIA', 'ALTA'],
+  codigosMotivo: [],
+  entidades: [],
+};
 
 export const AuditoriaPage: React.FC = () => {
   const puedeVerNomina = useAuthStore((s) => s.isAdmin());
   const puedeEditarPersonal = useAuthStore((s) => s.can('accesos:ver') && s.can('accesos:gestionar'));
+  const puedeExportar = useAuthStore((s) => s.can('auditoria:exportar'));
+
   const [vista, setVista] = useState<'actividad' | 'nomina'>('actividad');
+  const [filtros, setFiltros] = useState<AuditoriaFiltrosState>(FILTROS_INICIALES);
+  const debouncedImpactoMin = useDebouncedValue(filtros.impactoMin, 350);
+
+  const [catalogo, setCatalogo] = useState<AuditoriaCatalogoModel>(CATALOGO_INICIAL);
   const [logs, setLogs] = useState<AuditoriaLogModel[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
-  const [acciones, setAcciones] = useState<string[]>([]);
-  const [usuarios, setUsuarios] = useState<Array<{ id: number; username: string; nombreCompleto: string }>>([]);
-
-  const [usuarioId, setUsuarioId] = useState('');
-  const [accion, setAccion] = useState('');
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
-
-  const [selectedLog, setSelectedLog] = useState<AuditoriaLogModel | null>(null);
+  const [resumen, setResumen] = useState<AuditoriaResumenModel | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exportando, setExportando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+
+  // Estado del drawer de detalle
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [fallbackLog, setFallbackLog] = useState<AuditoriaLogModel | null>(null);
+  const [detalle, setDetalle] = useState<AuditoriaDetalleModel | null>(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState<string | null>(null);
+
+  const abortListaRef = useRef<AbortController | null>(null);
+  const abortDetalleRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
 
+  // Carga del catálogo de filtros (acciones, usuarios, aprobadores, turnos)
   useEffect(() => {
     const controller = new AbortController();
     void auditoriaService
       .obtenerCatalogo(controller.signal)
       .then((cat) => {
-        if (controller.signal.aborted) return;
-        setAcciones(cat.acciones);
-        setUsuarios(cat.usuarios);
+        if (!controller.signal.aborted) setCatalogo(cat);
       })
       .catch((err) => {
         if (!isAbortError(err)) {
           console.error('[AuditoriaPage] Error cargando catálogo de filtros:', err);
         }
       });
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, []);
 
+  const construirQuery = useCallback(
+    () => ({
+      fechaDesde: filtros.fechaDesde || undefined,
+      fechaHasta: filtros.fechaHasta || undefined,
+      usuarioId: filtros.usuarioId || undefined,
+      aprobadorId: filtros.aprobadorId || undefined,
+      accion: filtros.accion || undefined,
+      severidad: filtros.severidad || undefined,
+      cajaSesionId: filtros.cajaSesionId || undefined,
+      impactoMin: debouncedImpactoMin.trim() || undefined,
+    }),
+    [
+      filtros.fechaDesde,
+      filtros.fechaHasta,
+      filtros.usuarioId,
+      filtros.aprobadorId,
+      filtros.accion,
+      filtros.severidad,
+      filtros.cajaSesionId,
+      debouncedImpactoMin,
+    ],
+  );
+
   const cargar = useCallback(
-    async (page = 1) => {
-      abortRef.current?.abort();
+    async (page = 1, recargarResumen = true) => {
+      abortListaRef.current?.abort();
       const controller = new AbortController();
-      abortRef.current = controller;
+      abortListaRef.current = controller;
       const reqId = ++requestIdRef.current;
 
       setLoading(true);
       setError(null);
+      const query = construirQuery();
+
       try {
-        const res = await auditoriaService.listar(
-          {
-            page,
-            usuarioId: usuarioId || undefined,
-            accion: accion || undefined,
-            fechaDesde: fechaDesde || undefined,
-            fechaHasta: fechaHasta || undefined,
-          },
-          controller.signal,
-        );
+        const [resLista, resResumen] = await Promise.all([
+          auditoriaService.listar({ ...query, page }, controller.signal),
+          recargarResumen
+            ? auditoriaService.obtenerResumen(query, controller.signal)
+            : Promise.resolve(null),
+        ]);
         if (reqId !== requestIdRef.current || controller.signal.aborted) return;
-        setLogs(res.items);
-        setMeta(res.meta);
+        setLogs(resLista.items);
+        setMeta(resLista.meta);
+        if (resResumen) setResumen(resResumen);
       } catch (err) {
         if (isAbortError(err) || reqId !== requestIdRef.current) return;
         setError(err instanceof Error ? err.message : 'Error cargando bitácora de auditoría');
       } finally {
-        if (reqId === requestIdRef.current) {
-          setLoading(false);
-        }
+        if (reqId === requestIdRef.current) setLoading(false);
       }
     },
-    [usuarioId, accion, fechaDesde, fechaHasta],
+    [construirQuery],
   );
 
-  const hayFiltros = Boolean(usuarioId || accion || fechaDesde || fechaHasta);
-  const limpiarFiltros = () => {
-    setUsuarioId('');
-    setAccion('');
-    setFechaDesde('');
-    setFechaHasta('');
-  };
+  // Al cambiar cualquier filtro vuelve automáticamente a la página 1 y cancela peticiones previas
+  useEffect(() => {
+    if (vista !== 'actividad') return;
+    void cargar(1, true);
+    return () => {
+      abortListaRef.current?.abort();
+    };
+  }, [cargar, vista]);
 
   useEffect(() => {
-    void cargar(1);
     return () => {
-      abortRef.current?.abort();
+      abortDetalleRef.current?.abort();
     };
-  }, [cargar]);
+  }, []);
+
+  const hayFiltros = Boolean(
+    filtros.fechaDesde ||
+      filtros.fechaHasta ||
+      filtros.usuarioId ||
+      filtros.aprobadorId ||
+      filtros.accion ||
+      filtros.severidad ||
+      filtros.cajaSesionId ||
+      filtros.impactoMin.trim(),
+  );
+
+  const actualizarFiltros = (parcial: Partial<AuditoriaFiltrosState>) => {
+    setFiltros((actual) => ({ ...actual, ...parcial }));
+  };
+
+  const limpiarFiltros = () => {
+    setFiltros(FILTROS_INICIALES);
+  };
+
+  const abrirDetalle = async (log: AuditoriaLogModel) => {
+    abortDetalleRef.current?.abort();
+    const controller = new AbortController();
+    abortDetalleRef.current = controller;
+
+    setDrawerOpen(true);
+    setFallbackLog(log);
+    setDetalle(null);
+    setErrorDetalle(null);
+    setCargandoDetalle(true);
+
+    try {
+      const data = await auditoriaService.obtenerDetalle(log.id, controller.signal);
+      if (!controller.signal.aborted) setDetalle(data);
+    } catch (err) {
+      if (isAbortError(err) || controller.signal.aborted) return;
+      setErrorDetalle(
+        err instanceof Error ? err.message : 'No se pudo cargar el detalle completo del evento',
+      );
+    } finally {
+      if (!controller.signal.aborted) setCargandoDetalle(false);
+    }
+  };
+
+  const cerrarDetalle = () => {
+    abortDetalleRef.current?.abort();
+    setDrawerOpen(false);
+    setDetalle(null);
+    setFallbackLog(null);
+    setErrorDetalle(null);
+  };
+
+  const handleExportarCsv = async () => {
+    if (exportando) return;
+    setExportando(true);
+    setError(null);
+    try {
+      await auditoriaService.exportarCsv({
+        ...construirQuery(),
+        impactoMin: filtros.impactoMin.trim() || undefined,
+      });
+      // Refrescar para mostrar el evento EXPORTAR_AUDITORIA recién registrado
+      void cargar(meta.page, true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo exportar la auditoría en CSV');
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const handleFiltrarAlerta = (alerta: AuditoriaAlertaModel) => {
+    if (alerta.tipo === 'ANULACIONES_REPETIDAS_TURNO') {
+      actualizarFiltros({
+        usuarioId: alerta.usuarioId ? String(alerta.usuarioId) : '',
+        cajaSesionId: alerta.cajaSesionId ? String(alerta.cajaSesionId) : '',
+        accion: 'ANULACION_FACTURA',
+        severidad: '',
+      });
+    } else {
+      actualizarFiltros({
+        aprobadorId: alerta.aprobadorId ? String(alerta.aprobadorId) : '',
+        usuarioId: alerta.usuarioId ? String(alerta.usuarioId) : '',
+        accion: '',
+      });
+    }
+  };
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">
-          <ShieldCheck className="h-7 w-7 text-brand-600" aria-hidden="true" />
-          Auditoría
-        </h1>
-        <p className="text-sm text-slate-500">
-          Consulta quién hizo cada cambio y cuándo ocurrió.
-        </p>
+      {/* Encabezado + Exportación CSV condicionada a auditoria:exportar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">
+            <ShieldCheck className="h-7 w-7 text-brand-700" aria-hidden="true" />
+            Auditoría e Investigación
+          </h1>
+          <p className="text-sm text-slate-600">
+            Supervisa eventos críticos, impactos financieros, aprobaciones de caja y patrones inusuales.
+          </p>
+        </div>
+
+        {vista === 'actividad' && puedeExportar && (
+          <button
+            type="button"
+            disabled={exportando}
+            onClick={() => void handleExportarCsv()}
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-700 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-800 disabled:opacity-60"
+          >
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            {exportando ? 'Exportando CSV…' : 'Exportar CSV'}
+          </button>
+        )}
       </div>
 
+      {/* Selector Actividad / Nómina (Nómina estrictamente solo para Administrador) */}
       {puedeVerNomina && (
         <div className="flex flex-wrap gap-2" aria-label="Vistas de Auditoría">
           {(['actividad', 'nomina'] as const).map((opcion) => (
-            <button key={opcion} type="button" aria-pressed={vista === opcion} onClick={() => setVista(opcion)}
-              className={`min-h-[44px] rounded-xl border px-4 text-sm font-bold ${vista === opcion ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>
+            <button
+              key={opcion}
+              type="button"
+              aria-pressed={vista === opcion}
+              onClick={() => setVista(opcion)}
+              className={`min-h-[44px] rounded-xl border px-4 text-sm font-bold transition ${
+                vista === opcion
+                  ? 'border-teal-700 bg-teal-700 text-white'
+                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
               {opcion === 'actividad' ? 'Actividad' : 'Nómina'}
             </button>
           ))}
         </div>
       )}
-      {puedeVerNomina && vista === 'nomina' ? <NominaPanel puedeEditar={puedeEditarPersonal} /> : <>
-      {error && <Alert type="error" message={error} />}
 
-      {/* Filtros */}
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
-        <Field label="Persona que hizo el cambio" srOnlyLabel>
-          <select
-            value={usuarioId}
-            onChange={(e) => setUsuarioId(e.target.value)}
-            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          >
-            <option value="">Todos los usuarios</option>
-            {usuarios.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nombreCompleto} ({u.username})
-              </option>
-            ))}
-          </select>
-        </Field>
+      {puedeVerNomina && vista === 'nomina' ? (
+        <NominaPanel puedeEditar={puedeEditarPersonal} />
+      ) : (
+        <>
+          {error && <Alert type="error" message={error} />}
 
-        <Field label="Tipo de acción" srOnlyLabel>
-          <select
-            value={accion}
-            onChange={(e) => setAccion(e.target.value)}
-            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          >
-            <option value="">Todas las acciones</option>
-            {acciones.map((a) => (
-              <option key={a} value={a}>
-                {nombreAccion(a)}
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Fecha inicial de la actividad" srOnlyLabel>
-          <input
-            type="date"
-            value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
-            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          {/* 1. Resumen gerencial y alertas primero */}
+          <AuditoriaResumen
+            resumen={resumen}
+            loading={loading}
+            onFiltrarAlerta={handleFiltrarAlerta}
+            onFiltrarUsuario={(usuarioId) => actualizarFiltros({ usuarioId: String(usuarioId) })}
+            onFiltrarAprobador={(aprobadorId) =>
+              actualizarFiltros({ aprobadorId: String(aprobadorId) })
+            }
+            onFiltrarSeveridad={(severidad: SeveridadAuditoria) =>
+              actualizarFiltros({ severidad: filtros.severidad === severidad ? '' : severidad })
+            }
           />
-        </Field>
 
-        <Field label="Fecha final de la actividad" srOnlyLabel>
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
-            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          {/* 2. Filtros completos */}
+          <AuditoriaFiltros
+            filtros={filtros}
+            catalogo={catalogo}
+            hayFiltros={hayFiltros}
+            onChange={actualizarFiltros}
+            onLimpiar={limpiarFiltros}
           />
-        </Field>
 
-        <button
-          type="button"
-          onClick={() => {
-            setUsuarioId('');
-            setAccion('');
-            setFechaDesde('');
-            setFechaHasta('');
-          }}
-          className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-3 text-sm font-bold text-slate-600 hover:bg-slate-50"
-        >
-          <RotateCcw className="h-4 w-4" aria-hidden="true" />
-          Limpiar
-        </button>
-      </div>
+          {/* 3. Tabla de eventos */}
+          <AuditoriaTabla
+            logs={logs}
+            meta={meta}
+            loading={loading}
+            hayFiltros={hayFiltros}
+            onPageChange={(p) => void cargar(p, false)}
+            onSelectLog={(log) => void abrirDetalle(log)}
+            onLimpiarFiltros={limpiarFiltros}
+          />
 
-      {/* Tabla */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left text-sm">
-            <caption className="sr-only">
-              Bitácora de auditoría con usuario, acción, entidad y cambios registrados
-            </caption>
-            <thead>
-              <tr className="border-b text-xs uppercase text-slate-500">
-                <th scope="col" className="py-3 px-2">Fecha / Hora</th>
-                <th scope="col" className="py-3 px-2">Usuario</th>
-                <th scope="col" className="py-3 px-2">Acción</th>
-                <th scope="col" className="py-3 px-2">Entidad</th>
-                <th scope="col" className="py-3 px-2">Motivo / IP</th>
-                <th scope="col" className="py-3 px-2 text-right">Cambios</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <TableSkeleton rows={6} cols={6} label="Cargando registros de auditoría..." />
-              ) : logs.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <EmptyState
-                      icon={ShieldCheck}
-                      title="Sin registros de auditoría"
-                      description={
-                        hayFiltros
-                          ? 'No se encontraron eventos que coincidan con los filtros seleccionados.'
-                          : 'Aún no se han registrado eventos en la bitácora del sistema.'
-                      }
-                      action={
-                        hayFiltros
-                          ? { label: 'Limpiar filtros', onClick: limpiarFiltros, variant: 'secondary' }
-                          : undefined
-                      }
-                    />
-                  </td>
-                </tr>
-              ) : (
-                logs.map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-2 text-xs text-slate-600">{formatDateTime(l.createdAt)}</td>
-                    <td className="py-2.5 px-2">
-                      <p className="font-semibold text-slate-900">{l.usuarioNombre}</p>
-                      <p className="text-xs text-slate-600">{l.rolNombre}</p>
-                    </td>
-                    <td className="py-2.5 px-2">
-                      <Badge
-                        variant={
-                          l.accion.includes('ANULACION') || l.accion.includes('FALLIDO')
-                            ? 'danger'
-                            : l.accion.includes('MERMA') || l.accion.includes('AJUSTE')
-                              ? 'warning'
-                              : 'info'
-                        }
-                      >
-                        {nombreAccion(l.accion)}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 px-2 text-xs font-medium text-slate-700">
-                      {l.entidad}
-                      {l.entidadId ? ` #${l.entidadId}` : ''}
-                    </td>
-                    <td className="py-2.5 px-2 text-xs text-slate-600">
-                      <p>{l.motivo || '—'}</p>
-                      <p className="text-slate-600">IP: {l.ipAddress || '—'}</p>
-                    </td>
-                    <td className="py-2.5 px-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedLog(l)}
-                        aria-label={`Ver cambios del registro ${l.id} (${nombreAccion(l.accion)})`}
-                        className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
-                      >
-                        <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                        Ver cambio
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <Pagination meta={meta} onPageChange={(p) => void cargar(p)} />
-      </div>
-
-      {/* Modal Valor Anterior vs Valor Nuevo */}
-      <Modal
-        open={Boolean(selectedLog)}
-        title={selectedLog ? nombreAccion(selectedLog.accion) : 'Detalle de actividad'}
-        onClose={() => setSelectedLog(null)}
-        maxWidthClass="max-w-3xl"
-      >
-        {selectedLog && (
-          <div className="space-y-4 text-sm">
-            <div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 text-xs">
-              <p>
-                <strong>Usuario:</strong> {selectedLog.usuarioNombre} ({selectedLog.usuarioUsername})
-              </p>
-              <p>
-                <strong>Fecha:</strong> {formatDateTime(selectedLog.createdAt)}
-              </p>
-              <p>
-                <strong>Entidad:</strong> {selectedLog.entidad} #{selectedLog.entidadId ?? 'N/A'}
-              </p>
-              <p>
-                <strong>IP:</strong> {selectedLog.ipAddress ?? '—'}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <ValoresRegistrados titulo="Antes" valor={selectedLog.valorAnterior} />
-              <ValoresRegistrados titulo="Después" valor={selectedLog.valorNuevo} />
-            </div>
-          </div>
-        )}
-      </Modal>
-      </>}
+          {/* 4. Drawer accesible de detalle */}
+          <AuditoriaDetalleDrawer
+            open={drawerOpen}
+            loading={cargandoDetalle}
+            error={errorDetalle}
+            detalle={detalle}
+            fallbackLog={fallbackLog}
+            onClose={cerrarDetalle}
+            onAbrirCorrelacionado={(rel) => void abrirDetalle(rel)}
+          />
+        </>
+      )}
     </div>
   );
 };
