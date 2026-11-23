@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { Op, col, fn } = require('sequelize');
-const { ACCIONES_AUDITORIA, ROL_ADMIN_CODIGO } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA, ROL_ADMIN_CODIGO } = require('../config/constants');
 const { withTransaction } = require('../config/database');
 const { env } = require('../config/env');
 const { Permiso, Rol, RolPermiso, Usuario, UsuarioPermiso } = require('../models');
@@ -26,20 +26,21 @@ async function obtenerRolParaAlta(rolId, transaction) {
     return rol;
 }
 
-async function auditarNomina(admin, usuario, anterior, clientMeta, tx) {
+async function auditarNomina(admin, usuario, anterior, clientMeta, tx, correlacionId = null) {
     const nuevo = datosNomina(usuario);
     if (anterior && nuevo.fechaIngreso === anterior.fechaIngreso && nuevo.sueldoMensual === anterior.sueldoMensual) return;
-    await AuditService.registrar({
-        sucursalId: admin.sucursalId,
-        usuarioId: admin.id,
+    await AuditService.registrarEvento({
+        user: admin,
+        clientMeta,
+        correlacionId,
+    }, {
         accion: ACCIONES_AUDITORIA.GESTION_NOMINA,
         entidad: 'Usuario',
         entidadId: usuario.id,
         valorAnterior: anterior,
         valorNuevo: nuevo,
+        codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
         motivo: 'Registro de sueldo y fecha de ingreso',
-        ipAddress: clientMeta.ipAddress,
-        userAgent: clientMeta.userAgent,
     }, tx);
 }
 
@@ -133,9 +134,12 @@ class AccesosService {
                     permitido: p.permitido,
                 })), { transaction: tx });
             }
-            await AuditService.registrar({
-                sucursalId: adminUser.sucursalId,
-                usuarioId: adminUser.id,
+            const correlacionId = AuditService.crearCorrelacionId();
+            await AuditService.registrarEvento({
+                user: adminUser,
+                clientMeta,
+                correlacionId,
+            }, {
                 accion: ACCIONES_AUDITORIA.GESTION_USUARIO,
                 entidad: 'Usuario',
                 entidadId: usuario.id,
@@ -146,11 +150,10 @@ class AccesosService {
                     email: usuario.email,
                     rol: rol.codigo,
                 },
+                codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
                 motivo: 'Creación de usuario desde panel de Accesos',
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
             }, tx);
-            await auditarNomina(adminUser, usuario, null, clientMeta, tx);
+            await auditarNomina(adminUser, usuario, null, clientMeta, tx, correlacionId);
             return {
                 id: usuario.id,
                 nombreCompleto: usuario.nombreCompleto,
@@ -206,7 +209,10 @@ class AccesosService {
                 sueldoMensual: input.sueldoMensual ?? actual.sueldoMensual,
                 ...(passwordHash ? { passwordHash } : {}),
             }, { transaction: tx });
-            await auditarNomina(adminUser, actual, nominaAnterior, clientMeta, tx);
+            const nominaCambia = actual.fechaIngreso !== nominaAnterior.fechaIngreso
+                || (actual.sueldoMensual ? Number(actual.sueldoMensual) : null) !== nominaAnterior.sueldoMensual;
+            const correlacionId = nominaCambia ? AuditService.crearCorrelacionId() : null;
+            await auditarNomina(adminUser, actual, nominaAnterior, clientMeta, tx, correlacionId);
             // Auditoría P0.3: cambiar contraseña o rol cierra todas las sesiones activas del usuario
             const cambioRol = input.rolId !== undefined && input.rolId !== prevRolId;
             if (passwordHash || cambioRol) {
@@ -234,9 +240,11 @@ class AccesosService {
                 transaction: tx,
             });
             const cambioPermisos = prevRolId !== (actualizado?.rolId ?? prevRolId) || input.permisosPersonalizados !== undefined;
-            await AuditService.registrar({
-                sucursalId: adminUser.sucursalId,
-                usuarioId: adminUser.id,
+            await AuditService.registrarEvento({
+                user: adminUser,
+                clientMeta,
+                correlacionId,
+            }, {
                 accion: cambioPermisos
                     ? ACCIONES_AUDITORIA.CAMBIO_PERMISOS
                     : ACCIONES_AUDITORIA.GESTION_USUARIO,
@@ -258,9 +266,8 @@ class AccesosService {
                         permitido: up.permitido,
                     })),
                 },
+                codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
                 motivo: 'Actualización de usuario / permisos',
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
             }, tx);
             return {
                 id: actualizado.id,
@@ -294,17 +301,14 @@ class AccesosService {
                 // Auditoría P0.3: la desactivación también revoca los tokens emitidos
                 await revocarSesionesUsuario(targetUserId, tx);
             }
-            await AuditService.registrar({
-                sucursalId: adminUser.sucursalId,
-                usuarioId: adminUser.id,
+            await AuditService.registrarEvento({ user: adminUser, clientMeta }, {
                 accion: ACCIONES_AUDITORIA.GESTION_USUARIO,
                 entidad: 'Usuario',
                 entidadId: targetUserId,
                 valorAnterior: { username: actual.username, activo: prevActivo },
                 valorNuevo: { username: actual.username, activo: actual.activo },
+                codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
                 motivo: activo ? 'Activación de usuario' : 'Desactivación de usuario',
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
             }, tx);
             return {
                 id: actual.id,
@@ -375,9 +379,7 @@ class AccesosService {
                 ],
                 transaction: tx,
             });
-            await AuditService.registrar({
-                sucursalId: adminUser.sucursalId,
-                usuarioId: adminUser.id,
+            await AuditService.registrarEvento({ user: adminUser, clientMeta }, {
                 accion: ACCIONES_AUDITORIA.GESTION_ROL,
                 entidad: 'Rol',
                 entidadId: rol.id,
@@ -390,9 +392,8 @@ class AccesosService {
                         .map((rp) => rp.permiso?.codigo)
                         .filter(Boolean),
                 },
+                codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
                 motivo: 'Creación de rol configurable',
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
             }, tx);
             return (rolCompleto ?? rol).get({ plain: true });
         });
@@ -447,9 +448,7 @@ class AccesosService {
                 ],
                 transaction: tx,
             });
-            await AuditService.registrar({
-                sucursalId: adminUser.sucursalId,
-                usuarioId: adminUser.id,
+            await AuditService.registrarEvento({ user: adminUser, clientMeta }, {
                 accion: ACCIONES_AUDITORIA.CAMBIO_PERMISOS,
                 entidad: 'Rol',
                 entidadId: rolId,
@@ -466,9 +465,8 @@ class AccesosService {
                         .filter((c) => Boolean(c))
                         .sort(),
                 },
+                codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
                 motivo: `Actualización de permisos del rol ${rolActual.nombre}`,
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
             }, tx);
             return (rolActualizado ?? rolActual).get({ plain: true });
         }, () => PermisosCache.invalidarTodo());

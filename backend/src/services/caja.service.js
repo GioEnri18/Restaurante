@@ -1,9 +1,10 @@
 const { UniqueConstraintError, col, fn } = require('sequelize');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { getPgErrorCode, withTransaction } = require('../config/database');
 const { CajaMovimiento, CajaSesion, EstadoCaja, EstadoVenta, MetodoPago, TipoMovimientoCaja, Usuario, Venta } = require('../models');
 const { BadRequestError, ConflictError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
+const { normalizarCodigoMotivo } = require('../shared/utils/auditoriaSeveridad');
 const { verificarAutorizacionCaja } = require('./autorizacion-supervisor.service');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { round2 } = require('../shared/utils/tax');
@@ -195,9 +196,12 @@ class CajaService {
                     ],
                     transaction: tx,
                 });
-                await AuditService.registrar({
-                    sucursalId: user.sucursalId,
-                    usuarioId: user.id,
+                await AuditService.registrarEvento({
+                    user,
+                    clientMeta,
+                    cajaSesionId: sesion.id,
+                    aprobadorId: autorizador.autoAutorizado ? null : autorizador.id,
+                }, {
                     accion: ACCIONES_AUDITORIA.APERTURA_CAJA,
                     entidad: 'CajaSesion',
                     entidadId: sesion.id,
@@ -207,9 +211,13 @@ class CajaService {
                         montoInicial,
                         fechaApertura: sesion.fechaApertura,
                         autorizadoPor: autorizador.username,
+                        autoAutorizado: autorizador.autoAutorizado,
                     },
-                    ipAddress: clientMeta.ipAddress,
-                    userAgent: clientMeta.userAgent,
+                    codigoMotivo: autorizador.autoAutorizado
+                        ? null
+                        : CODIGOS_MOTIVO_AUDITORIA.AUTORIZACION_SUPERVISOR,
+                    motivo: input.observaciones?.trim() || 'Apertura de turno de caja',
+                    impactoFinanciero: 0,
                 }, tx);
                 return {
                     ...(sesionConUsuario ?? sesion).get({ plain: true }),
@@ -272,9 +280,21 @@ class CajaService {
                 await sesion.increment('totalEgresos', { by: monto, transaction: tx });
             }
             await sesion.reload({ transaction: tx });
-            await AuditService.registrar({
-                sucursalId: user.sucursalId,
-                usuarioId: user.id,
+            const esIngreso = tipo === TipoMovimientoCaja.INGRESO_MANUAL;
+            const impactoFinanciero = esIngreso ? monto : round2(-monto);
+            const repeticionesEnTurno = !esIngreso
+                ? await AuditService.contarRepeticionesEnTurno({
+                    sucursalId: user.sucursalId,
+                    usuarioId: user.id,
+                    cajaSesionId: sesion.id,
+                    accion: ACCIONES_AUDITORIA.MOVIMIENTO_CAJA,
+                }, tx)
+                : 1;
+            await AuditService.registrarEvento({
+                user,
+                clientMeta,
+                cajaSesionId: sesion.id,
+            }, {
                 accion: ACCIONES_AUDITORIA.MOVIMIENTO_CAJA,
                 entidad: 'CajaMovimiento',
                 entidadId: movimiento.id,
@@ -292,8 +312,10 @@ class CajaService {
                     totalEgresos: Number(sesion.totalEgresos),
                     totalEgresosTarjeta: Number(sesion.totalEgresosTarjeta),
                 },
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                codigoMotivo: normalizarCodigoMotivo(input.codigoMotivo, CODIGOS_MOTIVO_AUDITORIA.OTRO),
+                motivo: movimiento.descripcion,
+                impactoFinanciero,
+                repeticionesEnTurno,
             }, tx);
             return {
                 ...movimiento.get({ plain: true }),
@@ -346,15 +368,19 @@ class CajaService {
                 ],
                 transaction: tx,
             });
-            await AuditService.registrar({
-                sucursalId: user.sucursalId,
-                usuarioId: user.id,
+            await AuditService.registrarEvento({
+                user,
+                clientMeta,
+                cajaSesionId: sesion.id,
+                aprobadorId: autorizador.autoAutorizado ? null : autorizador.id,
+            }, {
                 accion: ACCIONES_AUDITORIA.CIERRE_CAJA,
                 entidad: 'CajaSesion',
                 entidadId: sesion.id,
                 valorAnterior: {
                     estado: EstadoCaja.ABIERTA,
                     montoInicial: desglose.montoInicial,
+                    montoEsperadoEfectivo: desglose.montoEsperadoEfectivo,
                 },
                 valorNuevo: {
                     estado: EstadoCaja.CERRADA,
@@ -374,9 +400,17 @@ class CajaService {
                     vouchersConciliados,
                     observacionesCierre: sesion.observacionesCierre,
                     autorizadoPor: autorizador.username,
+                    autoAutorizado: autorizador.autoAutorizado,
                 },
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                codigoMotivo: diferencia !== 0
+                    ? CODIGOS_MOTIVO_AUDITORIA.DIFERENCIA_DE_CAJA
+                    : (autorizador.autoAutorizado ? null : CODIGOS_MOTIVO_AUDITORIA.AUTORIZACION_SUPERVISOR),
+                motivo: sesion.observacionesCierre
+                    || (diferencia !== 0
+                        ? `Cierre de caja con diferencia de Q ${diferencia.toFixed(2)}`
+                        : 'Cierre de caja cuadrado'),
+                impactoFinanciero: diferencia,
+                diferencia,
             }, tx);
             return {
                 ...(sesionCerrada ?? sesion).get({ plain: true }),

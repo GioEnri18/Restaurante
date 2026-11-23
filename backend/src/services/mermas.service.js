@@ -6,6 +6,7 @@ const { CajaSesion, EstadoCaja, Ingrediente, InventarioMovimiento, Merma, TipoMo
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
+const { mapearMotivoMermaACodigo } = require('../shared/utils/auditoriaSeveridad');
 const { endOfDayInTimezone, startOfDayInTimezone, toDateTimeInZone, toIsoDateInTimezone } = require('../shared/utils/dates');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { round2, round4 } = require('../shared/utils/tax');
@@ -108,13 +109,13 @@ class MermasService {
         if (previa) return previa;
 
         return withTransaction(async (tx) => {
+            const turno = await CajaSesion.findOne({
+                where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+                attributes: ['id', 'fechaApertura'],
+                ...(user.rolCodigo === 'CAJERO' ? { lock: tx.LOCK.UPDATE } : {}),
+                transaction: tx,
+            });
             if (user.rolCodigo === 'CAJERO') {
-                const turno = await CajaSesion.findOne({
-                    where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
-                    attributes: ['id', 'fechaApertura'],
-                    lock: tx.LOCK.UPDATE,
-                    transaction: tx,
-                });
                 if (!turno) throw new BadRequestError('Abre un turno de caja para registrar una merma');
                 if (toIsoDateInTimezone(fecha) !== toIsoDateInTimezone() || fecha < turno.fechaApertura) {
                     throw new BadRequestError('El cajero solo puede registrar mermas de hoy dentro del turno abierto');
@@ -168,9 +169,17 @@ class MermasService {
                 referenciaId: merma.id,
                 motivo: `Merma (${input.motivo}): ${input.observacion?.trim() || 'Sin observación'}`,
             }, { transaction: tx });
-            await AuditService.registrar({
+            const repeticionesEnTurno = await AuditService.contarRepeticionesEnTurno({
                 sucursalId: user.sucursalId,
                 usuarioId: user.id,
+                cajaSesionId: turno?.id ?? null,
+                accion: ACCIONES_AUDITORIA.REGISTRO_MERMA,
+            }, tx);
+            await AuditService.registrarEvento({
+                user,
+                clientMeta,
+                cajaSesionId: turno?.id ?? null,
+            }, {
                 accion: ACCIONES_AUDITORIA.REGISTRO_MERMA,
                 entidad: 'Merma',
                 entidadId: merma.id,
@@ -185,9 +194,10 @@ class MermasService {
                     motivo: input.motivo,
                     costoEstimado,
                 },
+                codigoMotivo: mapearMotivoMermaACodigo(input.motivo),
                 motivo: input.observacion?.trim() || input.motivo,
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                impactoFinanciero: round2(-costoEstimado),
+                repeticionesEnTurno,
             }, tx);
             const mermaCompleta = await Merma.findByPk(merma.id, {
                 include: detalleMerma,

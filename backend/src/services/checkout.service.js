@@ -503,10 +503,13 @@ class CheckoutService {
           }
 
           // 15. Auditoría
-          await AuditService.registrar(
+          await AuditService.registrarEvento(
             {
-              sucursalId: user.sucursalId,
-              usuarioId: user.id,
+              user,
+              clientMeta,
+              cajaSesionId: cajaAbierta.id,
+            },
+            {
               accion: ACCIONES_AUDITORIA.VENTA_CONFIRMADA,
               entidad: 'Venta',
               entidadId: venta.id,
@@ -521,8 +524,7 @@ class CheckoutService {
                 nombreTurno: comanda.nombreTurno,
                 items: detallesData.length,
               },
-              ipAddress: clientMeta.ipAddress,
-              userAgent: clientMeta.userAgent,
+              impactoFinanciero: total,
             },
             tx,
           );

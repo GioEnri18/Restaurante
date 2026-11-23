@@ -1,4 +1,4 @@
-const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { withTransaction } = require('../config/database');
 const { Op } = require('sequelize');
 const { Categoria, Ingrediente, Platillo, RecetaIngrediente } = require('../models');
@@ -94,10 +94,9 @@ class PlatillosService {
         { transaction: tx },
       );
 
-      await AuditService.registrar(
+      await AuditService.registrarEvento(
+        { user, clientMeta },
         {
-          sucursalId: user.sucursalId,
-          usuarioId: user.id,
           accion: ACCIONES_AUDITORIA.CAMBIO_PRECIO,
           entidad: 'Categoria',
           entidadId: categoria.id,
@@ -107,9 +106,8 @@ class PlatillosService {
             descripcion: categoria.descripcion,
             orden: categoria.orden,
           },
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
           motivo: 'Creación de categoría de menú',
-          ipAddress: clientMeta.ipAddress,
-          userAgent: clientMeta.userAgent,
         },
         tx,
       );
@@ -159,10 +157,9 @@ class PlatillosService {
         transaction: tx,
       });
 
-      await AuditService.registrar(
+      await AuditService.registrarEvento(
+        { user, clientMeta },
         {
-          sucursalId: user.sucursalId,
-          usuarioId: user.id,
           accion: ACCIONES_AUDITORIA.CAMBIO_PRECIO,
           entidad: 'Platillo',
           entidadId: platillo.id,
@@ -173,9 +170,8 @@ class PlatillosService {
             precioVenta: Number(platillo.precioVenta),
             recetaCount: completo?.receta?.length ?? 0,
           },
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
           motivo: 'Creación de platillo en menú',
-          ipAddress: clientMeta.ipAddress,
-          userAgent: clientMeta.userAgent,
         },
         tx,
       );
@@ -202,6 +198,7 @@ class PlatillosService {
       await validarReferenciasSucursal(user.sucursalId, input, tx);
 
       const prevNombre = actual.nombre;
+      const prevDisponible = Boolean(actual.disponible);
       const precioAnterior = actual.precioVenta === null ? null : Number(actual.precioVenta);
       const precioNuevo =
         input.precioVenta !== undefined ? round2(input.precioVenta) : precioAnterior;
@@ -209,6 +206,11 @@ class PlatillosService {
         throw new BadRequestError('El precio debe ser de al menos Q0.01');
       }
       const tieneReceta = (input.receta ?? actual.receta ?? []).length > 0;
+      const nuevoDisponible = precioNuevo >= 0.01 && tieneReceta && (input.disponible ?? actual.disponible);
+      const eventosTotales = Number(Boolean(input.receta))
+        + Number(precioNuevo !== precioAnterior)
+        + Number(nuevoDisponible !== prevDisponible);
+      const correlacionId = eventosTotales > 1 ? AuditService.crearCorrelacionId() : null;
 
       await actual.update(
         {
@@ -217,7 +219,7 @@ class PlatillosService {
           descripcion:
             input.descripcion !== undefined ? input.descripcion.trim() || null : actual.descripcion,
           precioVenta: precioNuevo,
-          disponible: precioNuevo >= 0.01 && tieneReceta && (input.disponible ?? actual.disponible),
+          disponible: nuevoDisponible,
         },
         { transaction: tx },
       );
@@ -234,9 +236,7 @@ class PlatillosService {
             { transaction: tx },
           );
         }
-        await AuditService.registrar({
-          sucursalId: user.sucursalId,
-          usuarioId: user.id,
+        await AuditService.registrarEvento({ user, clientMeta, correlacionId }, {
           accion: ACCIONES_AUDITORIA.CAMBIO_RECETA,
           entidad: 'Platillo',
           entidadId: platilloId,
@@ -246,9 +246,8 @@ class PlatillosService {
           valorNuevo: input.receta.map((r) => ({
             ingredienteId: r.ingredienteId, cantidadOz: round4(r.cantidadOz),
           })),
-          motivo: 'Actualización de receta en menú',
-          ipAddress: clientMeta.ipAddress,
-          userAgent: clientMeta.userAgent,
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
+          motivo: input.motivo || 'Actualización de receta en menú',
         }, tx);
       }
 
@@ -265,18 +264,36 @@ class PlatillosService {
       });
 
       if (precioNuevo !== precioAnterior) {
-        await AuditService.registrar(
+        const deltaPrecio = precioAnterior !== null && precioNuevo !== null
+          ? round2(precioNuevo - precioAnterior)
+          : 0;
+        await AuditService.registrarEvento(
+          { user, clientMeta, correlacionId },
           {
-            sucursalId: user.sucursalId,
-            usuarioId: user.id,
             accion: ACCIONES_AUDITORIA.CAMBIO_PRECIO,
             entidad: 'Platillo',
             entidadId: platilloId,
             valorAnterior: { nombre: prevNombre, precioVenta: precioAnterior },
             valorNuevo: { nombre: actualizado?.nombre, precioVenta: precioNuevo },
+            codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
             motivo: input.motivo || 'Actualización de precio en menú',
-            ipAddress: clientMeta.ipAddress,
-            userAgent: clientMeta.userAgent,
+            impactoFinanciero: deltaPrecio,
+          },
+          tx,
+        );
+      }
+
+      if (nuevoDisponible !== prevDisponible) {
+        await AuditService.registrarEvento(
+          { user, clientMeta, correlacionId },
+          {
+            accion: ACCIONES_AUDITORIA.CAMBIO_DISPONIBILIDAD_PLATILLO,
+            entidad: 'Platillo',
+            entidadId: platilloId,
+            valorAnterior: { nombre: prevNombre, disponible: prevDisponible },
+            valorNuevo: { nombre: actualizado?.nombre, disponible: nuevoDisponible },
+            codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
+            motivo: input.motivo || (nuevoDisponible ? 'Platillo habilitado en ventas' : 'Platillo deshabilitado en ventas'),
           },
           tx,
         );

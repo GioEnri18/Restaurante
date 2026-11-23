@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { withTransaction } = require('../config/database');
 const { env } = require('../config/env');
 const { Categoria, MenuEspecial, MenuEspecialPlatillo, Platillo, Usuario } = require('../models');
@@ -132,10 +132,9 @@ class MenusEspecialesService {
         transaction: tx,
       });
 
-      await AuditService.registrar(
+      await AuditService.registrarEvento(
+        { user, clientMeta },
         {
-          sucursalId: user.sucursalId,
-          usuarioId: user.id,
           accion: ACCIONES_AUDITORIA.GESTION_MENU_ESPECIAL,
           entidad: 'MenuEspecial',
           entidadId: creado.id,
@@ -145,11 +144,12 @@ class MenusEspecialesService {
             fechaInicio: input.fechaInicio,
             fechaFin: input.fechaFin,
             diasAvisoPrevio: creado.diasAvisoPrevio,
+            activo: creado.activo,
+            esMenuPrincipal: creado.esMenuPrincipal,
             platillosCount: completo?.platillos?.length ?? 0,
           },
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
           motivo: 'Creación de menú por fecha especial',
-          ipAddress: clientMeta.ipAddress,
-          userAgent: clientMeta.userAgent,
         },
         tx,
       );
@@ -172,6 +172,10 @@ class MenusEspecialesService {
 
       const prevNombre = actual.nombre;
       const prevActivo = actual.activo;
+      const prevEsMenuPrincipal = actual.esMenuPrincipal;
+      const prevFechaInicio = toIsoDateInTimezone(actual.fechaInicio);
+      const prevFechaFin = toIsoDateInTimezone(actual.fechaFin);
+      const prevDiasAviso = actual.diasAvisoPrevio;
       const prevPlatillosCount = actual.platillos?.length ?? 0;
 
       const fechaInicio = input.fechaInicio
@@ -220,26 +224,32 @@ class MenusEspecialesService {
         transaction: tx,
       });
 
-      await AuditService.registrar(
+      await AuditService.registrarEvento(
+        { user, clientMeta },
         {
-          sucursalId: user.sucursalId,
-          usuarioId: user.id,
           accion: ACCIONES_AUDITORIA.GESTION_MENU_ESPECIAL,
           entidad: 'MenuEspecial',
           entidadId: menuId,
           valorAnterior: {
             nombre: prevNombre,
             activo: prevActivo,
+            esMenuPrincipal: prevEsMenuPrincipal,
+            fechaInicio: prevFechaInicio,
+            fechaFin: prevFechaFin,
+            diasAvisoPrevio: prevDiasAviso,
             platillosCount: prevPlatillosCount,
           },
           valorNuevo: {
             nombre: actualizado?.nombre,
             activo: actualizado?.activo,
+            esMenuPrincipal: actualizado?.esMenuPrincipal,
+            fechaInicio: actualizado ? toIsoDateInTimezone(actualizado.fechaInicio) : null,
+            fechaFin: actualizado ? toIsoDateInTimezone(actualizado.fechaFin) : null,
+            diasAvisoPrevio: actualizado?.diasAvisoPrevio,
             platillosCount: actualizado?.platillos?.length ?? 0,
           },
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
           motivo: 'Actualización de menú especial por fecha',
-          ipAddress: clientMeta.ipAddress,
-          userAgent: clientMeta.userAgent,
         },
         tx,
       );
@@ -263,18 +273,16 @@ class MenusEspecialesService {
 
       await MenuEspecial.destroy({ where: { id: menuId }, transaction: tx });
 
-      await AuditService.registrar(
+      await AuditService.registrarEvento(
+        { user, clientMeta },
         {
-          sucursalId: user.sucursalId,
-          usuarioId: user.id,
           accion: ACCIONES_AUDITORIA.GESTION_MENU_ESPECIAL,
           entidad: 'MenuEspecial',
           entidadId: menuId,
           valorAnterior: { nombre, fechaInicio },
           valorNuevo: null,
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
           motivo: 'Eliminación de menú especial',
-          ipAddress: clientMeta.ipAddress,
-          userAgent: clientMeta.userAgent,
         },
         tx,
       );

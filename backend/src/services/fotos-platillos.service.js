@@ -2,7 +2,7 @@ const { randomUUID } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const sharp = require('sharp');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { withTransaction } = require('../config/database');
 const { PLATILLOS_MEDIA_DIR, PLATILLOS_MEDIA_URL, NOMBRE_FOTO_PLATILLO } = require('../config/platillos-media');
 const { Platillo } = require('../models');
@@ -83,17 +83,14 @@ async function guardarFotoPlatillo(user, platilloId, original, clientMeta) {
       await fs.rename(temporal, ruta);
       publicada = true;
       await platillo.update({ imagenUrl }, { transaction: tx });
-      await AuditService.registrar({
-        sucursalId: user.sucursalId,
-        usuarioId: user.id,
+      await AuditService.registrarEvento({ user, clientMeta }, {
         accion: ACCIONES_AUDITORIA.CAMBIO_FOTO_PLATILLO,
         entidad: 'Platillo',
         entidadId: platillo.id,
         valorAnterior: { imagenUrl: previa },
         valorNuevo: { imagenUrl, bytes: webp.length },
+        codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
         motivo: 'Actualización de foto del catálogo',
-        ipAddress: clientMeta.ipAddress,
-        userAgent: clientMeta.userAgent,
       }, tx);
       return previa;
     });

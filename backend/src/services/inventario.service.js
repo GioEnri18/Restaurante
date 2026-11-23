@@ -1,10 +1,11 @@
 const { Op, QueryTypes, col, fn, where: comparar } = require('sequelize');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { sequelize, withTransaction } = require('../config/database');
-const { Compra, CompraDetalle, Ingrediente, InventarioMovimiento, Proveedor, TipoMovimientoInventario, UnidadMedida, Usuario } = require('../models');
+const { CajaSesion, Compra, CompraDetalle, EstadoCaja, Ingrediente, InventarioMovimiento, Proveedor, TipoMovimientoInventario, UnidadMedida, Usuario } = require('../models');
 const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
+const { normalizarCodigoMotivo, validarMotivoObligatorio } = require('../shared/utils/auditoriaSeveridad');
 const { endOfDayInTimezone, startOfDayInTimezone } = require('../shared/utils/dates');
 const { patronContiene } = require('../shared/utils/busqueda');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
@@ -102,9 +103,7 @@ class InventarioService {
                     motivo: 'Existencia inicial al registrar ingrediente',
                 }, { transaction: tx });
             }
-            await AuditService.registrar({
-                sucursalId: user.sucursalId,
-                usuarioId: user.id,
+            await AuditService.registrarEvento({ user, clientMeta }, {
                 accion: ACCIONES_AUDITORIA.AJUSTE_INVENTARIO,
                 entidad: 'Ingrediente',
                 entidadId: ingrediente.id,
@@ -114,10 +113,11 @@ class InventarioService {
                     nombre: ingrediente.nombre,
                     stockActualOz: stockInicialOz,
                     stockMinimoOz,
+                    costoPromedioOz,
                 },
+                codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.AJUSTE_DE_CONTEO,
                 motivo: 'Creación de ingrediente',
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                impactoFinanciero: round2(stockInicialOz * costoPromedioOz),
             }, tx);
             const conProveedor = await Ingrediente.findByPk(ingrediente.id, {
                 include: [{ model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] }],
@@ -148,9 +148,7 @@ class InventarioService {
                 stockMinimoOz: nuevoStockMinimoOz,
                 activo: input.activo ?? actual.activo,
             }, { transaction: tx });
-            await AuditService.registrar({
-                sucursalId: user.sucursalId,
-                usuarioId: user.id,
+            await AuditService.registrarEvento({ user, clientMeta }, {
                 accion: ACCIONES_AUDITORIA.AJUSTE_INVENTARIO,
                 entidad: 'Ingrediente',
                 entidadId: ingredienteId,
@@ -164,9 +162,9 @@ class InventarioService {
                     stockMinimoOz: Number(actual.stockMinimoOz),
                     proveedorId: actual.proveedorId,
                 },
+                codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.GESTION_CATALOGO,
                 motivo: 'Actualización de ficha de ingrediente',
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                impactoFinanciero: 0,
             }, tx);
             const actualizado = await Ingrediente.findByPk(ingredienteId, {
                 include: [{ model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] }],
@@ -210,9 +208,29 @@ class InventarioService {
                 referenciaTipo: 'AJUSTE',
                 motivo: `${input.motivo.trim()} (${input.cantidad} ${input.unidad} = ${cantidadOz} oz)`,
             }, { transaction: tx });
-            await AuditService.registrar({
+            const motivoAjuste = input.motivo.trim();
+            const codigoMotivo = normalizarCodigoMotivo(
+                input.codigoMotivo,
+                CODIGOS_MOTIVO_AUDITORIA.AJUSTE_DE_CONTEO,
+            );
+            validarMotivoObligatorio(ACCIONES_AUDITORIA.AJUSTE_INVENTARIO, motivoAjuste, codigoMotivo);
+            const cajaAbierta = await CajaSesion.findOne({
+                where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+                attributes: ['id'],
+                transaction: tx,
+            });
+            const impactoFinanciero = round2(deltaOz * Number(ingrediente.costoPromedioOz));
+            const repeticionesEnTurno = await AuditService.contarRepeticionesEnTurno({
                 sucursalId: user.sucursalId,
                 usuarioId: user.id,
+                cajaSesionId: cajaAbierta?.id ?? null,
+                accion: ACCIONES_AUDITORIA.AJUSTE_INVENTARIO,
+            }, tx);
+            await AuditService.registrarEvento({
+                user,
+                clientMeta,
+                cajaSesionId: cajaAbierta?.id ?? null,
+            }, {
                 accion: ACCIONES_AUDITORIA.AJUSTE_INVENTARIO,
                 entidad: 'Ingrediente',
                 entidadId: ingredienteId,
@@ -227,10 +245,12 @@ class InventarioService {
                     stockActualLb: UnitConversionService.ozToLb(stockNuevoOz),
                     tipoAjuste: input.tipoAjuste,
                     cantidadOriginal: `${input.cantidad} ${input.unidad}`,
+                    impactoFinanciero,
                 },
-                motivo: input.motivo.trim(),
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                codigoMotivo,
+                motivo: motivoAjuste,
+                impactoFinanciero,
+                repeticionesEnTurno,
             }, tx);
             return {
                 ingrediente: this.enrichIngrediente(ingrediente),
@@ -405,12 +425,17 @@ class InventarioService {
                     motivo: `Compra #${compra.id} (${det.cantidad} ${det.unidad} @ Q ${det.costoUnitario.toFixed(2)}/${det.unidad})`,
                 }, { transaction: tx });
             }
-            await AuditService.registrar({
-                sucursalId: user.sucursalId,
-                usuarioId: user.id,
+            await AuditService.registrarEvento({ user, clientMeta }, {
                 accion: ACCIONES_AUDITORIA.COMPRA_INVENTARIO,
                 entidad: 'Compra',
                 entidadId: compra.id,
+                valorAnterior: {
+                    items: detallesPreparados.map((d) => ({
+                        ingredienteId: d.ingredienteId,
+                        stockAnteriorOz: d.stockAnteriorOz,
+                        costoPromedioAnteriorOz: d.costoPromedioAnteriorOz,
+                    })),
+                },
                 valorNuevo: {
                     proveedor: proveedor.nombre,
                     numeroDocumento: compra.numeroDocumento,
@@ -429,8 +454,8 @@ class InventarioService {
                         costoPromedioNuevoOz: d.costoPromedioNuevoOz,
                     })),
                 },
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                motivo: compra.observaciones || `Compra #${compra.id} a ${proveedor.nombre}`,
+                impactoFinanciero: round2(-totalCompra),
             }, tx);
             const compraCompleta = await Compra.findByPk(compra.id, {
                 include: [

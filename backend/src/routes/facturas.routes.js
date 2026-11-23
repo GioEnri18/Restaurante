@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { z } = require('zod');
+const { CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { FacturasController } = require('../controllers/facturas.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
@@ -14,6 +15,7 @@ const {
 } = require('../shared/validators/common.validators');
 const anularFacturaSchema = z.object({
     motivo: z.string().trim().min(5, 'El motivo de anulación debe tener al menos 5 caracteres').max(300),
+    codigoMotivo: z.enum(Object.values(CODIGOS_MOTIVO_AUDITORIA)).optional(),
     reintegrarInventario: z.boolean().default(false),
 });
 // Auditoría P1: filtros de listado validados (montos, fechas, estado y longitud de búsquedas)

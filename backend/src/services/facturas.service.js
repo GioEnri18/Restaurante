@@ -1,9 +1,10 @@
 const { Op, QueryTypes } = require('sequelize');
-const { ACCIONES_AUDITORIA, FACTURAS_PAGE_SIZE } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA, FACTURAS_PAGE_SIZE } = require('../config/constants');
 const { sequelize, withTransaction } = require('../config/database');
 const { CajaMovimiento, CajaSesion, Comanda, EstadoCaja, EstadoFactura, EstadoMesa, EstadoVenta, Factura, Ingrediente, InventarioMovimiento, Mesa, MetodoPago, Sucursal, TipoMovimientoCaja, TipoMovimientoInventario, Usuario, Venta, VentaDetalle } = require('../models');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
+const { normalizarCodigoMotivo, validarMotivoObligatorio } = require('../shared/utils/auditoriaSeveridad');
 const { endOfDayInTimezone, startOfDayInTimezone } = require('../shared/utils/dates');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { patronContiene } = require('../shared/utils/busqueda');
@@ -137,9 +138,23 @@ class FacturasService {
                 ],
                 transaction: tx,
             });
-            await AuditService.registrar({
+            const cajaAbierta = await CajaSesion.findOne({
+                where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+                attributes: ['id'],
+                transaction: tx,
+            });
+            const cajaSesionId = cajaAbierta?.id ?? actualizada?.venta?.cajaSesionId ?? null;
+            const repeticionesEnTurno = await AuditService.contarRepeticionesEnTurno({
                 sucursalId: user.sucursalId,
                 usuarioId: user.id,
+                cajaSesionId,
+                accion: ACCIONES_AUDITORIA.REIMPRESION_FACTURA,
+            }, tx);
+            await AuditService.registrarEvento({
+                user,
+                clientMeta,
+                cajaSesionId,
+            }, {
                 accion: ACCIONES_AUDITORIA.REIMPRESION_FACTURA,
                 entidad: 'Factura',
                 entidadId: actual.id,
@@ -150,10 +165,11 @@ class FacturasService {
                 valorNuevo: {
                     numeroCompleto: actual.numeroCompleto,
                     reimpresionesCount: actual.reimpresionesCount,
+                    total: round2(Number(actual.total)),
                 },
                 motivo: `Reimpresión #${actual.reimpresionesCount} de factura ${actual.numeroCompleto}`,
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                impactoFinanciero: 0,
+                repeticionesEnTurno,
             }, tx);
             return (actualizada ?? actual).get({ plain: true });
         });
@@ -190,6 +206,12 @@ class FacturasService {
                 throw new ConflictError(`La factura ${factura.numeroCompleto} ya se encuentra anulada`);
             }
             const motivo = input.motivo.trim();
+            const codigoMotivo = normalizarCodigoMotivo(
+                input.codigoMotivo,
+                CODIGOS_MOTIVO_AUDITORIA.ERROR_DE_CAPTURA,
+            );
+            validarMotivoObligatorio(ACCIONES_AUDITORIA.ANULACION_FACTURA, motivo, codigoMotivo);
+            const correlacionId = AuditService.crearCorrelacionId();
             const fechaAnulacion = new Date();
             // 2. Actualización atómica condicionada para impedir doble anulación concurrente
             const [updatedCount] = await Factura.update({
@@ -220,7 +242,7 @@ class FacturasService {
             const referenciaSesion = factura.venta.cajaSesionId === cajaAbierta.id
                 ? `caja actual #${cajaAbierta.id}`
                 : `venta original en caja #${factura.venta.cajaSesionId}`;
-            await CajaMovimiento.create({
+            const movimientoEgreso = await CajaMovimiento.create({
                 sucursalId: user.sucursalId,
                 cajaSesionId: cajaAbierta.id,
                 usuarioId: user.id,
@@ -288,10 +310,19 @@ class FacturasService {
                     }
                 }
             }
-            // 5. Auditoría inmutable con valor anterior y nuevo
-            await AuditService.registrar({
+            // 5. Auditoría inmutable con valor anterior y nuevo, impacto financiero, turno y correlación
+            const repeticionesEnTurno = await AuditService.contarRepeticionesEnTurno({
                 sucursalId: user.sucursalId,
                 usuarioId: user.id,
+                cajaSesionId: cajaAbierta.id,
+                accion: ACCIONES_AUDITORIA.ANULACION_FACTURA,
+            }, tx);
+            await AuditService.registrarEvento({
+                user,
+                clientMeta,
+                cajaSesionId: cajaAbierta.id,
+                correlacionId,
+            }, {
                 accion: ACCIONES_AUDITORIA.ANULACION_FACTURA,
                 entidad: 'Factura',
                 entidadId: factura.id,
@@ -305,15 +336,18 @@ class FacturasService {
                 valorNuevo: {
                     numeroCompleto: factura.numeroCompleto,
                     estado: EstadoFactura.ANULADA,
+                    total: totalAnulado,
                     motivoAnulacion: motivo,
                     cajaEgresoId: cajaAbierta.id,
+                    cajaMovimientoId: movimientoEgreso.id,
                     reintegrarInventario: input.reintegrarInventario,
                     ingredientesReintegrados,
                     mesaLiberada,
                 },
+                codigoMotivo,
                 motivo,
-                ipAddress: clientMeta.ipAddress,
-                userAgent: clientMeta.userAgent,
+                impactoFinanciero: round2(-totalAnulado),
+                repeticionesEnTurno,
             }, tx);
             return {
                 factura: facturaAnulada ? facturaAnulada.get({ plain: true }) : null,

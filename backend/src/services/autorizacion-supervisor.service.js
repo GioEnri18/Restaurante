@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { Op, col, fn, where } = require('sequelize');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
-const { Rol, Usuario } = require('../models');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
+const { CajaSesion, EstadoCaja, Rol, Usuario } = require('../models');
 const { BadRequestError, ForbiddenError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { DUMMY_PASSWORD_HASH, registrarIntentoFallido, sanitizarIdentificadorAuditoria } = require('./auth.service');
@@ -53,24 +53,54 @@ async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMe
   );
   const bloqueado = Boolean(supervisor?.bloqueadoHasta && supervisor.bloqueadoHasta > new Date());
 
-  const rechazar = async (motivo, mensaje = MENSAJE_RECHAZO) => {
-    await AuditService.registrar({
-      sucursalId: user.sucursalId,
-      usuarioId: user.id,
+  const rechazar = async (motivo, mensaje = MENSAJE_RECHAZO, correlacionId = null) => {
+    const cajaAbierta = await CajaSesion.findOne({
+      where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+      attributes: ['id'],
+    });
+    await AuditService.registrarEvento({
+      user,
+      clientMeta,
+      cajaSesionId: cajaAbierta?.id ?? null,
+      correlacionId,
+    }, {
       accion: ACCIONES_AUDITORIA.AUTORIZACION_CAJA_RECHAZADA,
       entidad: 'CajaSesion',
+      entidadId: cajaAbierta?.id ?? null,
       valorNuevo: { operacion, supervisor: sanitizarIdentificadorAuditoria(identificador), motivo },
-      ipAddress: clientMeta?.ipAddress,
-      userAgent: clientMeta?.userAgent,
+      codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.AUTORIZACION_SUPERVISOR,
+      motivo,
     });
     throw new ForbiddenError(mensaje);
   };
 
   if (!supervisor || bloqueado || !passwordValido) {
+    let correlacionId = null;
     if (supervisor && !bloqueado && !passwordValido) {
-      await registrarIntentoFallido(supervisor.id);
+      const resultadoIntento = await registrarIntentoFallido(supervisor.id);
+      if (resultadoIntento.bloqueadoAhora) {
+        correlacionId = AuditService.crearCorrelacionId();
+        await AuditService.registrarEvento({
+          sucursalId: supervisor.sucursalId,
+          usuarioId: supervisor.id,
+          actorRolCodigo: supervisor.rol?.codigo ?? null,
+          clientMeta,
+          correlacionId,
+        }, {
+          accion: ACCIONES_AUDITORIA.BLOQUEO_CUENTA,
+          entidad: 'Usuario',
+          entidadId: supervisor.id,
+          valorNuevo: {
+            supervisor: sanitizarIdentificadorAuditoria(identificador),
+            bloqueadoHasta: resultadoIntento.bloqueadoHasta,
+            origen: `autorizacion_${operacion}_caja`,
+          },
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
+          motivo: 'Cuenta bloqueada temporalmente por intentos fallidos al autorizar caja',
+        });
+      }
     }
-    await rechazar(bloqueado ? 'Supervisor bloqueado temporalmente' : 'Credenciales incorrectas');
+    await rechazar(bloqueado ? 'Supervisor bloqueado temporalmente' : 'Credenciales incorrectas', MENSAJE_RECHAZO, correlacionId);
   }
 
   if (supervisor.id === user.id) {

@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { z } = require('zod');
+const { CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { CajaController } = require('../controllers/caja.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
@@ -23,6 +24,7 @@ const movimientoCajaSchema = z.object({
     tipo: z.enum(['INGRESO_MANUAL', 'EGRESO_MANUAL']),
     monto: z.coerce.number().positive('El monto debe ser mayor a 0'),
     descripcion: z.string().trim().min(3, 'Ingresa una descripción del movimiento').max(250),
+    codigoMotivo: z.enum(Object.values(CODIGOS_MOTIVO_AUDITORIA)).optional(),
     metodoPago: z.enum(['EFECTIVO', 'TARJETA']).optional().default('EFECTIVO'),
 });
 const cerrarCajaSchema = z.object({

@@ -106,6 +106,12 @@ const envSchema = z.object({
   DELIVERY_JSON_MAX_KEYS: z.coerce.number().int().min(1).max(100).default(20),
   DELIVERY_JSON_MAX_DEPTH: z.coerce.number().int().min(1).max(10).default(2),
   DELIVERY_JSON_MAX_BYTES: z.coerce.number().int().min(128).max(16384).default(2048),
+
+  // Umbrales y límites del módulo de Auditoría de investigación
+  AUDIT_IMPACTO_ALTO_Q: z.coerce.number().positive().max(1000000).default(500),
+  AUDIT_DIFERENCIA_CAJA_ALTA_Q: z.coerce.number().positive().max(1000000).default(50),
+  AUDIT_REPETICION_UMBRAL: z.coerce.number().int().min(2).max(100).default(3),
+  AUDIT_EXPORT_MAX_ROWS: z.coerce.number().int().min(100).max(100000).default(10000),
 });
 
 const parsed = envSchema.safeParse(process.env);

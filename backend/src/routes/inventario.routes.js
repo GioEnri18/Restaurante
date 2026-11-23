@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { z } = require('zod');
+const { CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { InventarioController } = require('../controllers/inventario.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
@@ -37,6 +38,7 @@ const ajustarStockSchema = z.object({
     cantidad: cantidadMovimiento,
     unidad: z.enum(['lb', 'oz']).default('oz'),
     motivo: z.string().trim().min(4, 'Indica el motivo del ajuste').max(250),
+    codigoMotivo: z.enum(Object.values(CODIGOS_MOTIVO_AUDITORIA)).optional(),
 });
 const proveedorSchema = z.object({
     nombre: z.string().trim().min(2).max(120),
