@@ -96,6 +96,7 @@ const PERMISOS_CATALOGO = [
     { codigo: 'reportes:exportar', vista: 'reportes', accion: 'exportar', descripcion: 'Exportar reportes a PDF y Excel' },
     // Auditoría
     { codigo: 'auditoria:ver', vista: 'auditoria', accion: 'ver', descripcion: 'Consultar bitácora inmutable de auditoría' },
+    { codigo: 'auditoria:exportar', vista: 'auditoria', accion: 'exportar', descripcion: 'Exportar bitácora de auditoría en formato CSV' },
     // Accesos (exclusivo Administrador)
     { codigo: 'accesos:ver', vista: 'accesos', accion: 'ver', descripcion: 'Ver usuarios, roles y permisos (solo Admin)' },
     { codigo: 'accesos:gestionar', vista: 'accesos', accion: 'gestionar', descripcion: 'Administrar usuarios, roles y permisos (solo Admin)' },

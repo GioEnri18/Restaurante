@@ -3648,6 +3648,42 @@
                   "value": "{{fechaHasta}}",
                   "disabled": true,
                   "description": "Fecha final YYYY-MM-DD"
+                },
+                {
+                  "key": "severidad",
+                  "value": "ALTA",
+                  "disabled": true,
+                  "description": "BAJA | MEDIA | ALTA"
+                },
+                {
+                  "key": "aprobadorId",
+                  "value": "1",
+                  "disabled": true,
+                  "description": "ID del supervisor aprobador"
+                },
+                {
+                  "key": "cajaSesionId",
+                  "value": "1",
+                  "disabled": true,
+                  "description": "ID del turno de caja"
+                },
+                {
+                  "key": "entidadId",
+                  "value": "1",
+                  "disabled": true,
+                  "description": "ID de la entidad"
+                },
+                {
+                  "key": "impactoMin",
+                  "value": "50",
+                  "disabled": true,
+                  "description": "Impacto mínimo en Q"
+                },
+                {
+                  "key": "impactoMax",
+                  "value": "5000",
+                  "disabled": true,
+                  "description": "Impacto máximo en Q"
                 }
               ]
             },
@@ -3712,6 +3748,156 @@
               ]
             },
             "description": "Devuelve el catálogo de acciones, entidades y usuarios disponibles para filtrar la bitácora. Permiso: `auditoria:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "Resumen y alertas de auditoría",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auditoria/resumen?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auditoria",
+                "resumen"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": true
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": true
+                },
+                {
+                  "key": "severidad",
+                  "value": "ALTA",
+                  "disabled": true
+                },
+                {
+                  "key": "usuarioId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "aprobadorId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "cajaSesionId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "impactoMin",
+                  "value": "50",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Devuelve KPIs agregados por SQL (total, conteo por severidad, impacto anulado, diferencia neta de caja, reimpresiones, rankings y alertas de patrones repetitivos). Permiso: auditoria:ver."
+          },
+          "response": []
+        },
+        {
+          "name": "Detalle de evento de auditoría",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auditoria/{{auditoriaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auditoria",
+                "{{auditoriaId}}"
+              ]
+            },
+            "description": "Devuelve el detalle completo de un evento con usuario, aprobador, turno, eventos correlacionados y metadatos de entidad origen. Permiso: auditoria:ver."
+          },
+          "response": []
+        },
+        {
+          "name": "Exportar auditoría en CSV",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly (Fase 2.7)"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection (Fase 2.7)"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auditoria/exportar?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auditoria",
+                "exportar"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": true
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": true
+                },
+                {
+                  "key": "severidad",
+                  "value": "ALTA",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Descarga en streaming CSV la bitácora filtrada (hasta AUDIT_EXPORT_MAX_ROWS) y registra el evento EXPORTAR_AUDITORIA. Permisos: auditoria:ver + auditoria:exportar (Admin y Auditor)."
           },
           "response": []
         }

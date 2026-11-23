@@ -94,6 +94,7 @@ async function main() {
                 'reportes:ver',
                 'reportes:exportar',
                 'auditoria:ver',
+                'auditoria:exportar',
                 'facturas:ver',
                 'caja:ver',
                 'caja:autorizar',
