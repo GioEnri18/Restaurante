@@ -72,6 +72,8 @@ async function main() {
                 'caja:abrir',
                 'caja:movimiento',
                 'caja:cerrar',
+                'mermas:ver',
+                'mermas:crear',
             ],
         },
         {

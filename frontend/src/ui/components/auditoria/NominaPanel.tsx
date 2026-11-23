@@ -5,11 +5,13 @@ import { auditoriaService } from '../../../services/auditoria.service';
 import { formatCurrency } from '../../../utils/formatters';
 import { Alert } from '../common/Alert';
 import { Badge } from '../common/Badge';
+import { Pagination, usePaginacionLocal } from '../common/Pagination';
 
 export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
   const [personas, setPersonas] = useState<PersonaNominaModel[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pagina = usePaginacionLocal(personas);
 
   useEffect(() => {
     let mounted = true;
@@ -52,7 +54,7 @@ export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {personas.map((persona) => (
+              {pagina.items.map((persona) => (
                 <tr key={persona.id}>
                   <th scope="row" className="p-2 font-semibold">{persona.nombreCompleto}</th>
                   <td className="p-2">{persona.rol}</td>
@@ -65,6 +67,7 @@ export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
           </table>
         )}
       </div>
+      {pagina.meta.totalPages > 1 && <Pagination meta={pagina.meta} onPageChange={pagina.onPageChange} />}
     </section>
   );
 }

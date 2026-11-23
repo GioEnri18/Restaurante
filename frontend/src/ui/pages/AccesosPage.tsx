@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Users, Shield, UserPlus, Plus, Power, Edit } from 'lucide-react';
-import { PermisoModel, RolModel, UsuarioAdminModel } from '../../models';
+import { PaginationMeta, PermisoModel, RolModel, UsuarioAdminModel } from '../../models';
 import { accesosService } from '../../services/accesos.service';
 import { ApiError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
@@ -8,6 +8,7 @@ import { formatDateTime, getTodayISO } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
+import { Pagination, usePaginacionLocal } from '../components/common/Pagination';
 
 const VISTAS_RUTAS = [
   '/ventas',
@@ -53,6 +54,8 @@ export const AccesosPage: React.FC = () => {
   const [tab, setTab] = useState<'usuarios' | 'roles'>('usuarios');
   const [usuarios, setUsuarios] = useState<UsuarioAdminModel[]>([]);
   const [roles, setRoles] = useState<RolModel[]>([]);
+  const [metaUsuarios, setMetaUsuarios] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const paginaRoles = usePaginacionLocal(roles);
   const [permisosPorVista, setPermisosPorVista] = useState<Record<string, PermisoModel[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -96,7 +99,8 @@ export const AccesosPage: React.FC = () => {
         accesosService.listarRoles(),
         accesosService.listarPermisos(),
       ]);
-      setUsuarios(u);
+      setUsuarios(u.items);
+      setMetaUsuarios(u.meta);
       setRoles(r);
       setPermisosPorVista(p.porVista);
 
@@ -112,6 +116,17 @@ export const AccesosPage: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Error cargando administración de accesos');
     }
   }, []);
+
+  const cargarUsuarios = async (page: number) => {
+    setError(null);
+    try {
+      const resultado = await accesosService.listarUsuarios(page);
+      setUsuarios(resultado.items);
+      setMetaUsuarios(resultado.meta);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar la página de personal');
+    }
+  };
 
   useEffect(() => {
     void cargarTodo();
@@ -293,7 +308,7 @@ export const AccesosPage: React.FC = () => {
           }`}
         >
           <Users className="h-4 w-4" />
-          Personal ({usuarios.length})
+          Personal ({metaUsuarios.total})
         </button>
         <button
           type="button"
@@ -387,6 +402,7 @@ export const AccesosPage: React.FC = () => {
               ))}
             </tbody>
           </table>
+          {metaUsuarios.totalPages > 1 && <Pagination meta={metaUsuarios} onPageChange={(page) => void cargarUsuarios(page)} />}
           </div>
         </div>
       )}
@@ -395,7 +411,7 @@ export const AccesosPage: React.FC = () => {
       {tab === 'roles' && (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
           <div className="space-y-2 lg:col-span-4">
-            {roles.map((r) => (
+            {paginaRoles.items.map((r) => (
               <button
                 key={r.id}
                 type="button"
@@ -416,6 +432,7 @@ export const AccesosPage: React.FC = () => {
                 </p>
               </button>
             ))}
+            {paginaRoles.meta.totalPages > 1 && <Pagination meta={paginaRoles.meta} onPageChange={paginaRoles.onPageChange} />}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-8">

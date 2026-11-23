@@ -7,6 +7,7 @@ const { Permiso, Rol, RolPermiso, Usuario, UsuarioPermiso } = require('../models
 const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { PermisosCache } = require('../shared/services/permisosCache');
+const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { revocarSesionesUsuario } = require('./auth.service');
 
 function datosNomina(usuario) {
@@ -43,10 +44,13 @@ async function auditarNomina(admin, usuario, anterior, clientMeta, tx) {
 }
 
 class AccesosService {
-    static async listarUsuarios(sucursalId) {
-        const usuarios = await Usuario.findAll({
-            where: { sucursalId },
-            order: [['createdAt', 'DESC']],
+    static async listarUsuarios(sucursalId, rawPage) {
+        const paginacion = rawPage === undefined ? null : parsePagination(rawPage, 15, 15);
+        const where = { sucursalId };
+        const [usuarios, total] = await Promise.all([Usuario.findAll({
+            where,
+            order: [['createdAt', 'DESC'], ['id', 'DESC']],
+            ...(paginacion ? { limit: paginacion.limit, offset: paginacion.skip } : {}),
             include: [
                 {
                     model: Rol,
@@ -65,8 +69,8 @@ class AccesosService {
                     include: [{ model: Permiso, as: 'permiso' }],
                 },
             ],
-        });
-        return usuarios.map((u) => {
+        }), paginacion ? Usuario.count({ where }) : null]);
+        const data = usuarios.map((u) => {
             const baseSet = new Set((u.rol?.rolPermisos ?? [])
                 .map((rp) => rp.permiso?.codigo)
                 .filter((c) => Boolean(c)));
@@ -106,6 +110,7 @@ class AccesosService {
                 })),
             };
         });
+        return paginacion ? { data, meta: buildPaginationMeta(total, paginacion.page, paginacion.limit) } : data;
     }
     static async crearUsuario(adminUser, input, clientMeta) {
         return withTransaction(async (tx) => {

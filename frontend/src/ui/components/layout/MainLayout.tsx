@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { BellRing, CalendarClock, HelpCircle, Menu, Store, X } from 'lucide-react';
 import { env } from '../../../config/env';
@@ -150,7 +150,9 @@ export const MainLayout: React.FC = () => {
 
         {/* Contenido principal */}
         <main className="flex-1 p-4 lg:p-6">
-          <Outlet />
+          <Suspense fallback={<p role="status" className="py-10 text-center text-sm text-slate-600">Cargando módulo…</p>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

@@ -21,6 +21,7 @@ import { formatCurrency, formatDateOnly } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';
+import { Pagination, usePaginacionLocal } from '../components/common/Pagination';
 import { SelectorFotoPlatillo } from '../components/common/SelectorFotoPlatillo';
 import {
   NuevaCategoriaModal,
@@ -57,6 +58,8 @@ export const MenusEspecialesPage: React.FC = () => {
   const [errorMenu, setErrorMenu] = useState<string | null>(null);
   const [guardandoMenu, setGuardandoMenu] = useState(false);
   const [editing, setEditing] = useState<MenuEspecialModel | null>(null);
+  const paginaMenus = usePaginacionLocal(menus);
+  const paginaCatalogo = usePaginacionLocal(platillosCatalogo, modalOpen ? String(editing?.id ?? 'nuevo') : 'cerrado');
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
@@ -435,7 +438,7 @@ export const MenusEspecialesPage: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {menus.map((m) => (
+          {paginaMenus.items.map((m) => (
             <div
               key={m.id}
               className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
@@ -525,6 +528,8 @@ export const MenusEspecialesPage: React.FC = () => {
           ))}
         </div>
       )}
+
+      {!loading && paginaMenus.meta.totalPages > 1 && <Pagination meta={paginaMenus.meta} onPageChange={paginaMenus.onPageChange} />}
 
       {/* MODAL PROGRAMAR / EDITAR MENÚ ESPECIAL */}
       <Modal
@@ -631,7 +636,7 @@ export const MenusEspecialesPage: React.FC = () => {
               Selecciona los platillos del menú especial (y precio promocional opcional)
             </p>
             <div className="max-h-64 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3">
-              {platillosCatalogo.map((p) => {
+              {paginaCatalogo.items.map((p) => {
                 const checked = p.id in selectedPlatillos;
                 return (
                   <div
@@ -675,6 +680,7 @@ export const MenusEspecialesPage: React.FC = () => {
                 );
               })}
             </div>
+            {paginaCatalogo.meta.totalPages > 1 && <Pagination meta={paginaCatalogo.meta} onPageChange={paginaCatalogo.onPageChange} />}
           </div>
 
           {errorMenu && <div role="alert"><Alert type="error" message={errorMenu} /></div>}

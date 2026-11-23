@@ -1,4 +1,4 @@
-const { Op, QueryTypes, col, fn } = require('sequelize');
+const { Op, QueryTypes, col, fn, where: comparar } = require('sequelize');
 const { ACCIONES_AUDITORIA } = require('../config/constants');
 const { sequelize, withTransaction } = require('../config/database');
 const { Compra, CompraDetalle, Ingrediente, InventarioMovimiento, Proveedor, TipoMovimientoInventario, UnidadMedida, Usuario } = require('../models');
@@ -26,7 +26,8 @@ class InventarioService {
             bajoStock: stockActualOz <= stockMinimoOz,
         };
     }
-    static async listarIngredientes(sucursalId, search) {
+    static async listarIngredientes(sucursalId, search, opciones = {}) {
+        const paginacion = opciones.page === undefined ? null : parsePagination(opciones.page, 15, 15);
         const where = {
             sucursalId,
             activo: true,
@@ -35,20 +36,33 @@ class InventarioService {
                     [Op.or]: [
                         { nombre: { [Op.iLike]: patronContiene(search) } },
                         { codigo: { [Op.iLike]: patronContiene(search) } },
+                        { '$proveedor.nombre$': { [Op.iLike]: patronContiene(search) } },
                     ],
                 }
                 : {}),
+            ...(opciones.porReponer ? {
+                [Op.and]: comparar(col('Ingrediente.stock_actual_oz'), Op.lte, col('Ingrediente.stock_minimo_oz')),
+            } : {}),
         };
-        const ingredientes = await Ingrediente.findAll({
+        const consulta = {
             where,
-            order: [['nombre', 'ASC']],
+            order: [['nombre', 'ASC'], ['id', 'ASC']],
             include: [{ model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre', 'telefono'] }],
-        });
+        };
+        if (paginacion) {
+            const { rows, count } = await Ingrediente.findAndCountAll({
+                ...consulta, limit: paginacion.limit, offset: paginacion.skip,
+            });
+            return {
+                data: rows.map((i) => this.enrichIngrediente(i)),
+                meta: buildPaginationMeta(count, paginacion.page, paginacion.limit),
+            };
+        }
+        const ingredientes = await Ingrediente.findAll(consulta);
         return ingredientes.map((i) => this.enrichIngrediente(i));
     }
     static async obtenerAlertas(sucursalId) {
-        const todos = await this.listarIngredientes(sucursalId);
-        return todos.filter((i) => i.bajoStock);
+        return this.listarIngredientes(sucursalId, undefined, { porReponer: true });
     }
     static async crearIngrediente(user, input, clientMeta) {
         return withTransaction(async (tx) => {
@@ -434,7 +448,7 @@ class InventarioService {
         return transaction ? registrar(transaction) : withTransaction(registrar);
     }
     static async listarCompras(sucursalId, rawPage, rawLimit) {
-        const { page, limit, skip } = parsePagination(rawPage, rawLimit, 10);
+        const { page, limit, skip } = parsePagination(rawPage, rawLimit, 15);
         const { rows, count } = await Compra.findAndCountAll({
             where: { sucursalId },
             order: [['fechaCompra', 'DESC']],

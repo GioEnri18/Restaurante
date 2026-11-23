@@ -20,6 +20,7 @@ const MOTIVOS: Array<{ value: MotivoMerma; label: string }> = [
 
 export const MermasPage: React.FC = () => {
   const canCreate = useAuthStore((s) => s.can('mermas:crear'));
+  const esCajero = useAuthStore((s) => s.usuario?.rol?.codigo === 'CAJERO');
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
   const [listado, setListado] = useState<MermasListadoModel | null>(null);
   const [filtroMotivo, setFiltroMotivo] = useState('');
@@ -37,24 +38,24 @@ export const MermasPage: React.FC = () => {
   });
 
   const cargar = useCallback(
-    async (page = 1) => {
+    async (page = 1, refrescarIngredientes = false) => {
       setError(null);
       try {
         const [ings, data] = await Promise.all([
-          inventarioService.listarIngredientes(),
+          refrescarIngredientes && canCreate ? inventarioService.listarIngredientes() : null,
           mermasService.listar({ page, motivo: filtroMotivo || undefined }),
         ]);
-        setIngredientes(ings);
+        if (ings) setIngredientes(ings);
         setListado(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error cargando mermas');
       }
     },
-    [filtroMotivo],
+    [canCreate, filtroMotivo],
   );
 
   useEffect(() => {
-    void cargar(1);
+    void cargar(1, true);
   }, [cargar]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,7 +86,7 @@ export const MermasPage: React.FC = () => {
         motivo: 'ERROR_PREPARACION',
         observacion: '',
       });
-      await cargar(1);
+      await cargar(1, true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la merma');
     } finally {
@@ -99,7 +100,7 @@ export const MermasPage: React.FC = () => {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-extrabold text-slate-900">Mermas y pérdidas</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900">{esCajero ? 'Mermas de hoy' : 'Mermas y pérdidas'}</h1>
         <p className="text-sm text-slate-500">
           Registra ingredientes dañados, vencidos o desperdiciados. La cantidad se descuenta del inventario.
         </p>

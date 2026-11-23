@@ -1,5 +1,4 @@
 import { auditoriaAdapter } from '../adapters/auditoria.adapter';
-import { env } from '../config/env';
 import { AuditoriaLogModel, PaginationMeta, PersonaNominaModel } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
@@ -15,11 +14,11 @@ export const auditoriaService = {
     fechaDesde?: string;
     fechaHasta?: string;
   }): Promise<{ items: AuditoriaLogModel[]; meta: PaginationMeta }> {
-    const qs = buildQueryString({ ...params, limit: env.DEFAULT_PAGE_SIZE });
+    const qs = buildQueryString({ ...params, limit: 15 });
     const res = await httpClient.get<unknown[]>(`/auditoria${qs}`);
     return {
       items: (res.data ?? []).map((l) => auditoriaAdapter.fromLogJson(l)),
-      meta: res.meta ?? { page: 1, limit: env.DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 },
+      meta: res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
     };
   },
 

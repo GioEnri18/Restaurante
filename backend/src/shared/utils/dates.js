@@ -84,6 +84,7 @@ function formatDateTimeInTimezone(date = new Date(), zone = env.DEFAULT_TIMEZONE
 }
 
 module.exports = {
+  toDateTimeInZone,
   nowInTimezone,
   startOfDayInTimezone,
   endOfDayInTimezone,

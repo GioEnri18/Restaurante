@@ -1,5 +1,4 @@
 import { mermasAdapter } from '../adapters/mermas.adapter';
-import { env } from '../config/env';
 import { MermaModel, MermasListadoModel, MotivoMerma, UnidadMedida } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
@@ -11,11 +10,11 @@ export const mermasService = {
     fechaDesde?: string;
     fechaHasta?: string;
   }): Promise<MermasListadoModel> {
-    const qs = buildQueryString({ ...params, limit: env.FACTURAS_PAGE_SIZE });
+    const qs = buildQueryString({ ...params, limit: 15 });
     const res = await httpClient.get<unknown>(`/mermas${qs}`);
     return mermasAdapter.fromListadoJson(
       res.data,
-      res.meta ?? { page: 1, limit: env.FACTURAS_PAGE_SIZE, total: 0, totalPages: 1 },
+      res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
     );
   },
 

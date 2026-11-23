@@ -1,13 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { env } from '../../../config/env';
-import { CompraModel, IngredienteModel, ProveedorModel, UnidadMedida } from '../../../models';
+import { CompraModel, IngredienteModel, PaginationMeta, ProveedorModel, UnidadMedida } from '../../../models';
 import { formatCurrency, formatDateTime, lbToOzPreview } from '../../../utils/formatters';
+import { Pagination } from '../common/Pagination';
 
 interface ComprasPanelProps {
   canBuy: boolean;
   proveedores: ProveedorModel[];
   ingredientes: IngredienteModel[];
   compras: CompraModel[];
+  comprasMeta: PaginationMeta;
+  onPaginaCompras: (page: number) => void;
   ingredienteInicial: IngredienteModel | null;
   proveedorCompraNuevo: number | null;
   onNuevoProveedor?: () => void;
@@ -37,6 +40,8 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
   proveedores,
   ingredientes,
   compras,
+  comprasMeta,
+  onPaginaCompras,
   ingredienteInicial,
   proveedorCompraNuevo,
   onNuevoProveedor,
@@ -240,6 +245,7 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
             ))
           )}
         </div>
+        {comprasMeta.totalPages > 1 && <Pagination meta={comprasMeta} onPageChange={onPaginaCompras} />}
       </div>
     </div>
   );

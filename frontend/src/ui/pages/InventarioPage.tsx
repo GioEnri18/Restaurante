@@ -79,13 +79,19 @@ export const InventarioPage: React.FC = () => {
   const [ingredienteCompra, setIngredienteCompra] = useState<IngredienteModel | null>(null);
   const [proveedorCompraNuevo, setProveedorCompraNuevo] = useState<number | null>(null);
   const [ingredientes, setIngredientes] = useState<IngredienteModel[]>([]);
-  const [ingredientesCargados, setIngredientesCargados] = useState(false);
+  const [alertas, setAlertas] = useState<IngredienteModel[] | null>(null);
+  const [existencias, setExistencias] = useState<IngredienteModel[]>([]);
+  const [existenciasCargando, setExistenciasCargando] = useState(true);
+  const [metaExistencias, setMetaExistencias] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [paginaExistencias, setPaginaExistencias] = useState(1);
+  const [versionExistencias, actualizarExistencias] = useState(0);
   const [busquedaExistencias, setBusquedaExistencias] = useState('');
   const [soloPorReponer, setSoloPorReponer] = useState(false);
   const [enfocarPendientes, setEnfocarPendientes] = useState(false);
   const tablaExistencias = React.useRef<HTMLDivElement>(null);
   const [proveedores, setProveedores] = useState<ProveedorModel[]>([]);
   const [compras, setCompras] = useState<CompraModel[]>([]);
+  const [comprasMeta, setComprasMeta] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [movimientos, setMovimientos] = useState<InventarioMovimientoModel[]>([]);
   const [movMeta, setMovMeta] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
   const [platillos, setPlatillos] = useState<PlatilloModel[]>([]);
@@ -139,20 +145,27 @@ export const InventarioPage: React.FC = () => {
 
   const cargarTodo = useCallback(async () => {
     setError(null);
+    if (tab === 'existencias') actualizarExistencias((version) => version + 1);
     try {
-      const [ings, provs, comp, movs, menu] = await Promise.all([
-        inventarioService.listarIngredientes(),
-        inventarioService.listarProveedores(),
-        inventarioService.listarCompras(1),
-        inventarioService.listarMovimientos({ page: 1 }),
-        ventasService.obtenerMenu().catch(() => null),
+      const [ings, provs, comp, movs, menu, pendientes] = await Promise.all([
+        tab === 'compras' || tab === 'recetas' ? inventarioService.listarIngredientes() : null,
+        canManage || tab === 'compras' || tab === 'proveedores' ? inventarioService.listarProveedores() : null,
+        tab === 'compras' ? inventarioService.listarCompras(1) : null,
+        tab === 'kardex' ? inventarioService.listarMovimientos({ page: 1 }) : null,
+        tab === 'recetas' ? ventasService.obtenerMenu().catch(() => null) : null,
+        tab === 'existencias' || tab === 'compras' ? inventarioService.listarAlertas() : null,
       ]);
-      setIngredientes(ings);
-      setIngredientesCargados(true);
-      setProveedores(provs);
-      setCompras(comp.items);
-      setMovimientos(movs.items);
-      setMovMeta(movs.meta);
+      if (ings) setIngredientes(ings);
+      if (pendientes) setAlertas(pendientes);
+      if (provs) setProveedores(provs);
+      if (comp) {
+        setCompras(comp.items);
+        setComprasMeta(comp.meta);
+      }
+      if (movs) {
+        setMovimientos(movs.items);
+        setMovMeta(movs.meta);
+      }
       if (menu) {
         setPlatillos(menu.platillos);
         setCategorias(menu.categorias);
@@ -160,11 +173,44 @@ export const InventarioPage: React.FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar inventario');
     }
-  }, []);
+  }, [canManage, tab]);
 
   useEffect(() => {
     void cargarTodo();
   }, [cargarTodo]);
+
+  useEffect(() => {
+    if (tab !== 'existencias') return;
+    let vigente = true;
+    setExistenciasCargando(true);
+    const espera = window.setTimeout(() => {
+      void inventarioService.listarExistencias(paginaExistencias, busquedaExistencias, soloPorReponer)
+        .then(({ items, meta }) => {
+          if (!vigente) return;
+          if (paginaExistencias > meta.totalPages) {
+            setPaginaExistencias(meta.totalPages);
+            return;
+          }
+          setExistencias(items);
+          setMetaExistencias(meta);
+          setExistenciasCargando(false);
+        }).catch((err: unknown) => {
+          if (vigente) {
+            setExistenciasCargando(false);
+            setError(err instanceof Error ? err.message : 'No se pudieron cargar las existencias');
+          }
+        });
+    }, 180);
+    return () => {
+      vigente = false;
+      window.clearTimeout(espera);
+    };
+  }, [tab, paginaExistencias, busquedaExistencias, soloPorReponer, versionExistencias]);
+
+  const buscarExistencias = (busqueda: string) => {
+    setBusquedaExistencias(busqueda);
+    setPaginaExistencias(1);
+  };
 
   useEffect(() => {
     if (!enfocarPendientes || tab !== 'existencias') return;
@@ -173,7 +219,7 @@ export const InventarioPage: React.FC = () => {
   }, [enfocarPendientes, tab]);
 
   const verPendientes = () => {
-    setBusquedaExistencias('');
+    buscarExistencias('');
     setSoloPorReponer(true);
     setEnfocarPendientes(true);
     cambiarTab('existencias');
@@ -185,8 +231,8 @@ export const InventarioPage: React.FC = () => {
     cambiarTab('compras');
   };
 
-  const alertasStock = ingredientesCargados && (
-    <AlertasStockPanel ingredientes={ingredientes} onComprar={canBuy ? abrirCompra : undefined}
+  const alertasStock = alertas && (
+    <AlertasStockPanel ingredientes={alertas} onComprar={canBuy ? abrirCompra : undefined}
       onVerPendientes={verPendientes} />
   );
 
@@ -282,6 +328,17 @@ export const InventarioPage: React.FC = () => {
     }
   };
 
+  const cargarComprasPagina = async (page: number) => {
+    setError(null);
+    try {
+      const resultado = await inventarioService.listarCompras(page);
+      setCompras(resultado.items);
+      setComprasMeta(resultado.meta);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo cargar la página de compras');
+    }
+  };
+
   const cargarMovimientosPagina = async (page: number) => {
     const res = await inventarioService.listarMovimientos({ page });
     setMovimientos(res.items);
@@ -369,7 +426,7 @@ export const InventarioPage: React.FC = () => {
             onClick={() => {
               setIngredienteCompra(null);
               setProveedorCompraNuevo(null);
-              setBusquedaExistencias('');
+              buscarExistencias('');
               setSoloPorReponer(false);
               cambiarTab(id as Tab);
             }}
@@ -388,9 +445,13 @@ export const InventarioPage: React.FC = () => {
       {tab === 'existencias' && (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">
           <div className="min-w-0" ref={tablaExistencias} tabIndex={-1}>
-            <ExistenciasTable ingredientes={ingredientes} canAdjust={canAdjust} canBuy={canBuy}
-              busqueda={busquedaExistencias} onBuscar={setBusquedaExistencias}
-              soloPorReponer={soloPorReponer} onAlternarPorReponer={() => setSoloPorReponer((actual) => !actual)}
+            <ExistenciasTable ingredientes={existencias} cargando={existenciasCargando} canAdjust={canAdjust} canBuy={canBuy}
+              busqueda={busquedaExistencias} onBuscar={buscarExistencias}
+              meta={metaExistencias} onPageChange={setPaginaExistencias}
+              soloPorReponer={soloPorReponer} onAlternarPorReponer={() => {
+                setPaginaExistencias(1);
+                setSoloPorReponer((actual) => !actual);
+              }}
               onComprar={abrirCompra} onAjustar={setAjusteTarget} />
           </div>
           {alertasStock}
@@ -408,6 +469,8 @@ export const InventarioPage: React.FC = () => {
           proveedores={proveedores}
           ingredientes={ingredientes}
           compras={compras}
+          comprasMeta={comprasMeta}
+          onPaginaCompras={(page) => void cargarComprasPagina(page)}
           onRegistrarCompra={handleRegistrarCompra}
         />
         {alertasStock}

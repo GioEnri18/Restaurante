@@ -6,7 +6,7 @@ const { Ingrediente, InventarioMovimiento, Merma, TipoMovimientoInventario, Usua
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
-const { endOfDayInTimezone, startOfDayInTimezone, toDateTimeInZone } = require('../shared/utils/dates');
+const { endOfDayInTimezone, startOfDayInTimezone, toDateTimeInZone, toIsoDateInTimezone } = require('../shared/utils/dates');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { round2, round4 } = require('../shared/utils/tax');
 
@@ -29,7 +29,7 @@ function formatearMerma(merma) {
 
 class MermasService {
     static async listar(sucursalId, query) {
-        const { page, limit, skip } = parsePagination(query.page, query.limit, 10);
+        const { page, limit, skip } = parsePagination(query.page, query.limit, 15, 15);
         const where = { sucursalId };
         if (query.motivo)
             where.motivo = query.motivo;
@@ -46,7 +46,7 @@ class MermasService {
         const [{ rows, count }, agregado] = await Promise.all([
             Merma.findAndCountAll({
                 where: where,
-                order: [['fecha', 'DESC']],
+                order: [['fecha', 'DESC'], ['id', 'DESC']],
                 offset: skip,
                 limit,
                 include: [
@@ -84,6 +84,9 @@ class MermasService {
         const fecha = input.fecha ? toDateTimeInZone(input.fecha).toJSDate() : new Date();
         if (!Number.isFinite(fecha.valueOf()) || fecha.valueOf() > Date.now() + 60000) {
             throw new BadRequestError('La fecha de la merma debe ser válida y no puede ser futura');
+        }
+        if (user.rolCodigo === 'CAJERO' && toIsoDateInTimezone(fecha) !== toIsoDateInTimezone()) {
+            throw new BadRequestError('El cajero solo puede registrar mermas del día de hoy');
         }
         const observacion = input.observacion?.trim() || null;
         const key = input.idempotencyKey;

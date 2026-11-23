@@ -1,45 +1,39 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { IngredienteModel } from '../../../models';
+import { IngredienteModel, PaginationMeta } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
+import { Pagination } from '../common/Pagination';
 
 interface ExistenciasTableProps {
   ingredientes: IngredienteModel[];
+  cargando: boolean;
   canAdjust: boolean;
   canBuy: boolean;
   busqueda: string;
   onBuscar: (busqueda: string) => void;
   soloPorReponer: boolean;
   onAlternarPorReponer: () => void;
+  meta: PaginationMeta;
+  onPageChange: (pagina: number) => void;
   onComprar: (ingrediente: IngredienteModel) => void;
   onAjustar: (ingrediente: IngredienteModel) => void;
 }
 
 export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
   ingredientes,
+  cargando,
   canAdjust,
   canBuy,
   busqueda,
   onBuscar,
   soloPorReponer,
   onAlternarPorReponer,
+  meta,
+  onPageChange,
   onComprar,
   onAjustar,
 }) => {
-  const filtrados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    return ingredientes.filter((ing) => {
-      if (soloPorReponer && !ing.bajoStock && ing.stockActualOz > 0) return false;
-      if (!q) return true;
-      return (
-        ing.nombre.toLowerCase().includes(q) ||
-        ing.codigo.toLowerCase().includes(q) ||
-        (ing.proveedorNombre ?? '').toLowerCase().includes(q)
-      );
-    });
-  }, [ingredientes, busqueda, soloPorReponer]);
-
   return (
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -47,6 +41,7 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
+            maxLength={80}
             aria-label="Buscar ingrediente"
             value={busqueda}
             onChange={(e) => onBuscar(e.target.value)}
@@ -93,14 +88,14 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {filtrados.length === 0 ? (
+            {cargando || ingredientes.length === 0 ? (
               <tr>
                 <td colSpan={canBuy || canAdjust ? 8 : 7} className="py-8 text-center text-sm text-slate-500">
-                  No se encontraron ingredientes con ese filtro.
+                  {cargando ? 'Cargando existencias…' : 'No se encontraron ingredientes con ese filtro.'}
                 </td>
               </tr>
             ) : (
-              filtrados.map((ing) => (
+              ingredientes.map((ing) => (
                 <tr key={ing.id} className="hover:bg-slate-50">
                   <td className="px-2 py-3">
                     <p className="font-bold text-slate-900">{ing.nombre}</p>
@@ -159,6 +154,7 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
           </tbody>
         </table>
       </div>
+      {!cargando && meta.totalPages > 1 && <Pagination meta={meta} onPageChange={onPageChange} />}
     </div>
   );
 };

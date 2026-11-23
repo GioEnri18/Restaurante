@@ -4,8 +4,11 @@ class InventarioController {
     static async listarIngredientes(req, res, next) {
         try {
             const search = typeof req.query.search === 'string' ? req.query.search.trim() : undefined;
-            const data = await InventarioService.listarIngredientes(req.user.sucursalId, search);
-            res.status(200).json({ ok: true, data });
+            const resultado = await InventarioService.listarIngredientes(req.user.sucursalId, search, {
+                page: req.query.page,
+                porReponer: req.query.porReponer === 'true',
+            });
+            res.status(200).json({ ok: true, ...(Array.isArray(resultado) ? { data: resultado } : resultado) });
         }
         catch (error) {
             next(error);

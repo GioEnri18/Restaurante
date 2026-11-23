@@ -18,7 +18,7 @@ export const FacturasPage: React.FC = () => {
   const [facturas, setFacturas] = useState<FacturaResumenModel[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({
     page: 1,
-    limit: env.FACTURAS_PAGE_SIZE,
+    limit: 15,
     total: 0,
     totalPages: 1,
   });

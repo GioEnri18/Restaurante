@@ -16,6 +16,8 @@ interface RawReporteKpisJson {
   costoMermasTotal?: number | string;
   cantidadMermas?: number | string;
   totalCompras?: number | string;
+  valorInventarioActual?: number | string;
+  insumosConStockSinCosto?: number | string;
   utilidadBruta?: number | string;
   margenBrutoPct?: number | string;
   ticketPromedio?: number | string;
@@ -40,7 +42,9 @@ interface RawSerieVentasDiaJson {
   fecha?: string;
   cantidadVentas?: number | string;
   ingresos?: number | string;
+  ingresosSinIva?: number | string;
   costos?: number | string;
+  mermas?: number | string;
   utilidad?: number | string;
 }
 
@@ -101,6 +105,8 @@ export const reportesAdapter = {
         costoMermasTotal: Number(k.costoMermasTotal ?? 0),
         cantidadMermas: Number(k.cantidadMermas ?? 0),
         totalCompras: Number(k.totalCompras ?? 0),
+        valorInventarioActual: k.valorInventarioActual == null ? null : Number(k.valorInventarioActual),
+        insumosConStockSinCosto: Number(k.insumosConStockSinCosto ?? 0),
         utilidadBruta: Number(k.utilidadBruta ?? 0),
         margenBrutoPct: Number(k.margenBrutoPct ?? 0),
         ticketPromedio: Number(k.ticketPromedio ?? 0),
@@ -117,7 +123,9 @@ export const reportesAdapter = {
         fecha: String(d.fecha ?? ''),
         cantidadVentas: Number(d.cantidadVentas ?? 0),
         ingresos: Number(d.ingresos ?? 0),
+        ingresosSinIva: Number(d.ingresosSinIva ?? 0),
         costos: Number(d.costos ?? 0),
+        mermas: Number(d.mermas ?? 0),
         utilidad: Number(d.utilidad ?? 0),
       };
     });

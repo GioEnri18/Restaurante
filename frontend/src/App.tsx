@@ -1,20 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { lazy, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from './store/auth.store';
 import { MainLayout } from './ui/components/layout/MainLayout';
 import { ProtectedRoute } from './ui/components/layout/ProtectedRoute';
 
-// Las 9 vistas obligatorias
 import { LoginPage } from './ui/pages/LoginPage';
-import { VentasPage } from './ui/pages/VentasPage';
-import { FacturasPage } from './ui/pages/FacturasPage';
-import { InventarioPage } from './ui/pages/InventarioPage';
-import { MermasPage } from './ui/pages/MermasPage';
-import { CajaPage } from './ui/pages/CajaPage';
-import { ReportesPage } from './ui/pages/ReportesPage';
-import { AuditoriaPage } from './ui/pages/AuditoriaPage';
-import { AccesosPage } from './ui/pages/AccesosPage';
-import { MenusEspecialesPage } from './ui/pages/MenusEspecialesPage';
+
+const VentasPage = lazy(() => import('./ui/pages/VentasPage').then((m) => ({ default: m.VentasPage })));
+const FacturasPage = lazy(() => import('./ui/pages/FacturasPage').then((m) => ({ default: m.FacturasPage })));
+const InventarioPage = lazy(() => import('./ui/pages/InventarioPage').then((m) => ({ default: m.InventarioPage })));
+const MermasPage = lazy(() => import('./ui/pages/MermasPage').then((m) => ({ default: m.MermasPage })));
+const CajaPage = lazy(() => import('./ui/pages/CajaPage').then((m) => ({ default: m.CajaPage })));
+const ReportesPage = lazy(() => import('./ui/pages/ReportesPage').then((m) => ({ default: m.ReportesPage })));
+const AuditoriaPage = lazy(() => import('./ui/pages/AuditoriaPage').then((m) => ({ default: m.AuditoriaPage })));
+const AccesosPage = lazy(() => import('./ui/pages/AccesosPage').then((m) => ({ default: m.AccesosPage })));
+const MenusEspecialesPage = lazy(() => import('./ui/pages/MenusEspecialesPage').then((m) => ({ default: m.MenusEspecialesPage })));
 
 export const App: React.FC = () => {
   const { hydrate, clearSession, usuario } = useAuthStore();

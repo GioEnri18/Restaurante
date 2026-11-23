@@ -1,5 +1,4 @@
 import { inventarioAdapter } from '../adapters/inventario.adapter';
-import { env } from '../config/env';
 import {
   CompraModel,
   IngredienteModel,
@@ -15,6 +14,23 @@ export const inventarioService = {
     const qs = buildQueryString({ search });
     const res = await httpClient.get<unknown[]>(`/inventario/ingredientes${qs}`);
     return (res.data ?? []).map((i) => inventarioAdapter.fromIngredienteJson(i));
+  },
+
+  async listarExistencias(page: number, search: string, porReponer: boolean): Promise<{
+    items: IngredienteModel[];
+    meta: PaginationMeta;
+  }> {
+    const qs = buildQueryString({ page, search: search.trim() || undefined, porReponer: String(porReponer) });
+    const res = await httpClient.get<unknown[]>(`/inventario/ingredientes${qs}`);
+    return {
+      items: (res.data ?? []).map(inventarioAdapter.fromIngredienteJson),
+      meta: res.meta ?? { page: 1, limit: 15, total: res.data?.length ?? 0, totalPages: 1 },
+    };
+  },
+
+  async listarAlertas(): Promise<IngredienteModel[]> {
+    const res = await httpClient.get<unknown[]>('/inventario/alertas');
+    return (res.data ?? []).map(inventarioAdapter.fromIngredienteJson);
   },
 
   async crearIngrediente(payload: {
@@ -60,11 +76,11 @@ export const inventarioService = {
   },
 
   async listarCompras(page = 1): Promise<{ items: CompraModel[]; meta: PaginationMeta }> {
-    const qs = buildQueryString({ page, limit: env.FACTURAS_PAGE_SIZE });
+    const qs = buildQueryString({ page, limit: 15 });
     const res = await httpClient.get<unknown[]>(`/inventario/compras${qs}`);
     return {
       items: (res.data ?? []).map((c) => inventarioAdapter.fromCompraJson(c)),
-      meta: res.meta ?? { page: 1, limit: env.FACTURAS_PAGE_SIZE, total: 0, totalPages: 1 },
+      meta: res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
     };
   },
 
@@ -83,11 +99,11 @@ export const inventarioService = {
     ingredienteId?: string;
     tipo?: string;
   }): Promise<{ items: InventarioMovimientoModel[]; meta: PaginationMeta }> {
-    const qs = buildQueryString({ ...params, limit: env.DEFAULT_PAGE_SIZE });
+    const qs = buildQueryString({ ...params, limit: 15 });
     const res = await httpClient.get<unknown[]>(`/inventario/movimientos${qs}`);
     return {
       items: (res.data ?? []).map((m) => inventarioAdapter.fromMovimientoJson(m)),
-      meta: res.meta ?? { page: 1, limit: env.DEFAULT_PAGE_SIZE, total: 0, totalPages: 1 },
+      meta: res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
     };
   },
 };

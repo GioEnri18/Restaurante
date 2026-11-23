@@ -67,7 +67,11 @@ const registrarCompraSchema = z.object({
         .max(200, 'La compra no puede tener más de 200 ingredientes'),
 });
 // Auditoría P1: validación de query params y :id
-const busquedaQuerySchema = z.object({ search: textoBusqueda(80).optional() });
+const busquedaQuerySchema = z.object({
+    search: textoBusqueda(80).optional(),
+    page: paginacionQuery.page,
+    porReponer: z.enum(['true', 'false']).optional(),
+});
 const paginacionQuerySchema = z.object(paginacionQuery);
 const listarMovimientosQuerySchema = z
     .object({

@@ -1,8 +1,10 @@
 const { MotivoMerma } = require('../models');
 const { MermasService } = require('../services/mermas.service');
+const { toIsoDateInTimezone } = require('../shared/utils/dates');
 class MermasController {
     static async listar(req, res, next) {
         try {
+            const diaCajero = req.user.rolCodigo === 'CAJERO' ? toIsoDateInTimezone() : undefined;
             const { items, resumen, meta } = await MermasService.listar(req.user.sucursalId, {
                 page: req.query.page,
                 limit: req.query.limit,
@@ -11,8 +13,8 @@ class MermasController {
                     ? req.query.motivo
                     : undefined,
                 ingredienteId: typeof req.query.ingredienteId === 'string' ? req.query.ingredienteId : undefined,
-                fechaDesde: typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined,
-                fechaHasta: typeof req.query.fechaHasta === 'string' ? req.query.fechaHasta : undefined,
+                fechaDesde: diaCajero ?? req.query.fechaDesde,
+                fechaHasta: diaCajero ?? req.query.fechaHasta,
             });
             res.status(200).json({ ok: true, data: { items, resumen }, meta });
         }

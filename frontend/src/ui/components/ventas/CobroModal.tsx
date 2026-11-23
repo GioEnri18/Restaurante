@@ -67,7 +67,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
   }, [open, idempotencyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const recibidoNum = Number(montoRecibido || 0);
-  const cambioCalculado = metodoPago === 'EFECTIVO' ? Math.max(0, recibidoNum - totals.total) : 0;
+  const cambioCalculado = Math.max(0, Math.round((recibidoNum - totals.total) * 100) / 100);
 
   const handleConfirmarVenta = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,11 +232,12 @@ export const CobroModal: React.FC<CobroModalProps> = ({
         {metodoPago === 'EFECTIVO' ? (
           <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">
+              <label htmlFor="cobro-efectivo" className="mb-1 block text-xs font-bold text-slate-600">
                 Efectivo recibido ({env.CURRENCY_SYMBOL})
               </label>
               <input
                 type="number"
+                id="cobro-efectivo"
                 step="0.01"
                 min={totals.total}
                 value={montoRecibido}
@@ -271,20 +272,28 @@ export const CobroModal: React.FC<CobroModalProps> = ({
                 )}
               </span>
             </div>
+            {recibidoNum >= totals.total && (
+              <p className="text-sm text-slate-600">
+                Entra a la gaveta después del vuelto <strong>{formatCurrency(totals.total)}</strong>
+              </p>
+            )}
           </div>
         ) : (
           <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">
-              Autorización / Voucher POS (obligatorio)
+            <label htmlFor="cobro-voucher" className="mb-1 block text-xs font-bold text-slate-600">
+              Número de voucher o autorización
             </label>
             <input
               required
               type="text"
+              id="cobro-voucher"
+              maxLength={80}
               value={referenciaPago}
               onChange={(e) => setReferenciaPago(e.target.value)}
               placeholder="Ej. AUTH-482910"
               className="min-h-[46px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
             />
+            <p className="mt-1 text-xs text-slate-600">Copia el número impreso por la terminal. No escribas el número de la tarjeta.</p>
           </div>
         )}
 

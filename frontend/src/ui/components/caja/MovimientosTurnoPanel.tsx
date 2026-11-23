@@ -1,45 +1,50 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle, CreditCard } from 'lucide-react';
-import { CajaMovimientoModel } from '../../../models';
+import { cajaService, FiltroMovimientoCaja } from '../../../services/caja.service';
 import { formatCurrency, formatDateTime } from '../../../utils/formatters';
+import { Alert } from '../common/Alert';
 import { Badge } from '../common/Badge';
+import { Pagination } from '../common/Pagination';
 
-type MovFiltro = 'TODOS' | 'VENTAS' | 'INGRESOS' | 'EGRESOS';
+export const MovimientosTurnoPanel: React.FC = () => {
+  const [movFiltro, setMovFiltro] = useState<FiltroMovimientoCaja>('TODOS');
+  const [pagina, setPagina] = useState(1);
+  const [resultado, setResultado] = useState<Awaited<ReturnType<typeof cajaService.obtenerMovimientos>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-interface MovimientosTurnoPanelProps {
-  movimientos: CajaMovimientoModel[];
-}
-
-export const MovimientosTurnoPanel: React.FC<MovimientosTurnoPanelProps> = ({ movimientos }) => {
-  const [movFiltro, setMovFiltro] = useState<MovFiltro>('TODOS');
-
-  const movimientosFiltrados = useMemo(() => {
-    return movimientos.filter((m) => {
-      if (movFiltro === 'VENTAS') return m.tipo === 'INGRESO_VENTA';
-      if (movFiltro === 'INGRESOS') return m.tipo === 'INGRESO_MANUAL';
-      if (movFiltro === 'EGRESOS')
-        return m.tipo === 'EGRESO_MANUAL' || m.tipo === 'EGRESO_ANULACION';
-      return true;
+  useEffect(() => {
+    let vigente = true;
+    setResultado(null);
+    setError(null);
+    void cajaService.obtenerMovimientos(pagina, movFiltro).then((datos) => {
+      if (vigente) setResultado(datos);
+    }).catch((err: unknown) => {
+      if (vigente) setError(err instanceof Error ? err.message : 'No se pudieron cargar los movimientos');
     });
-  }, [movimientos, movFiltro]);
+    return () => { vigente = false; };
+  }, [movFiltro, pagina]);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-12">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-base font-extrabold text-slate-900">
-          Movimientos del Turno Actual ({movimientosFiltrados.length})
+          Movimientos del turno {resultado && "(" + resultado.meta.total + ")"}
         </h2>
         <div className="flex flex-wrap gap-1.5">
-          {[
+          {([
             { id: 'TODOS', label: 'Todos' },
             { id: 'VENTAS', label: 'Ventas' },
             { id: 'INGRESOS', label: 'Ingresos manuales' },
             { id: 'EGRESOS', label: 'Egresos / Anulaciones' },
-          ].map((f) => (
+          ] as const).map((f) => (
             <button
               key={f.id}
               type="button"
-              onClick={() => setMovFiltro(f.id as MovFiltro)}
+              aria-pressed={movFiltro === f.id}
+              onClick={() => {
+                setMovFiltro(f.id);
+                setPagina(1);
+              }}
               className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
                 movFiltro === f.id
                   ? 'bg-slate-900 text-white'
@@ -53,12 +58,14 @@ export const MovimientosTurnoPanel: React.FC<MovimientosTurnoPanelProps> = ({ mo
       </div>
 
       <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
-        {movimientosFiltrados.length === 0 ? (
+        {error ? <Alert type="error" message={error} /> : !resultado ? (
+          <p role="status" className="py-8 text-center text-sm text-slate-600">Cargando movimientos...</p>
+        ) : resultado.items.length === 0 ? (
           <p className="py-10 text-center text-sm text-slate-400">
             No hay movimientos en esta categoría durante el turno actual.
           </p>
         ) : (
-          movimientosFiltrados.map((m) => {
+          resultado.items.map((m) => {
             const esEgreso = m.tipo === 'EGRESO_MANUAL' || m.tipo === 'EGRESO_ANULACION';
             return (
               <div
@@ -112,6 +119,7 @@ export const MovimientosTurnoPanel: React.FC<MovimientosTurnoPanelProps> = ({ mo
           })
         )}
       </div>
+      {resultado && resultado.meta.totalPages > 1 && <Pagination meta={resultado.meta} onPageChange={setPagina} />}
     </div>
   );
 };

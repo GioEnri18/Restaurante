@@ -1,11 +1,14 @@
 import { accesosAdapter } from '../adapters/accesos.adapter';
-import { PermisoModel, RolModel, UsuarioAdminModel } from '../models';
-import { httpClient } from './httpClient';
+import { PaginationMeta, PermisoModel, RolModel, UsuarioAdminModel } from '../models';
+import { buildQueryString, httpClient } from './httpClient';
 
 export const accesosService = {
-  async listarUsuarios(): Promise<UsuarioAdminModel[]> {
-    const res = await httpClient.get<unknown[]>('/accesos/usuarios');
-    return (res.data ?? []).map((u) => accesosAdapter.fromUsuarioJson(u));
+  async listarUsuarios(page = 1): Promise<{ items: UsuarioAdminModel[]; meta: PaginationMeta }> {
+    const res = await httpClient.get<unknown[]>(`/accesos/usuarios${buildQueryString({ page })}`);
+    return {
+      items: (res.data ?? []).map((u) => accesosAdapter.fromUsuarioJson(u)),
+      meta: res.meta ?? { page: 1, limit: 15, total: res.data?.length ?? 0, totalPages: 1 },
+    };
   },
 
   async obtenerLongitudMinimaPassword(): Promise<number> {

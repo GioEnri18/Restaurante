@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ResponsiveContainer,
   BarChart,
@@ -10,25 +10,43 @@ import {
   Legend,
 } from 'recharts';
 import { FileDown, FileSpreadsheet, Filter } from 'lucide-react';
-import { ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../../models';
+import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../../models';
 import { reportesService } from '../../services/reportes.service';
 import { useAuthStore } from '../../store/auth.store';
-import { formatCurrency, getDaysAgoISO, getTodayISO } from '../../utils/formatters';
+import { formatCurrency } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
+import { Pagination } from '../components/common/Pagination';
+
+const fechaGuatemala = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Guatemala', dateStyle: 'short' });
+
+function rangoActual(periodo: 'dia' | 'semana' | 'mes') {
+  const hasta = fechaGuatemala.format(new Date());
+  if (periodo === 'dia') return { desde: hasta, hasta };
+  if (periodo === 'mes') return { desde: `${hasta.slice(0, 7)}-01`, hasta };
+  const lunes = new Date(`${hasta}T00:00:00Z`);
+  lunes.setUTCDate(lunes.getUTCDate() - ((lunes.getUTCDay() + 6) % 7));
+  return { desde: lunes.toISOString().slice(0, 10), hasta };
+}
 
 export const ReportesPage: React.FC = () => {
   const canExport = useAuthStore((s) => s.can('reportes:exportar'));
-  const [fechaDesde, setFechaDesde] = useState(getDaysAgoISO(30));
-  const [fechaHasta, setFechaHasta] = useState(getTodayISO());
+  const [fechaDesde, setFechaDesde] = useState(() => rangoActual('mes').desde);
+  const [fechaHasta, setFechaHasta] = useState(() => rangoActual('mes').hasta);
   const [resumen, setResumen] = useState<ReporteResumenModel | null>(null);
   const [serie, setSerie] = useState<SerieVentasDiaModel[]>([]);
   const [topProductos, setTopProductos] = useState<TopProductoModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [metaDetalle, setMetaDetalle] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [metaProductos, setMetaProductos] = useState<PaginationMeta>({ page: 1, limit: 15, total: 0, totalPages: 1 });
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const solicitudActual = useRef(0);
 
   const cargar = useCallback(async () => {
+    const solicitud = ++solicitudActual.current;
     setLoading(true);
+    setCargandoDetalle(false);
     setError(null);
     try {
       const [res, ser, top] = await Promise.all([
@@ -36,19 +54,52 @@ export const ReportesPage: React.FC = () => {
         reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta),
         reportesService.obtenerTopProductos(fechaDesde, fechaHasta),
       ]);
+      if (solicitud !== solicitudActual.current) return;
       setResumen(res);
-      setSerie(ser);
-      setTopProductos(top);
+      setSerie(ser.items);
+      setMetaDetalle(ser.meta);
+      setTopProductos(top.items);
+      setMetaProductos(top.meta);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error cargando reportes');
+      if (solicitud === solicitudActual.current) {
+        setError(err instanceof Error ? err.message : 'Error cargando reportes');
+        setResumen(null);
+        setSerie([]);
+        setTopProductos([]);
+      }
     } finally {
-      setLoading(false);
+      if (solicitud === solicitudActual.current) setLoading(false);
     }
   }, [fechaDesde, fechaHasta]);
 
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  const cargarPaginaDetalle = async (page: number, listado: 'dias' | 'productos') => {
+    const solicitud = ++solicitudActual.current;
+    setCargandoDetalle(true);
+    setError(null);
+    try {
+      if (listado === 'dias') {
+        const { items, meta } = await reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta, page);
+        if (solicitud !== solicitudActual.current) return;
+        setSerie(items);
+        setMetaDetalle(meta);
+      } else {
+        const { items, meta } = await reportesService.obtenerTopProductos(fechaDesde, fechaHasta, page);
+        if (solicitud !== solicitudActual.current) return;
+        setTopProductos(items);
+        setMetaProductos(meta);
+      }
+    } catch (err) {
+      if (solicitud === solicitudActual.current) {
+        setError(err instanceof Error ? err.message : 'No se pudo cargar la página del reporte');
+      }
+    } finally {
+      if (solicitud === solicitudActual.current) setCargandoDetalle(false);
+    }
+  };
 
   const exportar = async (formato: 'pdf' | 'excel') => {
     setExporting(formato);
@@ -133,17 +184,18 @@ export const ReportesPage: React.FC = () => {
           Actualizar reporte
         </button>
         <div className="flex gap-1.5">
-          {[
-            { label: 'Hoy', days: 0 },
-            { label: '7 días', days: 7 },
-            { label: '30 días', days: 30 },
-          ].map((preset) => (
+          {([
+            { label: 'Hoy', periodo: 'dia' },
+            { label: 'Esta semana', periodo: 'semana' },
+            { label: 'Este mes', periodo: 'mes' },
+          ] as const).map((preset) => (
             <button
               key={preset.label}
               type="button"
               onClick={() => {
-                setFechaDesde(getDaysAgoISO(preset.days));
-                setFechaHasta(getTodayISO());
+                const { desde, hasta } = rangoActual(preset.periodo);
+                setFechaDesde(desde);
+                setFechaHasta(hasta);
               }}
               className="min-h-[42px] rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
             >
@@ -179,12 +231,12 @@ export const ReportesPage: React.FC = () => {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Utilidad Bruta</p>
-          <p className="mt-1 text-2xl font-black text-emerald-700">
+          <p className="text-xs font-semibold uppercase text-slate-500">Ganancia del período</p>
+          <p className={`mt-1 text-2xl font-black ${(k?.utilidadBruta ?? 0) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
             {formatCurrency(k?.utilidadBruta ?? 0)}
           </p>
           <p className="mt-1 text-xs font-bold text-emerald-600">
-            Margen bruto: {(k?.margenBrutoPct ?? 0).toFixed(1)}%
+            Margen: {(k?.margenBrutoPct ?? 0).toFixed(1)}%
           </p>
         </div>
 
@@ -198,6 +250,36 @@ export const ReportesPage: React.FC = () => {
         </div>
       </div>
 
+      {resumen && !loading && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-bold text-slate-900">Balance del período</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            La ganancia es la venta sin IVA menos el costo de lo vendido y las mermas, antes de salarios y otros gastos.
+          </p>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-sm text-slate-600">Ventas del período sin IVA</dt>
+              <dd className="text-xl font-bold text-slate-900">{formatCurrency(resumen.kpis.subtotalSinIva)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-slate-600">Compras de inventario del período</dt>
+              <dd className="text-xl font-bold text-slate-900">{formatCurrency(resumen.kpis.totalCompras)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-slate-600">Valor del inventario disponible hoy</dt>
+              <dd className="text-xl font-bold text-slate-900">
+                {resumen.kpis.valorInventarioActual === null ? 'No disponible' : formatCurrency(resumen.kpis.valorInventarioActual)}
+              </dd>
+              {resumen.kpis.insumosConStockSinCosto > 0 && (
+                <dd className="text-xs font-semibold text-amber-800">
+                  Insumos con existencias y costo pendiente: {resumen.kpis.insumosConStockSinCosto}
+                </dd>
+              )}
+            </div>
+          </dl>
+        </section>
+      )}
+
       {/* Gráficos */}
       {loading ? (
         <div className="rounded-2xl bg-white p-10 text-center text-slate-400">Generando estadísticas...</div>
@@ -205,10 +287,10 @@ export const ReportesPage: React.FC = () => {
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-base font-bold text-slate-900">
-              Ingresos vs. Costo de Recetas por Día (Q)
+              Ventas, costos y ganancia por día
             </h2>
             {serie.length === 0 ? (
-              <p className="py-16 text-center text-sm text-slate-400">Sin ventas en este período.</p>
+              <p className="py-16 text-center text-sm text-slate-400">Sin ventas ni mermas en este período.</p>
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -218,13 +300,16 @@ export const ReportesPage: React.FC = () => {
                     <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(val: number) => formatCurrency(val)} />
                     <Legend />
-                    <Bar dataKey="ingresos" name="Ingresos" fill="#ea580c" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="costos" name="Costo Recetas" fill="#64748b" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="utilidad" name="Utilidad" fill="#10b981" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="ingresosSinIva" name="Ventas sin IVA" fill="#ea580c" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="costos" name="Costo de lo vendido" fill="#64748b" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="mermas" name="Mermas" fill="#a16207" radius={[6, 6, 0, 0]} />
+                    <Bar dataKey="utilidad" name="Ganancia" fill="#047857" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
+            {cargandoDetalle ? <p role="status" className="mt-4 text-sm text-slate-600">Cargando página…</p>
+              : metaDetalle.totalPages > 1 && <Pagination meta={metaDetalle} onPageChange={(page) => void cargarPaginaDetalle(page, 'dias')} />}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -277,6 +362,9 @@ export const ReportesPage: React.FC = () => {
             ))}
           </tbody>
         </table>
+        {!loading && !cargandoDetalle && metaProductos.totalPages > 1 && (
+          <Pagination meta={metaProductos} onPageChange={(page) => void cargarPaginaDetalle(page, 'productos')} />
+        )}
       </div>
     </div>
   );

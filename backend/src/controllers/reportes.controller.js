@@ -15,8 +15,8 @@ class ReportesController {
         try {
             const fechaDesde = typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined;
             const fechaHasta = typeof req.query.fechaHasta === 'string' ? req.query.fechaHasta : undefined;
-            const data = await ReportesService.ventasPorPeriodo(req.user.sucursalId, fechaDesde, fechaHasta);
-            res.status(200).json({ ok: true, data });
+            const resultado = await ReportesService.ventasPorPeriodo(req.user.sucursalId, fechaDesde, fechaHasta, req.query.page);
+            res.status(200).json({ ok: true, ...(Array.isArray(resultado) ? { data: resultado } : resultado) });
         }
         catch (error) {
             next(error);
@@ -27,8 +27,8 @@ class ReportesController {
             const fechaDesde = typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined;
             const fechaHasta = typeof req.query.fechaHasta === 'string' ? req.query.fechaHasta : undefined;
             const limit = req.query.limit ? Number(req.query.limit) : 10;
-            const data = await ReportesService.productosMasVendidos(req.user.sucursalId, fechaDesde, fechaHasta, limit);
-            res.status(200).json({ ok: true, data });
+            const resultado = await ReportesService.productosMasVendidos(req.user.sucursalId, fechaDesde, fechaHasta, limit, req.query.page);
+            res.status(200).json({ ok: true, ...(Array.isArray(resultado) ? { data: resultado } : resultado) });
         }
         catch (error) {
             next(error);

@@ -1,10 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { PaginationMeta } from '../../../models';
 
 interface PaginationProps {
   meta: PaginationMeta;
   onPageChange: (page: number) => void;
+}
+
+export function usePaginacionLocal<T>(items: readonly T[], filtro = '') {
+  const [seleccion, setSeleccion] = useState({ filtro, pagina: 1 });
+  const limit = 15;
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const page = seleccion.filtro === filtro ? Math.min(seleccion.pagina, totalPages) : 1;
+  return {
+    items: items.slice((page - 1) * limit, page * limit),
+    meta: { page, limit, total, totalPages },
+    onPageChange: (pagina: number) => setSeleccion({ filtro, pagina }),
+  };
 }
 
 export const Pagination: React.FC<PaginationProps> = ({ meta, onPageChange }) => {

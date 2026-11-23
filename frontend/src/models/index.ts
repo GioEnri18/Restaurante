@@ -363,6 +363,8 @@ export interface ReporteResumenModel {
     costoMermasTotal: number;
     cantidadMermas: number;
     totalCompras: number;
+    valorInventarioActual: number | null;
+    insumosConStockSinCosto: number;
     utilidadBruta: number;
     margenBrutoPct: number;
     ticketPromedio: number;
@@ -375,7 +377,9 @@ export interface SerieVentasDiaModel {
   fecha: string;
   cantidadVentas: number;
   ingresos: number;
+  ingresosSinIva: number;
   costos: number;
+  mermas: number;
   utilidad: number;
 }
 

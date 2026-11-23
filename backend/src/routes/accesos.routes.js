@@ -5,7 +5,7 @@ const { AccesosController } = require('../controllers/accesos.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requireAdmin, requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
-const { fechaStr, idParamsSchema, numeroDecimal } = require('../shared/validators/common.validators');
+const { fechaStr, idParamsSchema, numeroDecimal, paginacionQuery } = require('../shared/validators/common.validators');
 const { toIsoDateInTimezone } = require('../shared/utils/dates');
 const { round2 } = require('../shared/utils/tax');
 const fechaIngreso = fechaStr.refine((fecha) => fecha <= toIsoDateInTimezone(), 'La fecha de ingreso no puede estar en el futuro');
@@ -63,7 +63,7 @@ const actualizarPermisosRolSchema = z.object({
 const router = Router();
 // DOBLE CANDADO: Autenticado + Rol Administrador exclusivo
 router.use(authenticate, requireAdmin);
-router.get('/usuarios', requirePermission('accesos:ver'), AccesosController.listarUsuarios);
+router.get('/usuarios', requirePermission('accesos:ver'), validate(z.object({ page: paginacionQuery.page }), 'query'), AccesosController.listarUsuarios);
 router.get('/usuarios/politica-password', requirePermission('accesos:ver'), AccesosController.obtenerPoliticaPassword);
 router.post('/usuarios', requirePermission('accesos:gestionar'), validate(crearUsuarioSchema), AccesosController.crearUsuario);
 router.put('/usuarios/:id', requirePermission('accesos:gestionar'), validate(idParamsSchema, 'params'), validate(actualizarUsuarioSchema), AccesosController.actualizarUsuario);

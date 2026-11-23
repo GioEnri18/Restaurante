@@ -6,13 +6,16 @@ const { requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
 const {
     rangoFechasQuery,
+    paginacionQuery,
     refinarRangoFechas,
 } = require('../shared/validators/common.validators');
 // Auditoría P1: fechas YYYY-MM-DD válidas, desde <= hasta y rango máximo acotado
 const rangoReporteSchema = z.object(rangoFechasQuery).superRefine(refinarRangoFechas);
+const ventasPeriodoSchema = z.object({ ...rangoFechasQuery, page: paginacionQuery.page }).superRefine(refinarRangoFechas);
 const topProductosSchema = z
     .object({
     ...rangoFechasQuery,
+    page: paginacionQuery.page,
     limit: z
         .string()
         .regex(/^\d{1,2}$/, 'limit debe ser un entero entre 1 y 50')
@@ -23,7 +26,7 @@ const topProductosSchema = z
 const router = Router();
 router.use(authenticate);
 router.get('/resumen', requirePermission('reportes:ver'), validate(rangoReporteSchema, 'query'), ReportesController.resumen);
-router.get('/ventas-periodo', requirePermission('reportes:ver'), validate(rangoReporteSchema, 'query'), ReportesController.ventasPeriodo);
+router.get('/ventas-periodo', requirePermission('reportes:ver'), validate(ventasPeriodoSchema, 'query'), ReportesController.ventasPeriodo);
 router.get('/productos-mas-vendidos', requirePermission('reportes:ver'), validate(topProductosSchema, 'query'), ReportesController.productosMasVendidos);
 router.get('/exportar/pdf', requirePermission('reportes:exportar'), validate(rangoReporteSchema, 'query'), ReportesController.exportarPdf);
 router.get('/exportar/excel', requirePermission('reportes:exportar'), validate(rangoReporteSchema, 'query'), ReportesController.exportarExcel);

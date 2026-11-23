@@ -1,5 +1,4 @@
 import { facturasAdapter } from '../adapters/facturas.adapter';
-import { env } from '../config/env';
 import { FacturaDetalleModel, FacturaResumenModel, PaginationMeta } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
@@ -18,12 +17,12 @@ export const facturasService = {
   async listar(query: FacturasQuery): Promise<{ items: FacturaResumenModel[]; meta: PaginationMeta }> {
     const qs = buildQueryString({
       ...query,
-      limit: env.FACTURAS_PAGE_SIZE,
+      limit: 15,
     });
     const res = await httpClient.get<unknown[]>(`/facturas${qs}`);
     return {
       items: (res.data ?? []).map((item) => facturasAdapter.fromResumenJson(item)),
-      meta: res.meta ?? { page: 1, limit: env.FACTURAS_PAGE_SIZE, total: 0, totalPages: 1 },
+      meta: res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
     };
   },
 

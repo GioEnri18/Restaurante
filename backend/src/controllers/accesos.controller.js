@@ -6,8 +6,8 @@ class AccesosController {
     }
     static async listarUsuarios(req, res, next) {
         try {
-            const data = await AccesosService.listarUsuarios(req.user.sucursalId);
-            res.set('Cache-Control', 'no-store').json({ ok: true, data });
+            const resultado = await AccesosService.listarUsuarios(req.user.sucursalId, req.query.page);
+            res.set('Cache-Control', 'no-store').json({ ok: true, ...(Array.isArray(resultado) ? { data: resultado } : resultado) });
         }
         catch (error) {
             next(error);

@@ -1,5 +1,5 @@
 import { reportesAdapter } from '../adapters/reportes.adapter';
-import { ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../models';
+import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
 export const reportesService = {
@@ -9,16 +9,28 @@ export const reportesService = {
     return reportesAdapter.fromResumenJson(res.data);
   },
 
-  async obtenerVentasPeriodo(fechaDesde?: string, fechaHasta?: string): Promise<SerieVentasDiaModel[]> {
-    const qs = buildQueryString({ fechaDesde, fechaHasta });
+  async obtenerVentasPeriodo(fechaDesde: string, fechaHasta: string, page = 1): Promise<{
+    items: SerieVentasDiaModel[];
+    meta: PaginationMeta;
+  }> {
+    const qs = buildQueryString({ fechaDesde, fechaHasta, page });
     const res = await httpClient.get<unknown[]>(`/reportes/ventas-periodo${qs}`);
-    return reportesAdapter.fromSerieJson(res.data ?? []);
+    return {
+      items: reportesAdapter.fromSerieJson(res.data ?? []),
+      meta: res.meta ?? { page: 1, limit: 15, total: res.data?.length ?? 0, totalPages: 1 },
+    };
   },
 
-  async obtenerTopProductos(fechaDesde?: string, fechaHasta?: string): Promise<TopProductoModel[]> {
-    const qs = buildQueryString({ fechaDesde, fechaHasta, limit: 10 });
+  async obtenerTopProductos(fechaDesde: string, fechaHasta: string, page = 1): Promise<{
+    items: TopProductoModel[];
+    meta: PaginationMeta;
+  }> {
+    const qs = buildQueryString({ fechaDesde, fechaHasta, page, limit: 15 });
     const res = await httpClient.get<unknown[]>(`/reportes/productos-mas-vendidos${qs}`);
-    return reportesAdapter.fromTopProductosJson(res.data ?? []);
+    return {
+      items: reportesAdapter.fromTopProductosJson(res.data ?? []),
+      meta: res.meta ?? { page: 1, limit: 15, total: res.data?.length ?? 0, totalPages: 1 },
+    };
   },
 
   async descargarPdf(fechaDesde?: string, fechaHasta?: string): Promise<void> {

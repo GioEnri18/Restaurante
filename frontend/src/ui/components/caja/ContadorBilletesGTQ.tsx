@@ -40,6 +40,7 @@ export const ContadorBilletesGTQ: React.FC<ContadorBilletesGTQProps> = ({
               </p>
             </div>
             <input
+              aria-label={`Cantidad de ${d.tipo.toLowerCase()}s de ${d.label}`}
               type="number"
               min="0"
               step="1"

@@ -427,6 +427,10 @@ class CheckoutService {
           );
 
           // 13. Movimiento de Caja (incrementa totales brutos de venta del turno)
+          const montoNetoCaja = round2(montoRecibido - cambio);
+          const detalleVuelto = cambio > 0
+            ? ` · Recibido Q${montoRecibido.toFixed(2)}, vuelto Q${cambio.toFixed(2)}`
+            : '';
           await CajaMovimiento.create(
             {
               sucursalId: user.sucursalId,
@@ -435,14 +439,14 @@ class CheckoutService {
               ventaId: venta.id,
               tipo: TipoMovimientoCaja.INGRESO_VENTA,
               metodoPago: input.metodoPago,
-              monto: total,
-              descripcion: `Venta ${numeroCompleto} (${input.tipoServicio})`,
+              monto: montoNetoCaja,
+              descripcion: `Venta ${numeroCompleto} (${input.tipoServicio})${detalleVuelto}`,
             },
             { transaction: tx },
           );
 
           if (input.metodoPago === MetodoPago.EFECTIVO) {
-            await cajaAbierta.increment('totalVentasEfectivo', { by: total, transaction: tx });
+            await cajaAbierta.increment('totalVentasEfectivo', { by: montoNetoCaja, transaction: tx });
           } else {
             await cajaAbierta.increment('totalVentasTarjeta', { by: total, transaction: tx });
           }

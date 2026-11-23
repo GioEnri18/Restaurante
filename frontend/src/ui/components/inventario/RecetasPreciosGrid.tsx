@@ -4,6 +4,7 @@ import { PlatilloModel } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
 import { FotoPlatillo } from '../common/FotoPlatillo';
+import { Pagination, usePaginacionLocal } from '../common/Pagination';
 
 interface RecetasPreciosGridProps {
   platillos: PlatilloModel[];
@@ -48,6 +49,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
       );
     });
   }, [platillos, busqueda, soloPendientes]);
+  const pagina = usePaginacionLocal(filtrados, JSON.stringify([busqueda, soloPendientes]));
 
   return (
     <div className="space-y-4">
@@ -148,7 +150,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
             No se encontraron platillos con ese filtro.
           </div>
         ) : (
-          filtrados.map((p) => {
+          pagina.items.map((p) => {
             const listo = p.disponible && p.precioRegular > 0;
             return (
               <div key={p.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -225,6 +227,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
           })
         )}
       </div>
+      {pagina.meta.totalPages > 1 && <Pagination meta={pagina.meta} onPageChange={pagina.onPageChange} />}
     </div>
   );
 };

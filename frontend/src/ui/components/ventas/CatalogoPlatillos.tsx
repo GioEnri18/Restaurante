@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { MenuDataModel, PlatilloModel } from '../../../models';
 import { FotoPlatillo } from '../common/FotoPlatillo';
+import { Pagination, usePaginacionLocal } from '../common/Pagination';
 import { formatCurrency } from '../../../utils/formatters';
 
 function getCategoriaVisual(nombre: string) {
@@ -95,6 +96,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
   onNuevoPlatillo,
   onNuevaCategoria,
 }) => {
+  const pagina = usePaginacionLocal(platillosFiltrados, JSON.stringify([search, selectedCat, onlyAvailable]));
   return (
     <div className="space-y-4 xl:col-span-8">
       {canCreatePlatillo && pendientesConfigCount > 0 && (
@@ -262,7 +264,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-          {platillosFiltrados.map((p) => {
+          {pagina.items.map((p) => {
             const disabled = !p.disponible || !p.stockDisponible;
             const inCartQty = qtyByPlatillo.get(p.id) ?? 0;
             const visual = getCategoriaVisual(p.categoriaNombre);
@@ -391,6 +393,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
           })}
         </div>
       )}
+      {!loading && pagina.meta.totalPages > 1 && <Pagination meta={pagina.meta} onPageChange={pagina.onPageChange} />}
     </div>
   );
 };
