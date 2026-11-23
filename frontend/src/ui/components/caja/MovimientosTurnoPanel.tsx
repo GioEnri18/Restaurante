@@ -83,11 +83,11 @@ export const MovimientosTurnoPanel: React.FC = () => {
                     }`}
                   >
                     {esEgreso ? (
-                      <ArrowDownCircle className="h-5 w-5" />
+                      <ArrowDownCircle className="h-5 w-5" aria-hidden="true" />
                     ) : m.metodoPago === 'TARJETA' ? (
-                      <CreditCard className="h-5 w-5" />
+                      <CreditCard className="h-5 w-5" aria-hidden="true" />
                     ) : (
-                      <ArrowUpCircle className="h-5 w-5" />
+                      <ArrowUpCircle className="h-5 w-5" aria-hidden="true" />
                     )}
                   </div>
                   <div>

@@ -13,6 +13,7 @@ import { ApiError } from '../../../services/httpClient';
 import { formatCurrency } from '../../../utils/formatters';
 import { FaltanteStock, leerFaltantesPedido } from '../../../utils/stockPedido';
 import { Alert } from '../common/Alert';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 import { FaltantesPedido } from './FaltantesPedido';
 
@@ -180,8 +181,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
             Si el cliente no pide factura con NIT, puedes dejar «Consumidor Final» y pasar directo al cobro.
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">NIT del cliente</label>
+            <Field label="NIT del cliente">
               <input
                 type="text"
                 value={clienteNit}
@@ -189,9 +189,8 @@ export const CobroModal: React.FC<CobroModalProps> = ({
                 placeholder="CF o número de NIT"
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold"
               />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-bold text-slate-600">Nombre en factura</label>
+            </Field>
+            <Field label="Nombre en factura">
               <input
                 type="text"
                 value={clienteNombre}
@@ -199,67 +198,64 @@ export const CobroModal: React.FC<CobroModalProps> = ({
                 placeholder="Consumidor Final"
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
               />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-bold text-slate-600">Dirección</label>
+            </Field>
+            <Field label="Dirección" className="sm:col-span-2">
               <input
                 type="text"
                 value={clienteDireccion}
                 onChange={(e) => setClienteDireccion(e.target.value)}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
               />
-            </div>
+            </Field>
           </div>
         </div>
 
-        <div>
-          <label className="mb-2 block text-xs font-extrabold uppercase tracking-wider text-slate-600">
+        <fieldset>
+          <legend className="mb-2 block text-xs font-extrabold uppercase tracking-wider text-slate-600">
             2. ¿Cómo paga el cliente?
-          </label>
+          </legend>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
+              aria-pressed={metodoPago === 'EFECTIVO'}
               onClick={() => setMetodoPago('EFECTIVO')}
               className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border-2 text-sm font-extrabold transition ${metodoPago === 'EFECTIVO'
                   ? 'border-brand-600 bg-brand-50 text-brand-700'
                   : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
             >
-              <Banknote className="h-5 w-5" />
+              <Banknote className="h-5 w-5" aria-hidden="true" />
               Efectivo
-              {metodoPago === 'EFECTIVO' && <Check className="h-4 w-4" />}
+              {metodoPago === 'EFECTIVO' && <Check className="h-4 w-4" aria-hidden="true" />}
             </button>
             <button
               type="button"
+              aria-pressed={metodoPago === 'TARJETA'}
               onClick={() => setMetodoPago('TARJETA')}
               className={`flex min-h-[52px] items-center justify-center gap-2 rounded-xl border-2 text-sm font-extrabold transition ${metodoPago === 'TARJETA'
                   ? 'border-brand-600 bg-brand-50 text-brand-700'
                   : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
             >
-              <CreditCard className="h-5 w-5" />
+              <CreditCard className="h-5 w-5" aria-hidden="true" />
               Tarjeta
-              {metodoPago === 'TARJETA' && <Check className="h-4 w-4" />}
+              {metodoPago === 'TARJETA' && <Check className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
-        </div>
+        </fieldset>
 
         {metodoPago === 'EFECTIVO' ? (
           <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div>
-              <label htmlFor="cobro-efectivo" className="mb-1 block text-xs font-bold text-slate-600">
-                Efectivo recibido ({env.CURRENCY_SYMBOL})
-              </label>
+            <Field label={`Efectivo recibido (${env.CURRENCY_SYMBOL})`}>
               <input
                 type="number"
-                id="cobro-efectivo"
                 step="0.01"
                 min={totals.total}
                 value={montoRecibido}
                 onChange={(e) => setMontoRecibido(e.target.value)}
                 className="min-h-[50px] w-full rounded-xl border border-slate-300 bg-white px-4 text-xl font-black text-slate-900"
               />
-            </div>
+            </Field>
             <div className="flex flex-wrap gap-2">
               {[totals.total, 20, 50, 100, 200].map((billete, idx) => (
                 <button
@@ -294,22 +290,20 @@ export const CobroModal: React.FC<CobroModalProps> = ({
             )}
           </div>
         ) : (
-          <div>
-            <label htmlFor="cobro-voucher" className="mb-1 block text-xs font-bold text-slate-600">
-              Número de voucher o autorización
-            </label>
+          <Field
+            label="Número de voucher o autorización"
+            required
+            hint="Copia el número impreso por la terminal. No escribas el número de la tarjeta."
+          >
             <input
-              required
               type="text"
-              id="cobro-voucher"
               maxLength={80}
               value={referenciaPago}
               onChange={(e) => setReferenciaPago(e.target.value)}
               placeholder="Ej. AUTH-482910"
               className="min-h-[46px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
             />
-            <p className="mt-1 text-xs text-slate-600">Copia el número impreso por la terminal. No escribas el número de la tarjeta.</p>
-          </div>
+          </Field>
         )}
 
         <div className="flex justify-end gap-3 pt-2">

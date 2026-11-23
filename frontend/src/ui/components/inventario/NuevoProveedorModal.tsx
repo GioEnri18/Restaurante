@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { mensajeErrorFormulario } from '../../../services/httpClient';
 import { Alert } from '../common/Alert';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 
 export interface NuevoProveedorPayload {
@@ -62,41 +63,55 @@ export const NuevoProveedorModal: React.FC<NuevoProveedorModalProps> = ({
   return (
     <Modal open={open} title="Nuevo proveedor" onClose={() => { if (!guardando) cerrar(); }}>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <input
-          required
-          maxLength={120}
-          placeholder="Nombre comercial"
-          value={provForm.nombre}
-          onChange={(e) => setProvForm({ ...provForm, nombre: e.target.value })}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-        />
+        <Field label="Nombre comercial" required>
+          <input
+            maxLength={120}
+            placeholder="Nombre comercial"
+            value={provForm.nombre}
+            onChange={(e) => setProvForm({ ...provForm, nombre: e.target.value })}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <input
-            placeholder="NIT"
-            maxLength={25}
-            value={provForm.nit}
-            onChange={(e) => setProvForm({ ...provForm, nit: e.target.value })}
-            className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <input
-            placeholder="Teléfono"
-            type="tel"
-            maxLength={30}
-            value={provForm.telefono}
-            onChange={(e) => setProvForm({ ...provForm, telefono: e.target.value })}
-            className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
+          <Field label="NIT">
+            <input
+              placeholder="NIT"
+              maxLength={25}
+              value={provForm.nit}
+              onChange={(e) => setProvForm({ ...provForm, nit: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Teléfono">
+            <input
+              placeholder="Teléfono"
+              type="tel"
+              maxLength={30}
+              value={provForm.telefono}
+              onChange={(e) => setProvForm({ ...provForm, telefono: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
         </div>
-        <input
-          placeholder="Persona de contacto"
-          maxLength={100}
-          value={provForm.contacto}
-          onChange={(e) => setProvForm({ ...provForm, contacto: e.target.value })}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-        />
-        <input type="email" maxLength={120} placeholder="Correo del proveedor (opcional)" value={provForm.email}
-          onChange={(e) => setProvForm({ ...provForm, email: e.target.value })}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm" />
+        <Field label="Persona de contacto">
+          <input
+            placeholder="Persona de contacto"
+            maxLength={100}
+            value={provForm.contacto}
+            onChange={(e) => setProvForm({ ...provForm, contacto: e.target.value })}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
+        <Field label="Correo electrónico (opcional)">
+          <input
+            type="email"
+            maxLength={120}
+            placeholder="Correo del proveedor (opcional)"
+            value={provForm.email}
+            onChange={(e) => setProvForm({ ...provForm, email: e.target.value })}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
         {error && <div role="alert"><Alert type="error" message={error} /></div>}
         <button
           type="submit"

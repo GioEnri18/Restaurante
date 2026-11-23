@@ -114,14 +114,14 @@ export const CajaPage: React.FC = () => {
                 : 'bg-slate-100 text-slate-500'
             }`}
           >
-            <Wallet className="h-7 w-7" />
+            <Wallet className="h-7 w-7" aria-hidden="true" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <h1 className="text-2xl font-extrabold text-slate-900">Caja del turno</h1>
               {actual ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-100 px-3 py-1 text-xs font-extrabold text-teal-800">
-                  <span className="h-2 w-2 rounded-full bg-teal-700" />
+                  <span className="h-2 w-2 rounded-full bg-teal-700" aria-hidden="true" />
                   TURNO #{actual.id} ABIERTO
                 </span>
               ) : (
@@ -133,7 +133,7 @@ export const CajaPage: React.FC = () => {
             <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
               {actual ? (
                 <>
-                  <Clock className="h-4 w-4" />
+                  <Clock className="h-4 w-4" aria-hidden="true" />
                   Abierta el {formatDateTime(actual.fechaApertura)} por{' '}
                   <strong className="text-slate-700">{actual.usuarioAperturaNombre}</strong>
                 </>
@@ -157,7 +157,7 @@ export const CajaPage: React.FC = () => {
                 onClick={() => setMovModal(true)}
                 className="inline-flex min-h-[46px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-50"
               >
-                <PlusCircle className="h-4 w-4 text-brand-600" />
+                <PlusCircle className="h-4 w-4 text-brand-600" aria-hidden="true" />
                 Registrar entrada o salida de efectivo
               </button>
             )}
@@ -167,7 +167,7 @@ export const CajaPage: React.FC = () => {
                 onClick={() => setCloseModal(true)}
                 className="inline-flex min-h-[46px] items-center gap-2 rounded-xl bg-red-600 px-5 text-sm font-extrabold text-white shadow-md shadow-red-600/20 transition hover:bg-red-700"
               >
-                <Lock className="h-4 w-4" />
+                <Lock className="h-4 w-4" aria-hidden="true" />
                 Cuadrar y cerrar turno
               </button>
             )}

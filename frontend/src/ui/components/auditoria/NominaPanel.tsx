@@ -44,6 +44,9 @@ export function NominaPanel({ puedeEditar }: { puedeEditar: boolean }) {
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4">
         {personas.length === 0 ? <p className="text-sm text-slate-600">Todavía no hay personal registrado.</p> : (
           <table className="w-full min-w-[540px] text-left text-sm">
+            <caption className="sr-only">
+              Nómina mensual acordada del personal registrado
+            </caption>
             <thead className="border-b text-slate-600">
               <tr>
                 <th scope="col" className="p-2">Persona</th>

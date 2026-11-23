@@ -37,9 +37,9 @@ export const Modal: React.FC<ModalProps> = ({
             type="button"
             onClick={onClose}
             className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-            aria-label="Cerrar"
+            aria-label="Cerrar ventana"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
         <div className="overflow-y-auto p-5">{children}</div>

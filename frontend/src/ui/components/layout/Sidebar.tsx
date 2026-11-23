@@ -92,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
       <div className="flex shrink-0 items-center justify-between border-b border-slate-800/80 px-5 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg shadow-brand-900/40">
-            <ChefHat className="h-6 w-6" />
+            <ChefHat className="h-6 w-6" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-extrabold leading-tight text-white">
@@ -109,12 +109,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
           className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-800 lg:hidden"
           aria-label="Cerrar menú"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" aria-hidden="true" />
         </button>
       </div>
 
       {/* Navegación agrupada por contexto operativo (scroll interno solo si no cabe en pantallas bajas) */}
-      <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
+      <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
         {visibleGroups.map((group) => (
           <div key={group.title}>
             <p className="mb-2 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -136,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
                 >
                   {({ isActive }) => (
                     <>
-                      <Icon className="h-5 w-5 shrink-0 opacity-90" />
+                      <Icon className="h-5 w-5 shrink-0 opacity-90" aria-hidden="true" />
                       <div className="min-w-0">
                         <span className="block truncate leading-tight">{label}</span>
                         <span
@@ -159,7 +159,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
       {/* Pie de sesión (siempre fijo abajo en pantalla) */}
       <div className="shrink-0 border-t border-slate-800/80 bg-slate-950 p-3.5">
         <div className="mb-3 flex items-center gap-3 rounded-xl bg-slate-900 px-3 py-2.5 ring-1 ring-slate-800">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600/20 text-sm font-extrabold text-brand-400">
+          <div
+            aria-hidden="true"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600/20 text-sm font-extrabold text-brand-400"
+          >
             {(usuario?.nombreCompleto ?? 'U').charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
@@ -172,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
           onClick={handleLogout}
           className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-red-600 hover:bg-red-600 hover:text-white"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="h-4 w-4" aria-hidden="true" />
           Cerrar sesión
         </button>
       </div>

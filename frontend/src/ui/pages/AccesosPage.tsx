@@ -4,9 +4,11 @@ import { PaginationMeta, PermisoModel, RolModel, UsuarioAdminModel } from '../..
 import { accesosService } from '../../services/accesos.service';
 import { ApiError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
+import { env } from '../../config/env';
 import { formatDateTime, getTodayISO } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination, usePaginacionLocal } from '../components/common/Pagination';
 
@@ -281,7 +283,7 @@ export const AccesosPage: React.FC = () => {
             onClick={() => setNewRolModal(true)}
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
             Nuevo Rol
           </button>
           <button
@@ -289,7 +291,7 @@ export const AccesosPage: React.FC = () => {
             onClick={() => abrirNuevoUsuario()}
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
           >
-            <UserPlus className="h-4 w-4" />
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
             Agregar persona
           </button>
         </div>
@@ -307,7 +309,7 @@ export const AccesosPage: React.FC = () => {
             tab === 'usuarios' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600'
           }`}
         >
-          <Users className="h-4 w-4" />
+          <Users className="h-4 w-4" aria-hidden="true" />
           Personal ({metaUsuarios.total})
         </button>
         <button
@@ -317,7 +319,7 @@ export const AccesosPage: React.FC = () => {
             tab === 'roles' ? 'bg-slate-900 text-white' : 'border border-slate-200 bg-white text-slate-600'
           }`}
         >
-          <Shield className="h-4 w-4" />
+          <Shield className="h-4 w-4" aria-hidden="true" />
           Roles y Permisos ({roles.length})
         </button>
       </div>
@@ -338,7 +340,7 @@ export const AccesosPage: React.FC = () => {
                     onClick={() => abrirNuevoUsuario(rol.codigo)}
                     className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3.5 text-xs font-bold text-brand-800 hover:bg-brand-100"
                   >
-                    <UserPlus className="h-3.5 w-3.5" />
+                    <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
                     Nuevo {rol.nombre}
                   </button>
                 ))}
@@ -348,15 +350,18 @@ export const AccesosPage: React.FC = () => {
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm overflow-x-auto">
           <table className="w-full min-w-[740px] text-left text-sm">
+            <caption className="sr-only">
+              Listado de personal registrado, roles asignados, fechas de ingreso y acciones
+            </caption>
             <thead>
               <tr className="border-b text-xs uppercase text-slate-500">
-                <th className="py-3 px-2">Usuario</th>
-                <th className="py-3 px-2">Correo</th>
-                <th className="py-3 px-2">Rol</th>
-                <th className="py-3 px-2">Fecha de ingreso</th>
-                <th className="py-3 px-2">Último acceso</th>
-                <th className="py-3 px-2">Estado</th>
-                <th className="py-3 px-2 text-right">Acciones</th>
+                <th scope="col" className="py-3 px-2">Usuario</th>
+                <th scope="col" className="py-3 px-2">Correo</th>
+                <th scope="col" className="py-3 px-2">Rol</th>
+                <th scope="col" className="py-3 px-2">Fecha de ingreso</th>
+                <th scope="col" className="py-3 px-2">Último acceso</th>
+                <th scope="col" className="py-3 px-2">Estado</th>
+                <th scope="col" className="py-3 px-2 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -382,18 +387,20 @@ export const AccesosPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => abrirEditarUsuario(u)}
+                        aria-label={`Editar usuario ${u.nombreCompleto}`}
                         className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
                       >
-                        <Edit className="h-3.5 w-3.5" />
+                        <Edit className="h-3.5 w-3.5" aria-hidden="true" />
                         Editar
                       </button>
                       <button
                         type="button"
                         disabled={currentUser?.id === u.id}
                         onClick={() => void toggleActivo(u)}
+                        aria-label={`${u.activo ? 'Desactivar' : 'Activar'} usuario ${u.nombreCompleto}`}
                         className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
                       >
-                        <Power className="h-3.5 w-3.5" />
+                        <Power className="h-3.5 w-3.5" aria-hidden="true" />
                         {u.activo ? 'Desactivar' : 'Activar'}
                       </button>
                     </div>
@@ -444,17 +451,19 @@ export const AccesosPage: React.FC = () => {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <select
-                  value={rolVistaInicial}
-                  onChange={(e) => setRolVistaInicial(e.target.value)}
-                  className="min-h-[40px] rounded-xl border border-slate-300 px-3 text-xs font-bold"
-                >
-                  {VISTAS_RUTAS.map((ruta) => (
-                    <option key={ruta} value={ruta}>
-                      Inicio: {ruta}
-                    </option>
-                  ))}
-                </select>
+                <Field label="Vista inicial del rol" srOnlyLabel>
+                  <select
+                    value={rolVistaInicial}
+                    onChange={(e) => setRolVistaInicial(e.target.value)}
+                    className="min-h-[40px] rounded-xl border border-slate-300 px-3 text-xs font-bold"
+                  >
+                    {VISTAS_RUTAS.map((ruta) => (
+                      <option key={ruta} value={ruta}>
+                        Inicio: {ruta}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
                 <button
                   type="button"
                   onClick={() => void handleGuardarPermisosRol()}
@@ -502,71 +511,78 @@ export const AccesosPage: React.FC = () => {
         maxWidthClass="max-w-lg"
       >
         <form onSubmit={handleGuardarUsuario} className="space-y-3">
-          <input
-            required
-            placeholder="Nombre completo"
-            value={userForm.nombreCompleto}
-            onChange={(e) => setUserForm({ ...userForm, nombreCompleto: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          />
+          <Field label="Nombre completo" required>
+            <input
+              placeholder="Nombre completo"
+              value={userForm.nombreCompleto}
+              onChange={(e) => setUserForm({ ...userForm, nombreCompleto: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
           {!editingUser && (
-            <label className="block space-y-1">
-              <span className="text-sm font-semibold">Nombre de usuario</span>
+            <Field
+              label="Nombre de usuario"
+              required
+              hint="Usa de 3 a 50 caracteres sin espacios ni tildes."
+              labelClassName="mb-1 block text-sm font-semibold text-slate-700"
+            >
               <input
-                required
                 minLength={3}
                 maxLength={50}
                 pattern="[a-zA-Z0-9._\-]+"
                 title="Usa solo letras sin tilde, números, punto, guion o guion bajo"
-                aria-describedby="requisitos-nombre-usuario"
                 autoComplete="off"
                 placeholder="Ej. cajero_01"
                 value={userForm.username}
                 onChange={(e) => setUserForm({ ...userForm, username: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
               />
-              <span id="requisitos-nombre-usuario" className="block text-xs text-slate-600">
-                Usa de 3 a 50 caracteres sin espacios ni tildes.
-              </span>
-            </label>
+            </Field>
           )}
-          <input
-            required
-            type="email"
-            placeholder="Correo electrónico"
-            value={userForm.email}
-            onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <input
+          <Field label="Correo electrónico" required>
+            <input
+              type="email"
+              placeholder="Correo electrónico"
+              value={userForm.email}
+              onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field
+            label={editingUser ? 'Nueva contraseña (opcional)' : 'Contraseña'}
             required={!editingUser}
-            type="password"
-            autoComplete="new-password"
-            aria-describedby="requisitos-contrasena-usuario"
-            minLength={longitudMinima}
-            maxLength={72}
-            pattern="(?=.*[A-Za-z])(?=.*[0-9]).*"
-            placeholder={editingUser ? 'Nueva contraseña (opcional)' : 'Contraseña'}
-            value={userForm.password}
-            onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <p id="requisitos-contrasena-usuario" className="text-xs text-slate-600">
-            {longitudMinima ? `Mínimo ${longitudMinima} caracteres, con al menos una letra y un número.` : 'Incluye al menos una letra y un número.'}
-          </p>
-          <select
-            required
-            value={userForm.rolId}
-            onChange={(e) => setUserForm({ ...userForm, rolId: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
+            hint={
+              longitudMinima
+                ? `Mínimo ${longitudMinima} caracteres, con al menos una letra y un número.`
+                : 'Incluye al menos una letra y un número.'
+            }
           >
-            <option value="" disabled>Selecciona el rol del usuario</option>
-            {rolesAsignables.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.nombre} ({r.codigo})
-              </option>
-            ))}
-          </select>
+            <input
+              type="password"
+              autoComplete="new-password"
+              minLength={longitudMinima}
+              maxLength={72}
+              pattern="(?=.*[A-Za-z])(?=.*[0-9]).*"
+              placeholder={editingUser ? 'Nueva contraseña (opcional)' : 'Contraseña'}
+              value={userForm.password}
+              onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Rol del usuario" required>
+            <select
+              value={userForm.rolId}
+              onChange={(e) => setUserForm({ ...userForm, rolId: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
+            >
+              <option value="" disabled>Selecciona el rol del usuario</option>
+              {rolesAsignables.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nombre} ({r.codigo})
+                </option>
+              ))}
+            </select>
+          </Field>
           {rolSeleccionadoEnModal && (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
               <p className="font-bold text-slate-800">
@@ -581,18 +597,34 @@ export const AccesosPage: React.FC = () => {
           )}
           <fieldset className="grid gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3 sm:grid-cols-2">
             <legend className="px-1 text-sm font-bold text-teal-900">Datos laborales</legend>
-            <label className="block space-y-1 text-sm font-semibold text-slate-700">
-              <span>Fecha de ingreso</span>
-              <input type="date" required={!editingUser} max={getTodayISO()} value={userForm.fechaIngreso}
+            <Field
+              label="Fecha de ingreso"
+              required={!editingUser}
+              labelClassName="mb-1 block text-sm font-semibold text-slate-700"
+            >
+              <input
+                type="date"
+                max={getTodayISO()}
+                value={userForm.fechaIngreso}
                 onChange={(e) => setUserForm({ ...userForm, fechaIngreso: e.target.value })}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" />
-            </label>
-            <label className="block space-y-1 text-sm font-semibold text-slate-700">
-              <span>Sueldo mensual acordado (Q)</span>
-              <input type="number" required={!editingUser} min="0.01" max="9999999999.99" step="0.01"
-                value={userForm.sueldoMensual} onChange={(e) => setUserForm({ ...userForm, sueldoMensual: e.target.value })}
-                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" />
-            </label>
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+              />
+            </Field>
+            <Field
+              label={`Sueldo mensual acordado (${env.CURRENCY_SYMBOL})`}
+              required={!editingUser}
+              labelClassName="mb-1 block text-sm font-semibold text-slate-700"
+            >
+              <input
+                type="number"
+                min="0.01"
+                max="9999999999.99"
+                step="0.01"
+                value={userForm.sueldoMensual}
+                onChange={(e) => setUserForm({ ...userForm, sueldoMensual: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm"
+              />
+            </Field>
           </fieldset>
           {errorUsuario && <div role="alert"><Alert type="error" message={errorUsuario} /></div>}
           <button
@@ -614,38 +646,44 @@ export const AccesosPage: React.FC = () => {
       >
         <form onSubmit={handleCrearRol} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
-            <input
-              required
-              placeholder="Código (ej. SUPERVISOR)"
-              value={newRolForm.codigo}
-              onChange={(e) => setNewRolForm({ ...newRolForm, codigo: e.target.value })}
-              className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm uppercase"
-            />
-            <input
-              required
-              placeholder="Nombre visible"
-              value={newRolForm.nombre}
-              onChange={(e) => setNewRolForm({ ...newRolForm, nombre: e.target.value })}
-              className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
-            />
+            <Field label="Código del rol" required>
+              <input
+                placeholder="Ej. SUPERVISOR"
+                value={newRolForm.codigo}
+                onChange={(e) => setNewRolForm({ ...newRolForm, codigo: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm uppercase"
+              />
+            </Field>
+            <Field label="Nombre visible" required>
+              <input
+                placeholder="Nombre visible"
+                value={newRolForm.nombre}
+                onChange={(e) => setNewRolForm({ ...newRolForm, nombre: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              />
+            </Field>
           </div>
-          <input
-            placeholder="Descripción del rol"
-            value={newRolForm.descripcion}
-            onChange={(e) => setNewRolForm({ ...newRolForm, descripcion: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <select
-            value={newRolForm.vistaInicial}
-            onChange={(e) => setNewRolForm({ ...newRolForm, vistaInicial: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          >
-            {VISTAS_RUTAS.map((r) => (
-              <option key={r} value={r}>
-                Vista inicial: {r}
-              </option>
-            ))}
-          </select>
+          <Field label="Descripción del rol">
+            <input
+              placeholder="Descripción del rol"
+              value={newRolForm.descripcion}
+              onChange={(e) => setNewRolForm({ ...newRolForm, descripcion: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Vista inicial">
+            <select
+              value={newRolForm.vistaInicial}
+              onChange={(e) => setNewRolForm({ ...newRolForm, vistaInicial: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            >
+              {VISTAS_RUTAS.map((r) => (
+                <option key={r} value={r}>
+                  Vista inicial: {r}
+                </option>
+              ))}
+            </select>
+          </Field>
           <button
             type="submit"
             className="min-h-[46px] w-full rounded-xl bg-slate-900 text-sm font-bold text-white"

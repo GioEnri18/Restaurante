@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination } from '../components/common/Pagination';
 import { NominaPanel } from '../components/auditoria/NominaPanel';
@@ -107,7 +108,7 @@ export const AuditoriaPage: React.FC = () => {
     <div className="space-y-5">
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">
-          <ShieldCheck className="h-7 w-7 text-brand-600" />
+          <ShieldCheck className="h-7 w-7 text-brand-600" aria-hidden="true" />
           Auditoría
         </h1>
         <p className="text-sm text-slate-500">
@@ -130,49 +131,53 @@ export const AuditoriaPage: React.FC = () => {
 
       {/* Filtros */}
       <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
-        <select
-          aria-label="Persona que hizo el cambio"
-          value={usuarioId}
-          onChange={(e) => setUsuarioId(e.target.value)}
-          className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-        >
-          <option value="">Todos los usuarios</option>
-          {usuarios.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.nombreCompleto} ({u.username})
-            </option>
-          ))}
-        </select>
+        <Field label="Persona que hizo el cambio" srOnlyLabel>
+          <select
+            value={usuarioId}
+            onChange={(e) => setUsuarioId(e.target.value)}
+            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          >
+            <option value="">Todos los usuarios</option>
+            {usuarios.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nombreCompleto} ({u.username})
+              </option>
+            ))}
+          </select>
+        </Field>
 
-        <select
-          aria-label="Tipo de acción"
-          value={accion}
-          onChange={(e) => setAccion(e.target.value)}
-          className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-        >
-          <option value="">Todas las acciones</option>
-          {acciones.map((a) => (
-            <option key={a} value={a}>
+        <Field label="Tipo de acción" srOnlyLabel>
+          <select
+            value={accion}
+            onChange={(e) => setAccion(e.target.value)}
+            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          >
+            <option value="">Todas las acciones</option>
+            {acciones.map((a) => (
+              <option key={a} value={a}>
                 {nombreAccion(a)}
-            </option>
-          ))}
-        </select>
+              </option>
+            ))}
+          </select>
+        </Field>
 
-        <input
-          type="date"
-          aria-label="Fecha inicial de la actividad"
-          value={fechaDesde}
-          onChange={(e) => setFechaDesde(e.target.value)}
-          className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-        />
+        <Field label="Fecha inicial de la actividad" srOnlyLabel>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
 
-        <input
-          type="date"
-          aria-label="Fecha final de la actividad"
-          value={fechaHasta}
-          onChange={(e) => setFechaHasta(e.target.value)}
-          className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-        />
+        <Field label="Fecha final de la actividad" srOnlyLabel>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
 
         <button
           type="button"
@@ -184,7 +189,7 @@ export const AuditoriaPage: React.FC = () => {
           }}
           className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-slate-300 px-3 text-sm font-bold text-slate-600 hover:bg-slate-50"
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
           Limpiar
         </button>
       </div>
@@ -193,14 +198,17 @@ export const AuditoriaPage: React.FC = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[780px] text-left text-sm">
+            <caption className="sr-only">
+              Bitácora de auditoría con usuario, acción, entidad y cambios registrados
+            </caption>
             <thead>
               <tr className="border-b text-xs uppercase text-slate-500">
-                <th className="py-3 px-2">Fecha / Hora</th>
-                <th className="py-3 px-2">Usuario</th>
-                <th className="py-3 px-2">Acción</th>
-                <th className="py-3 px-2">Entidad</th>
-                <th className="py-3 px-2">Motivo / IP</th>
-                <th className="py-3 px-2 text-right">Cambios</th>
+                <th scope="col" className="py-3 px-2">Fecha / Hora</th>
+                <th scope="col" className="py-3 px-2">Usuario</th>
+                <th scope="col" className="py-3 px-2">Acción</th>
+                <th scope="col" className="py-3 px-2">Entidad</th>
+                <th scope="col" className="py-3 px-2">Motivo / IP</th>
+                <th scope="col" className="py-3 px-2 text-right">Cambios</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -249,9 +257,10 @@ export const AuditoriaPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedLog(l)}
+                        aria-label={`Ver cambios del registro ${l.id} (${nombreAccion(l.accion)})`}
                         className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
                       >
-                        <Eye className="h-3.5 w-3.5" />
+                        <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                         Ver cambio
                       </button>
                     </td>

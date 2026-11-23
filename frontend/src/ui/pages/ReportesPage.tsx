@@ -15,6 +15,7 @@ import { reportesService } from '../../services/reportes.service';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
+import { Field } from '../components/common/Field';
 import { Pagination } from '../components/common/Pagination';
 
 const fechaGuatemala = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Guatemala', dateStyle: 'short' });
@@ -137,7 +138,7 @@ export const ReportesPage: React.FC = () => {
               onClick={() => void exportar('pdf')}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60"
             >
-              <FileDown className="h-4 w-4" />
+              <FileDown className="h-4 w-4" aria-hidden="true" />
               {exporting === 'pdf' ? 'Generando PDF...' : 'Exportar PDF'}
             </button>
             <button
@@ -146,7 +147,7 @@ export const ReportesPage: React.FC = () => {
               onClick={() => void exportar('excel')}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
             >
-              <FileSpreadsheet className="h-4 w-4" />
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
               {exporting === 'excel' ? 'Generando Excel...' : 'Exportar Excel'}
             </button>
           </div>
@@ -155,32 +156,28 @@ export const ReportesPage: React.FC = () => {
 
       {/* Filtros de fecha */}
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div>
-          <label htmlFor="reporte-desde" className="mb-1 block text-sm font-bold text-slate-700">Fecha inicial</label>
+        <Field label="Fecha inicial" labelClassName="mb-1 block text-sm font-bold text-slate-700">
           <input
-            id="reporte-desde"
             type="date"
             value={fechaDesde}
             onChange={(e) => setFechaDesde(e.target.value)}
             className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
           />
-        </div>
-        <div>
-          <label htmlFor="reporte-hasta" className="mb-1 block text-sm font-bold text-slate-700">Fecha final</label>
+        </Field>
+        <Field label="Fecha final" labelClassName="mb-1 block text-sm font-bold text-slate-700">
           <input
-            id="reporte-hasta"
             type="date"
             value={fechaHasta}
             onChange={(e) => setFechaHasta(e.target.value)}
             className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
           />
-        </div>
+        </Field>
         <button
           type="button"
           onClick={() => void cargar()}
           className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-sm font-bold text-white"
         >
-          <Filter className="h-4 w-4" />
+          <Filter className="h-4 w-4" aria-hidden="true" />
           Actualizar reporte
         </button>
         <div className="flex gap-1.5">
@@ -339,13 +336,16 @@ export const ReportesPage: React.FC = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm overflow-x-auto">
         <h2 className="mb-3 text-base font-bold text-slate-900">Rentabilidad por Platillo</h2>
         <table className="w-full min-w-[620px] text-left text-sm">
+          <caption className="sr-only">
+            Rentabilidad, unidades vendidas, ingresos y costos por platillo
+          </caption>
           <thead>
             <tr className="border-b text-xs uppercase text-slate-500">
-              <th className="py-2.5 px-2">Platillo</th>
-              <th className="py-2.5 px-2 text-right">Unidades</th>
-              <th className="py-2.5 px-2 text-right">Ingresos</th>
-              <th className="py-2.5 px-2 text-right">Costo Receta</th>
-              <th className="py-2.5 px-2 text-right">Utilidad</th>
+              <th scope="col" className="py-2.5 px-2">Platillo</th>
+              <th scope="col" className="py-2.5 px-2 text-right">Unidades</th>
+              <th scope="col" className="py-2.5 px-2 text-right">Ingresos</th>
+              <th scope="col" className="py-2.5 px-2 text-right">Costo Receta</th>
+              <th scope="col" className="py-2.5 px-2 text-right">Utilidad</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">

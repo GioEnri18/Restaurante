@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatCurrency } from '../../../utils/formatters';
+import { Field } from '../common/Field';
 
 // Denominaciones oficiales de billetes y monedas de Guatemala (GTQ) para arqueo profesional
 export const DENOMINACIONES_GTQ = [
@@ -39,16 +40,17 @@ export const ContadorBilletesGTQ: React.FC<ContadorBilletesGTQProps> = ({
                 {sub > 0 ? formatCurrency(sub) : d.tipo}
               </p>
             </div>
-            <input
-              aria-label={`Cantidad de ${d.tipo.toLowerCase()}s de ${d.label}`}
-              type="number"
-              min="0"
-              step="1"
-              placeholder="0"
-              value={conteoBilletes[d.key] ?? ''}
-              onChange={(e) => onChange(d.key, e.target.value)}
-              className="h-10 w-20 rounded-lg border border-slate-300 bg-white px-2 text-center text-sm font-extrabold"
-            />
+            <Field label={`Cantidad de ${d.tipo.toLowerCase()}s de ${d.label}`} srOnlyLabel>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                value={conteoBilletes[d.key] ?? ''}
+                onChange={(e) => onChange(d.key, e.target.value)}
+                className="h-10 w-20 rounded-lg border border-slate-300 bg-white px-2 text-center text-sm font-extrabold"
+              />
+            </Field>
           </div>
         );
       })}

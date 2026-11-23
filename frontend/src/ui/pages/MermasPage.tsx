@@ -8,6 +8,7 @@ import { formatCurrency, formatDateTime, lbToOzPreview } from '../../utils/forma
 import { generarUuid } from '../../utils/idempotency';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { Field } from '../components/common/Field';
 import { Pagination } from '../components/common/Pagination';
 
 const MOTIVOS: Array<{ value: MotivoMerma; label: string }> = [
@@ -140,15 +141,12 @@ export const MermasPage: React.FC = () => {
             className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-4"
           >
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
-              <Trash2 className="h-5 w-5 text-red-600" />
+              <Trash2 className="h-5 w-5 text-red-600" aria-hidden="true" />
               Registrar una pérdida
             </h2>
 
-            <div>
-              <label htmlFor="merma-ingrediente" className="mb-1 block text-sm font-bold text-slate-700">Ingrediente</label>
+            <Field label="Ingrediente" required labelClassName="mb-1 block text-sm font-bold text-slate-700">
               <select
-                id="merma-ingrediente"
-                required
                 value={form.ingredienteId}
                 onChange={(e) => setForm({ ...form, ingredienteId: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -160,14 +158,11 @@ export const MermasPage: React.FC = () => {
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label htmlFor="merma-cantidad" className="mb-1 block text-sm font-bold text-slate-700">Cantidad perdida</label>
+              <Field label="Cantidad perdida" required labelClassName="mb-1 block text-sm font-bold text-slate-700">
                 <input
-                  id="merma-cantidad"
-                  required
                   type="number"
                   step="0.0001"
                   min="0.0001"
@@ -175,11 +170,9 @@ export const MermasPage: React.FC = () => {
                   onChange={(e) => setForm({ ...form, cantidad: e.target.value })}
                   className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
                 />
-              </div>
-              <div>
-                <label htmlFor="merma-unidad" className="mb-1 block text-sm font-bold text-slate-700">Unidad</label>
+              </Field>
+              <Field label="Unidad" labelClassName="mb-1 block text-sm font-bold text-slate-700">
                 <select
-                  id="merma-unidad"
                   value={form.unidad}
                   onChange={(e) => setForm({ ...form, unidad: e.target.value as UnidadMedida })}
                   className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -187,17 +180,15 @@ export const MermasPage: React.FC = () => {
                   <option value="oz">Onzas (oz)</option>
                   <option value="lb">Libras (lb)</option>
                 </select>
-              </div>
+              </Field>
             </div>
 
             <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
               Se descontarán <strong>{cantidadOzPreview.toFixed(4)} oz</strong> del inventario.
             </p>
 
-            <div>
-              <label htmlFor="merma-motivo" className="mb-1 block text-sm font-bold text-slate-700">¿Qué pasó?</label>
+            <Field label="¿Qué pasó?" labelClassName="mb-1 block text-sm font-bold text-slate-700">
               <select
-                id="merma-motivo"
                 value={form.motivo}
                 onChange={(e) => setForm({ ...form, motivo: e.target.value as MotivoMerma })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -208,19 +199,17 @@ export const MermasPage: React.FC = () => {
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="merma-nota" className="mb-1 block text-sm font-bold text-slate-700">Nota (opcional)</label>
+            <Field label="Nota (opcional)" labelClassName="mb-1 block text-sm font-bold text-slate-700">
               <textarea
-                id="merma-nota"
                 rows={3}
                 value={form.observacion}
                 onChange={(e) => setForm({ ...form, observacion: e.target.value })}
                 placeholder="Detalle opcional del incidente..."
                 className="w-full rounded-xl border border-slate-300 p-3 text-sm"
               />
-            </div>
+            </Field>
 
             <button
               type="submit"
@@ -235,30 +224,35 @@ export const MermasPage: React.FC = () => {
         <div className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-sm ${canCreate ? 'lg:col-span-8' : 'lg:col-span-12'}`}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-slate-900">Historial de Mermas</h2>
-            <select
-              value={filtroMotivo}
-              onChange={(e) => setFiltroMotivo(e.target.value)}
-              className="min-h-[40px] rounded-xl border border-slate-300 px-3 text-sm"
-            >
-              <option value="">Todos los motivos</option>
-              {MOTIVOS.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
+            <Field label="Filtrar mermas por motivo" srOnlyLabel>
+              <select
+                value={filtroMotivo}
+                onChange={(e) => setFiltroMotivo(e.target.value)}
+                className="min-h-[40px] rounded-xl border border-slate-300 px-3 text-sm"
+              >
+                <option value="">Todos los motivos</option>
+                {MOTIVOS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
+              <caption className="sr-only">
+                Historial de mermas y pérdidas registradas en cocina e inventario
+              </caption>
               <thead>
                 <tr className="border-b text-xs uppercase text-slate-500">
-                  <th className="py-2.5 px-2">Fecha</th>
-                  <th className="py-2.5 px-2">Ingrediente</th>
-                  <th className="py-2.5 px-2">Cantidad</th>
-                  <th className="py-2.5 px-2">Motivo</th>
-                  <th className="py-2.5 px-2 text-right">Costo</th>
-                  <th className="py-2.5 px-2">Responsable</th>
+                  <th scope="col" className="py-2.5 px-2">Fecha</th>
+                  <th scope="col" className="py-2.5 px-2">Ingrediente</th>
+                  <th scope="col" className="py-2.5 px-2">Cantidad</th>
+                  <th scope="col" className="py-2.5 px-2">Motivo</th>
+                  <th scope="col" className="py-2.5 px-2 text-right">Costo</th>
+                  <th scope="col" className="py-2.5 px-2">Responsable</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

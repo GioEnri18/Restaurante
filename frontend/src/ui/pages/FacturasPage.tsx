@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination } from '../components/common/Pagination';
 import { PrintTicketsModal } from '../components/print/PrintTicketsModal';
@@ -141,67 +142,78 @@ export const FacturasPage: React.FC = () => {
       {/* Filtros */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <input
-            type="text"
-            value={numero}
-            onChange={(e) => setNumero(e.target.value)}
-            placeholder="Número (ej. A-000001)"
-            aria-label="Número de factura"
-            className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <input
-            type="text"
-            value={cliente}
-            onChange={(e) => setCliente(e.target.value)}
-            placeholder="Cliente o NIT"
-            aria-label="Nombre del cliente o NIT"
-            className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <label className="space-y-1 text-sm font-semibold text-slate-700">
-            <span>Fecha inicial</span>
-            <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm" />
-          </label>
-          <label className="space-y-1 text-sm font-semibold text-slate-700">
-            <span>Fecha final</span>
-            <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm" />
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            value={montoMin}
-            onChange={(e) => setMontoMin(e.target.value)}
-            placeholder="Monto mínimo (Q)"
-            aria-label="Monto mínimo en quetzales"
-            className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <input
-            type="number"
-            step="0.01"
-            value={montoMax}
-            onChange={(e) => setMontoMax(e.target.value)}
-            placeholder="Monto máximo (Q)"
-            aria-label="Monto máximo en quetzales"
-            className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <select
-            aria-label="Estado de la factura"
-            value={estado}
-            onChange={(e) => setEstado(e.target.value)}
-            className="min-h-[42px] rounded-xl border border-slate-300 px-3 text-sm"
-          >
-            <option value="">Todos los estados</option>
-            <option value="EMITIDA">Emitidas</option>
-            <option value="ANULADA">Anuladas</option>
-          </select>
+          <Field label="Número de factura" srOnlyLabel>
+            <input
+              type="text"
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              placeholder="Número (ej. A-000001)"
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Nombre del cliente o NIT" srOnlyLabel>
+            <input
+              type="text"
+              value={cliente}
+              onChange={(e) => setCliente(e.target.value)}
+              placeholder="Cliente o NIT"
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Fecha inicial" labelClassName="mb-1 block text-sm font-semibold text-slate-700">
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setFechaDesde(e.target.value)}
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Fecha final" labelClassName="mb-1 block text-sm font-semibold text-slate-700">
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setFechaHasta(e.target.value)}
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label={`Monto mínimo (${env.CURRENCY_SYMBOL})`} srOnlyLabel>
+            <input
+              type="number"
+              step="0.01"
+              value={montoMin}
+              onChange={(e) => setMontoMin(e.target.value)}
+              placeholder={`Monto mínimo (${env.CURRENCY_SYMBOL})`}
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label={`Monto máximo (${env.CURRENCY_SYMBOL})`} srOnlyLabel>
+            <input
+              type="number"
+              step="0.01"
+              value={montoMax}
+              onChange={(e) => setMontoMax(e.target.value)}
+              placeholder={`Monto máximo (${env.CURRENCY_SYMBOL})`}
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Estado de la factura" srOnlyLabel>
+            <select
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            >
+              <option value="">Todos los estados</option>
+              <option value="EMITIDA">Emitidas</option>
+              <option value="ANULADA">Anuladas</option>
+            </select>
+          </Field>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => void cargar(1)}
               className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-3 text-sm font-bold text-white hover:bg-brand-700"
             >
-              <Search className="h-4 w-4" />
+              <Search className="h-4 w-4" aria-hidden="true" />
               Buscar
             </button>
             <button
@@ -211,7 +223,7 @@ export const FacturasPage: React.FC = () => {
               title="Limpiar filtros"
               aria-label="Limpiar filtros"
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -221,15 +233,18 @@ export const FacturasPage: React.FC = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[780px] text-left text-sm">
+            <caption className="sr-only">
+              Listado de facturas emitidas y anuladas con totales y acciones
+            </caption>
             <thead>
               <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                <th className="py-3 px-2">Factura</th>
-                <th className="py-3 px-2">Fecha</th>
-                <th className="py-3 px-2">Cliente / NIT</th>
-                <th className="py-3 px-2">Pago / Servicio</th>
-                <th className="py-3 px-2 text-right">Total</th>
-                <th className="py-3 px-2">Estado</th>
-                <th className="py-3 px-2 text-right">Acciones</th>
+                <th scope="col" className="py-3 px-2">Factura</th>
+                <th scope="col" className="py-3 px-2">Fecha</th>
+                <th scope="col" className="py-3 px-2">Cliente / NIT</th>
+                <th scope="col" className="py-3 px-2">Pago / Servicio</th>
+                <th scope="col" className="py-3 px-2 text-right">Total</th>
+                <th scope="col" className="py-3 px-2">Estado</th>
+                <th scope="col" className="py-3 px-2 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -282,18 +297,20 @@ export const FacturasPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => void verDetalle(f.id)}
+                          aria-label={`Ver detalle de factura ${f.numeroCompleto}`}
                           className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                         >
-                          <Eye className="h-3.5 w-3.5" />
+                          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                           Ver
                         </button>
                         {canReprint && (
                           <button
                             type="button"
                             onClick={() => void handleReimprimir(f.id)}
+                            aria-label={`Reimprimir factura ${f.numeroCompleto}`}
                             className="inline-flex h-9 items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 text-xs font-semibold text-sky-700 hover:bg-sky-100"
                           >
-                            <Printer className="h-3.5 w-3.5" />
+                            <Printer className="h-3.5 w-3.5" aria-hidden="true" />
                             Reimprimir
                           </button>
                         )}
@@ -305,9 +322,10 @@ export const FacturasPage: React.FC = () => {
                               setMotivoAnulacion('');
                               setReintegrarStock(false);
                             }}
+                            aria-label={`Anular factura ${f.numeroCompleto}`}
                             className="inline-flex h-9 items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 text-xs font-semibold text-red-700 hover:bg-red-100"
                           >
-                            <Ban className="h-3.5 w-3.5" />
+                            <Ban className="h-3.5 w-3.5" aria-hidden="true" />
                             Anular
                           </button>
                         )}
@@ -363,29 +381,34 @@ export const FacturasPage: React.FC = () => {
               />
             )}
 
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b text-xs uppercase text-slate-500">
-                  <th className="py-2">Platillo</th>
-                  <th className="py-2 text-center">Cant.</th>
-                  <th className="py-2 text-right">Unitario</th>
-                  <th className="py-2 text-right">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {detalle.venta.detalles.map((d) => (
-                  <tr key={d.id}>
-                    <td className="py-2">
-                      <p className="font-semibold">{d.nombrePlatillo}</p>
-                      {d.notas && <p className="text-xs text-amber-700">Nota: {d.notas}</p>}
-                    </td>
-                    <td className="py-2 text-center">{d.cantidad}</td>
-                    <td className="py-2 text-right">{formatCurrency(d.precioUnitario)}</td>
-                    <td className="py-2 text-right font-bold">{formatCurrency(d.subtotal)}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[420px] text-left text-sm">
+                <caption className="sr-only">
+                  Detalle de platillos incluidos en la factura {detalle.factura.numeroCompleto}
+                </caption>
+                <thead>
+                  <tr className="border-b text-xs uppercase text-slate-500">
+                    <th scope="col" className="py-2">Platillo</th>
+                    <th scope="col" className="py-2 text-center">Cant.</th>
+                    <th scope="col" className="py-2 text-right">Unitario</th>
+                    <th scope="col" className="py-2 text-right">Subtotal</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {detalle.venta.detalles.map((d) => (
+                    <tr key={d.id}>
+                      <td className="py-2">
+                        <p className="font-semibold">{d.nombrePlatillo}</p>
+                        {d.notas && <p className="text-xs text-amber-700">Nota: {d.notas}</p>}
+                      </td>
+                      <td className="py-2 text-center">{d.cantidad}</td>
+                      <td className="py-2 text-right">{formatCurrency(d.precioUnitario)}</td>
+                      <td className="py-2 text-right font-bold">{formatCurrency(d.subtotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className="space-y-1 border-t border-slate-200 pt-3 text-right">
               <p className="text-slate-600">
@@ -416,12 +439,12 @@ export const FacturasPage: React.FC = () => {
             message="Las facturas no se borran ni editan. La anulación revertirá automáticamente el monto en caja y quedará en auditoría."
           />
 
-          <div>
-            <label className="mb-1 block text-sm font-bold text-slate-700">
-              Motivo obligatorio de anulación
-            </label>
+          <Field
+            label="Motivo obligatorio de anulación"
+            required
+            labelClassName="mb-1 block text-sm font-bold text-slate-700"
+          >
             <textarea
-              required
               minLength={5}
               rows={3}
               value={motivoAnulacion}
@@ -429,7 +452,7 @@ export const FacturasPage: React.FC = () => {
               placeholder="Ej. Error en NIT del cliente / Pedido duplicado..."
               className="w-full rounded-xl border border-slate-300 p-3 text-sm"
             />
-          </div>
+          </Field>
 
           <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
             <input

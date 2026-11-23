@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { env } from '../../../config/env';
 import { CompraModel, IngredienteModel, PaginationMeta, ProveedorModel, UnidadMedida } from '../../../models';
 import { formatCurrency, formatDateTime, lbToOzPreview } from '../../../utils/formatters';
+import { Field } from '../common/Field';
 import { Pagination } from '../common/Pagination';
 
 interface ComprasPanelProps {
@@ -98,34 +99,44 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
           <h2 className="text-lg font-bold text-slate-900">Ingresar una compra</h2>
           <p className="text-sm text-slate-600">Elige la unidad en que compraste e ingresa la cantidad y el costo por esa unidad.</p>
           <div>
-            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-              <label htmlFor="compra-proveedor" className="text-sm font-bold text-slate-700">Proveedor</label>
-              {onNuevoProveedor && <button type="button" onClick={onNuevoProveedor} disabled={guardando}
-                className="min-h-9 rounded-lg border border-teal-300 px-3 text-xs font-bold text-teal-900 hover:bg-teal-50 disabled:opacity-50">
-                Nuevo proveedor
-              </button>}
-            </div>
-            <select
-              id="compra-proveedor"
+            <Field
+              label="Proveedor"
               required
-              value={compraForm.proveedorId}
-              onChange={(e) => setCompraForm({ ...compraForm, proveedorId: e.target.value })}
-              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              labelClassName="text-sm font-bold text-slate-700"
+              labelExtra={
+                onNuevoProveedor ? (
+                  <button
+                    type="button"
+                    onClick={onNuevoProveedor}
+                    disabled={guardando}
+                    className="min-h-9 rounded-lg border border-teal-300 px-3 text-xs font-bold text-teal-900 hover:bg-teal-50 disabled:opacity-50"
+                  >
+                    Nuevo proveedor
+                  </button>
+                ) : undefined
+              }
             >
-              <option value="">-- Seleccionar proveedor --</option>
-              {proveedores.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre}
-                </option>
-              ))}
-            </select>
+              <select
+                value={compraForm.proveedorId}
+                onChange={(e) => setCompraForm({ ...compraForm, proveedorId: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              >
+                <option value="">-- Seleccionar proveedor --</option>
+                {proveedores.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {proveedores.length === 0 && <p className="mt-1 text-sm text-amber-800">Agrega un proveedor para poder registrar la compra.</p>}
           </div>
-          <div>
-            <label htmlFor="compra-ingrediente" className="mb-1 block text-sm font-bold text-slate-700">Ingrediente recibido</label>
+          <Field
+            label="Ingrediente recibido"
+            required
+            labelClassName="mb-1 block text-sm font-bold text-slate-700"
+          >
             <select
-              id="compra-ingrediente"
-              required
               value={compraForm.ingredienteId}
               onChange={(e) => setCompraForm({ ...compraForm, ingredienteId: e.target.value })}
               className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
@@ -137,7 +148,7 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
                 </option>
               ))}
             </select>
-          </div>
+          </Field>
           <fieldset>
             <legend className="mb-2 text-sm font-bold text-slate-700">Unidad de compra</legend>
             <div className="flex flex-wrap gap-2">
@@ -151,11 +162,12 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
             </div>
           </fieldset>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="compra-cantidad" className="mb-1 block text-sm font-bold text-slate-700">Cantidad recibida ({compraForm.unidad})</label>
+            <Field
+              label={`Cantidad recibida (${compraForm.unidad})`}
+              required
+              labelClassName="mb-1 block text-sm font-bold text-slate-700"
+            >
               <input
-                id="compra-cantidad"
-                required
                 type="number"
                 step="0.0001"
                 min="0.0001"
@@ -164,12 +176,13 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
                 onChange={(e) => setCompraForm({ ...compraForm, cantidad: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
               />
-            </div>
-            <div>
-              <label htmlFor="compra-precio" className="mb-1 block text-sm font-bold text-slate-700">Costo por {enLibras ? 'libra' : 'onza'} (Q)</label>
+            </Field>
+            <Field
+              label={`Costo por ${enLibras ? 'libra' : 'onza'} (${env.CURRENCY_SYMBOL})`}
+              required
+              labelClassName="mb-1 block text-sm font-bold text-slate-700"
+            >
               <input
-                id="compra-precio"
-                required
                 type="number"
                 step="0.01"
                 min="0.01"
@@ -178,7 +191,7 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
                 onChange={(e) => setCompraForm({ ...compraForm, precioUnitario: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
               />
-            </div>
+            </Field>
           </div>
 
           <div className="rounded-xl border border-teal-200 bg-teal-50 p-3.5 text-sm text-teal-950" aria-live="polite">
@@ -196,13 +209,15 @@ export const ComprasPanel: React.FC<ComprasPanelProps> = ({
             </p>
           </div>
 
-          <input
-            type="text"
-            placeholder="No. factura proveedor (opcional)"
-            value={compraForm.numeroDocumento}
-            onChange={(e) => setCompraForm({ ...compraForm, numeroDocumento: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          />
+          <Field label="No. factura proveedor (opcional)" srOnlyLabel>
+            <input
+              type="text"
+              placeholder="No. factura proveedor (opcional)"
+              value={compraForm.numeroDocumento}
+              onChange={(e) => setCompraForm({ ...compraForm, numeroDocumento: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
 
           <button
             type="submit"

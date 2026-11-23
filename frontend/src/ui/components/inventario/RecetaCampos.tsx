@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { IngredienteModel } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
+import { Field } from '../common/Field';
 
 export interface LineaRecetaForm {
   ingredienteId: number;
@@ -38,20 +39,20 @@ export function RecetaCampos({ ingredientes, lineas, onChange }: Props) {
             <span className="flex-1 text-sm">
               {nombre}{!ingrediente?.costoPromedioOz && ' (sin costo válido)'}
             </span>
-            <input
-              aria-label={`Onzas de ${nombre}`}
-              type="number"
-              min="0.0001"
-              step="0.0001"
-              required
-              value={linea.cantidadOz}
-              onChange={(event) => onChange(lineas.map((item) =>
-                item.ingredienteId === linea.ingredienteId
-                  ? { ...item, cantidadOz: event.target.value }
-                  : item,
-              ))}
-              className="min-h-[44px] w-28 rounded-xl border border-slate-300 px-2 text-sm"
-            />
+            <Field label={`Onzas de ${nombre}`} srOnlyLabel required>
+              <input
+                type="number"
+                min="0.0001"
+                step="0.0001"
+                value={linea.cantidadOz}
+                onChange={(event) => onChange(lineas.map((item) =>
+                  item.ingredienteId === linea.ingredienteId
+                    ? { ...item, cantidadOz: event.target.value }
+                    : item,
+                ))}
+                className="min-h-[44px] w-28 rounded-xl border border-slate-300 px-2 text-sm"
+              />
+            </Field>
             <button
               type="button"
               onClick={() => onChange(lineas.filter((item) => item.ingredienteId !== linea.ingredienteId))}
@@ -64,17 +65,18 @@ export function RecetaCampos({ ingredientes, lineas, onChange }: Props) {
         );
       })}
       <div className="flex gap-2">
-        <select
-          aria-label="Ingrediente para la receta"
-          value={seleccion}
-          onChange={(event) => setSeleccion(event.target.value)}
-          className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-slate-300 px-2 text-sm"
-        >
-          <option value="">Selecciona un ingrediente con costo</option>
-          {opciones.map((ingrediente) => (
-            <option key={ingrediente.id} value={ingrediente.id}>{ingrediente.nombre}</option>
-          ))}
-        </select>
+        <Field label="Ingrediente para la receta" srOnlyLabel className="min-w-0 flex-1">
+          <select
+            value={seleccion}
+            onChange={(event) => setSeleccion(event.target.value)}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-2 text-sm"
+          >
+            <option value="">Selecciona un ingrediente con costo</option>
+            {opciones.map((ingrediente) => (
+              <option key={ingrediente.id} value={ingrediente.id}>{ingrediente.nombre}</option>
+            ))}
+          </select>
+        </Field>
         <button
           type="button"
           disabled={!seleccion || lineas.length >= 50}

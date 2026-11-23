@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { env } from '../../../config/env';
 import { CategoriaModel, IngredienteModel } from '../../../models';
 import { ventasService } from '../../../services/ventas.service';
 import { mensajeErrorFormulario } from '../../../services/httpClient';
 import { Alert } from '../common/Alert';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 import { SelectorFotoPlatillo } from '../common/SelectorFotoPlatillo';
 import { LineaRecetaForm, RecetaCampos } from './RecetaCampos';
@@ -117,26 +119,41 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
       maxWidthClass="max-w-xl"
     >
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-600">Categoría</label>
-            {onNuevaCategoria && (
-              <button
-                type="button"
-                onClick={onNuevaCategoria}
-                className="text-xs font-bold text-brand-600 hover:underline"
-              >
-                + Nueva categoría
-              </button>
-            )}
-          </div>
-          {categorias.length === 0 ? (
+        {categorias.length === 0 ? (
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-600">Categoría</span>
+              {onNuevaCategoria && (
+                <button
+                  type="button"
+                  onClick={onNuevaCategoria}
+                  className="text-xs font-bold text-brand-600 hover:underline"
+                >
+                  + Nueva categoría
+                </button>
+              )}
+            </div>
             <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
               Crea primero una categoría para poder registrar platillos.
             </p>
-          ) : (
+          </div>
+        ) : (
+          <Field
+            label="Categoría"
+            required
+            labelExtra={
+              onNuevaCategoria ? (
+                <button
+                  type="button"
+                  onClick={onNuevaCategoria}
+                  className="text-xs font-bold text-brand-600 hover:underline"
+                >
+                  + Nueva categoría
+                </button>
+              ) : undefined
+            }
+          >
             <select
-              required
               value={categoriaId}
               onChange={(e) => setCategoriaId(e.target.value)}
               className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
@@ -147,49 +164,54 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
                 </option>
               ))}
             </select>
-          )}
-        </div>
+          </Field>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
-          <input
-            required
-            minLength={2}
-            maxLength={30}
-            placeholder="SKU (ej. BX-34)"
-            value={sku}
-            onChange={(e) => setSku(e.target.value)}
-            className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm uppercase"
-          />
-          <input
-            required
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="Precio venta (Q)"
-            value={precioVenta}
-            onChange={(e) => setPrecioVenta(e.target.value)}
-            className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm font-bold"
-          />
+          <Field label="Código SKU" required>
+            <input
+              minLength={2}
+              maxLength={30}
+              placeholder="Ej. BX-34"
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm uppercase"
+            />
+          </Field>
+          <Field label={`Precio de venta (${env.CURRENCY_SYMBOL})`} required>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder={`Precio venta (${env.CURRENCY_SYMBOL})`}
+              value={precioVenta}
+              onChange={(e) => setPrecioVenta(e.target.value)}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
+            />
+          </Field>
         </div>
 
-        <input
-          required
-          minLength={2}
-          maxLength={120}
-          placeholder="Nombre del platillo"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-        />
+        <Field label="Nombre del platillo" required>
+          <input
+            minLength={2}
+            maxLength={120}
+            placeholder="Nombre del platillo"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
 
-        <textarea
-          rows={2}
-          maxLength={300}
-          placeholder="Descripción breve (opcional)"
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          className="w-full rounded-xl border border-slate-300 p-3 text-sm"
-        />
+        <Field label="Descripción breve (opcional)">
+          <textarea
+            rows={2}
+            maxLength={300}
+            placeholder="Descripción breve (opcional)"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            className="w-full rounded-xl border border-slate-300 p-3 text-sm"
+          />
+        </Field>
 
         <RecetaCampos ingredientes={ingredientes} lineas={receta} onChange={setReceta} />
 

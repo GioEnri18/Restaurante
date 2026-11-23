@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 
 const CONCEPTOS_EGRESO = [
@@ -72,7 +73,7 @@ export const MovimientoManualModal: React.FC<MovimientoManualModalProps> = ({
                 : 'border-slate-200 text-slate-600'
             }`}
           >
-            <ArrowDownCircle className="h-5 w-5" />
+            <ArrowDownCircle className="h-5 w-5" aria-hidden="true" />
             Egreso / Salida
           </button>
           <button
@@ -84,13 +85,12 @@ export const MovimientoManualModal: React.FC<MovimientoManualModalProps> = ({
                 : 'border-slate-200 text-slate-600'
             }`}
           >
-            <ArrowUpCircle className="h-5 w-5" />
+            <ArrowUpCircle className="h-5 w-5" aria-hidden="true" />
             Ingreso / Entrada
           </button>
         </div>
 
-        <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">Monto (Q)</label>
+        <Field label="Monto (Q)" required>
           <input
             required
             type="number"
@@ -101,20 +101,19 @@ export const MovimientoManualModal: React.FC<MovimientoManualModalProps> = ({
             onChange={(e) => setMovForm({ ...movForm, monto: e.target.value })}
             className="min-h-[48px] w-full rounded-xl border border-slate-300 px-4 text-lg font-black"
           />
-        </div>
+        </Field>
 
         <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">
-            Descripción / Concepto
-          </label>
-          <input
-            required
-            minLength={3}
-            placeholder="Describe el motivo del movimiento..."
-            value={movForm.descripcion}
-            onChange={(e) => setMovForm({ ...movForm, descripcion: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          />
+          <Field label="Descripción / Concepto" required>
+            <input
+              required
+              minLength={3}
+              placeholder="Describe el motivo del movimiento..."
+              value={movForm.descripcion}
+              onChange={(e) => setMovForm({ ...movForm, descripcion: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {(movForm.tipo === 'EGRESO_MANUAL' ? CONCEPTOS_EGRESO : CONCEPTOS_INGRESO).map(
               (sug) => (

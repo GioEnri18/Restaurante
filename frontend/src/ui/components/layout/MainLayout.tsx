@@ -61,11 +61,11 @@ export const MainLayout: React.FC = () => {
               className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 lg:hidden"
               aria-label="Abrir menú"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-5 w-5" aria-hidden="true" />
               <span>Menú</span>
             </button>
             <div className="flex items-center gap-2 text-slate-700">
-              <Store className="h-5 w-5 text-brand-600" />
+              <Store className="h-5 w-5 text-brand-600" aria-hidden="true" />
               <div>
                 <p className="text-sm font-bold text-slate-900">
                   {usuario?.sucursal.nombre ?? env.APP_NAME}
@@ -85,17 +85,18 @@ export const MainLayout: React.FC = () => {
                 to="/menus-especiales"
                 className="hidden items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900 hover:bg-amber-200 md:inline-flex"
               >
-                <BellRing className="h-3.5 w-3.5 text-amber-700" />
+                <BellRing className="h-3.5 w-3.5 text-amber-700" aria-hidden="true" />
                 {alertasMenus.length} aviso(s) de menú
               </Link>
             )}
             <button
               type="button"
               onClick={() => setHelpOpen(true)}
+              aria-label="Guía rápida de esta pantalla"
               className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-700 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
               title="Guía rápida de esta pantalla"
             >
-              <HelpCircle className="h-4 w-4 text-brand-600" />
+              <HelpCircle className="h-4 w-4 text-brand-600" aria-hidden="true" />
               <span className="hidden sm:inline">¿Cómo usar?</span>
             </button>
             <span className="rounded-full bg-brand-100 px-3 py-1 text-xs font-bold text-brand-700">
@@ -118,6 +119,7 @@ export const MainLayout: React.FC = () => {
                 className={`h-5 w-5 shrink-0 ${
                   alertaDestacada.requiereAtencion ? 'text-amber-600' : 'text-emerald-600'
                 }`}
+                aria-hidden="true"
               />
               <p className="text-xs sm:text-sm">
                 <strong>
@@ -142,7 +144,7 @@ export const MainLayout: React.FC = () => {
                 className="rounded-lg p-1 text-slate-500 hover:bg-black/5"
                 aria-label="Ocultar aviso"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </div>

@@ -20,6 +20,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency, formatDateOnly } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
+import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination, usePaginacionLocal } from '../components/common/Pagination';
 import { SelectorFotoPlatillo } from '../components/common/SelectorFotoPlatillo';
@@ -339,7 +340,7 @@ export const MenusEspecialesPage: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">
-            <CalendarClock className="h-7 w-7 text-brand-600" />
+            <CalendarClock className="h-7 w-7 text-brand-600" aria-hidden="true" />
             Menús por Fechas Especiales
           </h1>
           <p className="text-sm text-slate-500">
@@ -354,7 +355,7 @@ export const MenusEspecialesPage: React.FC = () => {
               onClick={() => void abrirPlatilloNuevo()}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
             >
-              <UtensilsCrossed className="h-4 w-4 text-brand-600" />
+              <UtensilsCrossed className="h-4 w-4 text-brand-600" aria-hidden="true" />
               Nuevo Platillo
             </button>
           )}
@@ -363,7 +364,7 @@ export const MenusEspecialesPage: React.FC = () => {
             onClick={abrirNuevo}
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-700"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-4 w-4" aria-hidden="true" />
             Nueva temporada
           </button>
         </div>
@@ -375,7 +376,7 @@ export const MenusEspecialesPage: React.FC = () => {
       {/* SECCIÓN DE AVISOS Y RECORDATORIOS */}
       <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-5 shadow-sm">
         <div className="mb-3 flex items-center gap-2">
-          <BellRing className="h-5 w-5 text-amber-600" />
+          <BellRing className="h-5 w-5 text-amber-600" aria-hidden="true" />
           <h2 className="text-base font-extrabold text-amber-950">
             Avisos de Cambios de Menú ({avisosPendientes.length})
           </h2>
@@ -383,7 +384,7 @@ export const MenusEspecialesPage: React.FC = () => {
 
         {avisosPendientes.length === 0 ? (
           <p className="flex items-center gap-2 text-sm font-medium text-emerald-800">
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
             Todo al día. No tienes cambios de menú próximos dentro del rango de aviso.
           </p>
         ) : (
@@ -396,9 +397,9 @@ export const MenusEspecialesPage: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     {a.requiereAtencion ? (
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
                     ) : (
-                      <Sparkles className="h-4 w-4 text-emerald-600" />
+                      <Sparkles className="h-4 w-4 text-emerald-600" aria-hidden="true" />
                     )}
                     <p className="font-extrabold text-slate-900">{a.nombre}</p>
                   </div>
@@ -430,7 +431,7 @@ export const MenusEspecialesPage: React.FC = () => {
         </div>
       ) : menus.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <CalendarClock className="mx-auto mb-2 h-10 w-10 text-slate-300" />
+          <CalendarClock className="mx-auto mb-2 h-10 w-10 text-slate-300" aria-hidden="true" />
           <p className="font-bold text-slate-700">Aún no hay menús especiales programados</p>
           <p className="mt-1 text-sm text-slate-500">
             Crea tu primer menú por fecha especial (Día de la Madre, Navidad, Fin de Semana) y recibe avisos anticipados.
@@ -502,25 +503,28 @@ export const MenusEspecialesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => abrirEditar(m)}
+                  aria-label={`Editar menú especial ${m.nombre}`}
                   className="inline-flex h-9 items-center gap-1 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
                 >
-                  <Edit className="h-3.5 w-3.5" />
+                  <Edit className="h-3.5 w-3.5" aria-hidden="true" />
                   Editar / Platillos
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleToggleActivo(m)}
+                  aria-label={`${m.activo ? 'Desactivar' : 'Activar'} menú especial ${m.nombre}`}
                   className="inline-flex h-9 items-center gap-1 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"
                 >
-                  <Power className="h-3.5 w-3.5" />
+                  <Power className="h-3.5 w-3.5" aria-hidden="true" />
                   {m.activo ? 'Desactivar' : 'Activar'}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleEliminar(m)}
+                  aria-label={`Eliminar menú especial ${m.nombre}`}
                   className="inline-flex h-9 items-center gap-1 rounded-xl border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   Eliminar
                 </button>
               </div>
@@ -540,25 +544,18 @@ export const MenusEspecialesPage: React.FC = () => {
       >
         <form onSubmit={handleGuardarMenu} className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-bold text-slate-600">
-                Nombre del menú especial
-              </label>
+            <Field label="Nombre del menú especial" required className="sm:col-span-2">
               <input
-                required
                 maxLength={120}
                 value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 placeholder="Ej. Menú Día de la Madre / Menú Navideño / Especial Fin de Semana"
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="temporada-inicio" className="mb-1 block text-xs font-bold text-slate-600">Fecha de inicio</label>
+            <Field label="Fecha de inicio" required>
               <input
-                id="temporada-inicio"
-                required
                 type="date"
                 value={form.fechaInicio}
                 onChange={(e) => {
@@ -574,28 +571,24 @@ export const MenusEspecialesPage: React.FC = () => {
                 }}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="temporada-fin" className="mb-1 block text-xs font-bold text-slate-600">Fecha de fin</label>
+            <Field label="Fecha de fin" required>
               <input
-                id="temporada-fin"
-                required
                 type="date"
                 min={form.fechaInicio}
                 value={form.fechaFin}
                 onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="temporada-aviso" className="mb-1 block text-xs font-bold text-slate-600">
-                Fecha de aviso al administrador
-              </label>
+            <Field
+              label="Fecha de aviso al administrador"
+              required
+              hint="El aviso se muestra en el POS desde esta fecha."
+            >
               <input
-                required
-                id="temporada-aviso"
                 type="date"
                 min={restarDias(form.fechaInicio, MAX_DIAS_AVISO)}
                 max={restarDias(form.fechaInicio, 1)}
@@ -603,8 +596,7 @@ export const MenusEspecialesPage: React.FC = () => {
                 onChange={(e) => setForm({ ...form, fechaAviso: e.target.value })}
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
               />
-              <p className="mt-1 text-xs text-slate-500">El aviso se muestra en el POS desde esta fecha.</p>
-            </div>
+            </Field>
 
             <div className="flex items-end">
               <label className="flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700">
@@ -618,8 +610,7 @@ export const MenusEspecialesPage: React.FC = () => {
               </label>
             </div>
 
-            <div className="sm:col-span-2">
-              <label className="mb-1 block text-xs font-bold text-slate-600">Descripción</label>
+            <Field label="Descripción" className="sm:col-span-2">
               <input
                 value={form.descripcion}
                 maxLength={300}
@@ -627,7 +618,7 @@ export const MenusEspecialesPage: React.FC = () => {
                 placeholder="Notas sobre promociones o cambio de carta..."
                 className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
               />
-            </div>
+            </Field>
           </div>
 
           {/* Selección de platillos y precio especial */}
@@ -661,20 +652,31 @@ export const MenusEspecialesPage: React.FC = () => {
                     </label>
 
                     {checked && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-slate-500">Precio especial (Q):</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          placeholder={p.precioRegular.toFixed(2)}
-                          value={selectedPlatillos[p.id]}
-                          onChange={(e) =>
-                            setSelectedPlatillos((prev) => ({ ...prev, [p.id]: e.target.value }))
-                          }
-                          className="h-9 w-24 rounded-lg border border-brand-300 bg-white px-2 text-right text-xs font-bold"
-                        />
-                      </div>
+                      <Field
+                        label={`Precio especial (${env.CURRENCY_SYMBOL}) para ${p.nombre}`}
+                        srOnlyLabel
+                        className="flex items-center gap-1.5"
+                      >
+                        {(controlProps) => (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-slate-500" aria-hidden="true">
+                              Precio especial ({env.CURRENCY_SYMBOL}):
+                            </span>
+                            <input
+                              {...controlProps}
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              placeholder={p.precioRegular.toFixed(2)}
+                              value={selectedPlatillos[p.id]}
+                              onChange={(e) =>
+                                setSelectedPlatillos((prev) => ({ ...prev, [p.id]: e.target.value }))
+                              }
+                              className="h-9 w-24 rounded-lg border border-brand-300 bg-white px-2 text-right text-xs font-bold"
+                            />
+                          </div>
+                        )}
+                      </Field>
                     )}
                   </div>
                 );
@@ -712,10 +714,11 @@ export const MenusEspecialesPage: React.FC = () => {
         maxWidthClass="max-w-lg"
       >
         <form onSubmit={handleCrearPlatillo} className="space-y-3">
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-600">Categoría</label>
-              {puedeSubirFoto && (
+          <Field
+            label="Categoría"
+            required
+            labelExtra={
+              puedeSubirFoto ? (
                 <button
                   type="button"
                   onClick={() => setCatModal(true)}
@@ -723,10 +726,10 @@ export const MenusEspecialesPage: React.FC = () => {
                 >
                   + Nueva categoría
                 </button>
-              )}
-            </div>
+              ) : undefined
+            }
+          >
             <select
-              required
               value={platilloForm.categoriaId}
               onChange={(e) => setPlatilloForm({ ...platilloForm, categoriaId: e.target.value })}
               className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
@@ -737,40 +740,45 @@ export const MenusEspecialesPage: React.FC = () => {
                 </option>
               ))}
             </select>
-          </div>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <input
-              required
-              placeholder="SKU (ej. ESP-01)"
-              value={platilloForm.sku}
-              onChange={(e) => setPlatilloForm({ ...platilloForm, sku: e.target.value })}
-              className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm uppercase"
-            />
-            <input
-              required
-              type="number"
-              step="0.01"
-              min="0.01"
-              placeholder="Precio venta (Q)"
-              value={platilloForm.precioVenta}
-              onChange={(e) => setPlatilloForm({ ...platilloForm, precioVenta: e.target.value })}
-              className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm font-bold"
-            />
+            <Field label="Código SKU" required>
+              <input
+                placeholder="Ej. ESP-01"
+                value={platilloForm.sku}
+                onChange={(e) => setPlatilloForm({ ...platilloForm, sku: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm uppercase"
+              />
+            </Field>
+            <Field label={`Precio de venta (${env.CURRENCY_SYMBOL})`} required>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder={`Precio venta (${env.CURRENCY_SYMBOL})`}
+                value={platilloForm.precioVenta}
+                onChange={(e) => setPlatilloForm({ ...platilloForm, precioVenta: e.target.value })}
+                className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
+              />
+            </Field>
           </div>
-          <input
-            required
-            placeholder="Nombre del platillo"
-            value={platilloForm.nombre}
-            onChange={(e) => setPlatilloForm({ ...platilloForm, nombre: e.target.value })}
-            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-          />
-          <textarea
-            rows={2}
-            placeholder="Descripción breve"
-            value={platilloForm.descripcion}
-            onChange={(e) => setPlatilloForm({ ...platilloForm, descripcion: e.target.value })}
-            className="w-full rounded-xl border border-slate-300 p-3 text-sm"
-          />
+          <Field label="Nombre del platillo" required>
+            <input
+              placeholder="Nombre del platillo"
+              value={platilloForm.nombre}
+              onChange={(e) => setPlatilloForm({ ...platilloForm, nombre: e.target.value })}
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            />
+          </Field>
+          <Field label="Descripción breve">
+            <textarea
+              rows={2}
+              placeholder="Descripción breve"
+              value={platilloForm.descripcion}
+              onChange={(e) => setPlatilloForm({ ...platilloForm, descripcion: e.target.value })}
+              className="w-full rounded-xl border border-slate-300 p-3 text-sm"
+            />
+          </Field>
           <RecetaCampos ingredientes={ingredientes} lineas={receta} onChange={setReceta} />
           {puedeSubirFoto && (
             <SelectorFotoPlatillo onChange={setFotoPlatillo} disabled={guardandoPlatillo} />

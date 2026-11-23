@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 
 export interface NuevaCategoriaPayload {
@@ -47,12 +48,8 @@ export const NuevaCategoriaModal: React.FC<NuevaCategoriaModalProps> = ({
   return (
     <Modal open={open} title="Nueva Categoría de Menú" onClose={onClose} maxWidthClass="max-w-md">
       <form onSubmit={handleSubmit} className="space-y-3">
-        <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">
-            Nombre de la categoría
-          </label>
+        <Field label="Nombre de la categoría" required>
           <input
-            required
             minLength={2}
             maxLength={80}
             placeholder="Ej. Entradas, Hamburguesas, Bebidas..."
@@ -60,11 +57,8 @@ export const NuevaCategoriaModal: React.FC<NuevaCategoriaModalProps> = ({
             onChange={(e) => setNombre(e.target.value)}
             className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-semibold"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-bold text-slate-600">
-            Descripción (opcional)
-          </label>
+        </Field>
+        <Field label="Descripción (opcional)">
           <textarea
             rows={2}
             maxLength={250}
@@ -73,7 +67,7 @@ export const NuevaCategoriaModal: React.FC<NuevaCategoriaModalProps> = ({
             onChange={(e) => setDescripcion(e.target.value)}
             className="w-full rounded-xl border border-slate-300 p-3 text-sm"
           />
-        </div>
+        </Field>
         <button
           type="submit"
           disabled={saving}

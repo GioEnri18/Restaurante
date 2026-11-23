@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Calculator, CheckCircle2, AlertCircle, Coins } from 'lucide-react';
+import { env } from '../../../config/env';
 import { CajaSesionModel } from '../../../models';
 import { cajaService } from '../../../services/caja.service';
 import { formatCurrency, formatDateTime } from '../../../utils/formatters';
 import { Alert } from '../common/Alert';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 import { Pagination } from '../common/Pagination';
 import {
@@ -159,8 +161,8 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
                   : 'text-slate-500'
               }`}
             >
-              <Coins className="h-4 w-4 text-brand-600" />
-              Contar Billetes y Monedas (GTQ)
+              <Coins className="h-4 w-4 text-brand-600" aria-hidden="true" />
+              Contar Billetes y Monedas ({env.CURRENCY_CODE})
             </button>
             <button
               type="button"
@@ -171,7 +173,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
                   : 'text-slate-500'
               }`}
             >
-              <Calculator className="h-4 w-4 text-brand-600" />
+              <Calculator className="h-4 w-4 text-brand-600" aria-hidden="true" />
               Ingresar Total Directo
             </button>
           </div>
@@ -187,13 +189,12 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
               />
             </div>
           ) : (
-            <div>
-              <label htmlFor="cierre-efectivo-total" className="mb-1 block text-sm font-bold text-slate-700">
-                Total efectivo físico contado en gaveta (Q)
-              </label>
+            <Field
+              label={`Total efectivo físico contado en gaveta (${env.CURRENCY_SYMBOL})`}
+              required
+              labelClassName="mb-1 block text-sm font-bold text-slate-700"
+            >
               <input
-                required
-                id="cierre-efectivo-total"
                 type="number"
                 step="0.01"
                 min="0"
@@ -201,7 +202,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
                 onChange={(e) => setMontoContadoDirecto(e.target.value)}
                 className="min-h-[52px] w-full rounded-xl border border-slate-300 px-4 text-2xl font-black"
               />
-            </div>
+            </Field>
           )}
 
           {/* Panel de Cuadre Esperado vs Contado */}
@@ -247,17 +248,17 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
             >
               {diferenciaPreview === 0 ? (
                 <>
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                   Cuadre perfecto — Sin diferencias en gaveta
                 </>
               ) : diferenciaPreview > 0 ? (
                 <>
-                  <AlertCircle className="h-4 w-4" />
+                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
                   Sobrante de efectivo por {formatCurrency(diferenciaPreview)}
                 </>
               ) : (
                 <>
-                  <AlertCircle className="h-4 w-4" />
+                  <AlertCircle className="h-4 w-4" aria-hidden="true" />
                   Faltante de efectivo por {formatCurrency(Math.abs(diferenciaPreview))}
                 </>
               )}
@@ -293,18 +294,34 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
                   <legend className="px-1 text-xs font-bold text-slate-700">
                     Venta #{ventaId} · {formatDateTime(fecha)} · {formatCurrency(monto)}
                   </legend>
-                  <label className="text-xs font-bold text-slate-700">
-                    Número de voucher
-                    <input required autoComplete="off" maxLength={80} value={captura.referencia}
+                  <Field
+                    label="Número de voucher"
+                    required
+                    labelClassName="mb-1 block text-xs font-bold text-slate-700"
+                  >
+                    <input
+                      autoComplete="off"
+                      maxLength={80}
+                      value={captura.referencia}
                       onChange={(e) => setCapturas({ ...capturas, [ventaId]: { ...captura, referencia: e.target.value } })}
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm" />
-                  </label>
-                  <label className="text-xs font-bold text-slate-700">
-                    Monto del voucher (Q)
-                    <input required type="number" inputMode="decimal" min="0.01" step="0.01" value={captura.monto}
+                      className="min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"
+                    />
+                  </Field>
+                  <Field
+                    label={`Monto del voucher (${env.CURRENCY_SYMBOL})`}
+                    required
+                    labelClassName="mb-1 block text-xs font-bold text-slate-700"
+                  >
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0.01"
+                      step="0.01"
+                      value={captura.monto}
                       onChange={(e) => setCapturas({ ...capturas, [ventaId]: { ...captura, monto: e.target.value } })}
-                      className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm" />
-                  </label>
+                      className="min-h-10 w-full rounded-lg border border-slate-300 px-3 text-sm"
+                    />
+                  </Field>
                 </fieldset>
               );
             })}
@@ -344,10 +361,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
             </section>
           )}
 
-          <div>
-            <label className="mb-1 block text-xs font-bold text-slate-600">
-              Observaciones de cierre
-            </label>
+          <Field label="Observaciones de cierre">
             <textarea
               rows={2}
               value={obsCierre}
@@ -355,7 +369,7 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
               placeholder="Ej. Cierre nocturno sin novedades / explicación de diferencia..."
               className="w-full rounded-xl border border-slate-300 p-3 text-sm"
             />
-          </div>
+          </Field>
 
           {requiereAutorizacion && (
             <AutorizacionSupervisorFields value={autorizacion} onChange={setAutorizacion} operacion="cerrar" />

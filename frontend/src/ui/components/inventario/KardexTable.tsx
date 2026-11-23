@@ -19,14 +19,17 @@ export const KardexTable: React.FC<KardexTableProps> = ({
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[780px] text-left text-xs sm:text-sm">
+          <caption className="sr-only">
+            Historial de movimientos de inventario (Kardex en onzas)
+          </caption>
           <thead>
             <tr className="border-b text-xs uppercase text-slate-500">
-              <th className="py-3 px-2">Fecha</th>
-              <th className="py-3 px-2">Ingrediente</th>
-              <th className="py-3 px-2">Tipo</th>
-              <th className="py-3 px-2 text-right">Movimiento (oz)</th>
-              <th className="py-3 px-2 text-right">Anterior → Nuevo</th>
-              <th className="py-3 px-2">Motivo / Responsable</th>
+              <th scope="col" className="py-3 px-2">Fecha</th>
+              <th scope="col" className="py-3 px-2">Ingrediente</th>
+              <th scope="col" className="py-3 px-2">Tipo</th>
+              <th scope="col" className="py-3 px-2 text-right">Movimiento (oz)</th>
+              <th scope="col" className="py-3 px-2 text-right">Anterior → Nuevo</th>
+              <th scope="col" className="py-3 px-2">Motivo / Responsable</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">

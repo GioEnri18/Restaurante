@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { IngredienteModel, UnidadMedida } from '../../../models';
 import { mensajeErrorFormulario } from '../../../services/httpClient';
 import { Alert } from '../common/Alert';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 
 export interface AjusteStockPayload {
@@ -74,46 +75,52 @@ export const AjusteStockModal: React.FC<AjusteStockModalProps> = ({
     >
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
-          <select
-            value={ajusteForm.tipoAjuste}
-            onChange={(e) =>
-              setAjusteForm({ ...ajusteForm, tipoAjuste: e.target.value as 'ENTRADA' | 'SALIDA' })
-            }
-            className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm font-bold"
-          >
-            <option value="ENTRADA">Entrada (+)</option>
-            <option value="SALIDA">Salida (-)</option>
-          </select>
-          <select
-            value={ajusteForm.unidad}
-            onChange={(e) =>
-              setAjusteForm({ ...ajusteForm, unidad: e.target.value as UnidadMedida })
-            }
-            className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm"
-          >
-            <option value="oz">Onzas (oz)</option>
-            <option value="lb">Libras (lb)</option>
-          </select>
+          <Field label="Tipo de ajuste" required>
+            <select
+              value={ajusteForm.tipoAjuste}
+              onChange={(e) =>
+                setAjusteForm({ ...ajusteForm, tipoAjuste: e.target.value as 'ENTRADA' | 'SALIDA' })
+              }
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm font-bold"
+            >
+              <option value="ENTRADA">Entrada (+)</option>
+              <option value="SALIDA">Salida (-)</option>
+            </select>
+          </Field>
+          <Field label="Unidad" required>
+            <select
+              value={ajusteForm.unidad}
+              onChange={(e) =>
+                setAjusteForm({ ...ajusteForm, unidad: e.target.value as UnidadMedida })
+              }
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+            >
+              <option value="oz">Onzas (oz)</option>
+              <option value="lb">Libras (lb)</option>
+            </select>
+          </Field>
         </div>
-        <input
-          required
-          type="number"
-          step="0.0001"
-          min="0.0001"
-          placeholder="Cantidad"
-          value={ajusteForm.cantidad}
-          onChange={(e) => setAjusteForm({ ...ajusteForm, cantidad: e.target.value })}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-        />
-        <input
-          required
-          minLength={4}
-          maxLength={250}
-          placeholder="Motivo del ajuste (obligatorio para auditoría)"
-          value={ajusteForm.motivo}
-          onChange={(e) => setAjusteForm({ ...ajusteForm, motivo: e.target.value })}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-        />
+        <Field label="Cantidad" required>
+          <input
+            type="number"
+            step="0.0001"
+            min="0.0001"
+            placeholder="Cantidad"
+            value={ajusteForm.cantidad}
+            onChange={(e) => setAjusteForm({ ...ajusteForm, cantidad: e.target.value })}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
+        <Field label="Motivo del ajuste" required>
+          <input
+            minLength={4}
+            maxLength={250}
+            placeholder="Motivo del ajuste (obligatorio para auditoría)"
+            value={ajusteForm.motivo}
+            onChange={(e) => setAjusteForm({ ...ajusteForm, motivo: e.target.value })}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
         {error && <div role="alert"><Alert type="error" message={error} /></div>}
         <button
           type="submit"

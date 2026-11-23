@@ -392,7 +392,7 @@ export const InventarioPage: React.FC = () => {
                 onClick={() => setProvModal(true)}
                 className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-                <Truck className="h-4 w-4" />
+                <Truck className="h-4 w-4" aria-hidden="true" />
                 Nuevo Proveedor
               </button>
               <button
@@ -400,7 +400,7 @@ export const InventarioPage: React.FC = () => {
                 onClick={() => setIngModal(true)}
                 className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" aria-hidden="true" />
                 Nuevo Ingrediente
               </button>
             </>
@@ -436,7 +436,7 @@ export const InventarioPage: React.FC = () => {
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-4 w-4" aria-hidden="true" />
             {label}
           </button>
         ))}

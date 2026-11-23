@@ -19,7 +19,7 @@ export const ResumenCajaTurno: React.FC<ResumenCajaTurnoProps> = ({ actual }) =>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-7">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Banknote className="h-5 w-5 text-emerald-600" />
+            <Banknote className="h-5 w-5 text-emerald-600" aria-hidden="true" />
             <h2 className="text-base font-extrabold text-slate-900">
               Flujo de Efectivo en Gaveta
             </h2>
@@ -74,7 +74,7 @@ export const ResumenCajaTurno: React.FC<ResumenCajaTurnoProps> = ({ actual }) =>
       <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-5">
         <div>
           <div className="mb-4 flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-sky-600" />
+            <CreditCard className="h-5 w-5 text-sky-600" aria-hidden="true" />
             <h2 className="text-base font-extrabold text-slate-900">
               Resumen de Cobros del Turno
             </h2>

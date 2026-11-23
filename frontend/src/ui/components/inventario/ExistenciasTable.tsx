@@ -3,6 +3,7 @@ import { PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react';
 import { IngredienteModel, PaginationMeta } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
+import { Field } from '../common/Field';
 import { Pagination } from '../common/Pagination';
 
 interface ExistenciasTableProps {
@@ -37,28 +38,35 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
   return (
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            maxLength={80}
-            aria-label="Buscar ingrediente"
-            value={busqueda}
-            onChange={(e) => onBuscar(e.target.value)}
-            placeholder="Buscar ingrediente por nombre, código o proveedor..."
-            className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 text-sm outline-none focus:border-brand-500 focus:bg-white"
-          />
-          {busqueda && (
-            <button
-              type="button"
-              onClick={() => onBuscar('')}
-              aria-label="Limpiar búsqueda"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
-            >
-              <X className="h-4 w-4" />
-            </button>
+        <Field label="Buscar ingrediente" srOnlyLabel className="min-w-[220px] flex-1">
+          {(controlProps) => (
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                {...controlProps}
+                type="text"
+                maxLength={80}
+                value={busqueda}
+                onChange={(e) => onBuscar(e.target.value)}
+                placeholder="Buscar ingrediente por nombre, código o proveedor..."
+                className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 text-sm outline-none focus:border-brand-500 focus:bg-white"
+              />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => onBuscar('')}
+                  aria-label="Limpiar búsqueda de ingredientes"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
           )}
-        </div>
+        </Field>
         <button
           type="button"
           onClick={onAlternarPorReponer}
@@ -75,16 +83,19 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
+          <caption className="sr-only">
+            Existencias actuales de ingredientes en onzas y libras
+          </caption>
           <thead>
             <tr className="border-b text-xs uppercase text-slate-500">
-              <th className="px-2 py-3">Ingrediente</th>
-              <th className="px-2 py-3">Proveedor</th>
-              <th className="px-2 py-3 text-right">Stock (oz)</th>
-              <th className="px-2 py-3 text-right">Equivalente (lb)</th>
-              <th className="px-2 py-3 text-right">Mínimo (oz)</th>
-              <th className="px-2 py-3 text-right">Costo promedio</th>
-              <th className="px-2 py-3">Estado</th>
-              {(canBuy || canAdjust) && <th className="px-2 py-3 text-right">Qué deseas hacer</th>}
+              <th scope="col" className="px-2 py-3">Ingrediente</th>
+              <th scope="col" className="px-2 py-3">Proveedor</th>
+              <th scope="col" className="px-2 py-3 text-right">Stock (oz)</th>
+              <th scope="col" className="px-2 py-3 text-right">Equivalente (lb)</th>
+              <th scope="col" className="px-2 py-3 text-right">Mínimo (oz)</th>
+              <th scope="col" className="px-2 py-3 text-right">Costo promedio</th>
+              <th scope="col" className="px-2 py-3">Estado</th>
+              {(canBuy || canAdjust) && <th scope="col" className="px-2 py-3 text-right">Qué deseas hacer</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -131,17 +142,19 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
                       <div className="flex flex-wrap justify-end gap-2">
                       {canBuy && (
                         <button type="button" onClick={() => onComprar(ing)}
+                          aria-label={`Ingresar compra de ${ing.nombre}`}
                           className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-teal-700 px-2.5 text-xs font-bold text-white hover:bg-teal-800">
-                          <PackagePlus className="h-3.5 w-3.5" /> Ingresar compra
+                          <PackagePlus className="h-3.5 w-3.5" aria-hidden="true" /> Ingresar compra
                         </button>
                       )}
                       {canAdjust && (
                       <button
                         type="button"
                         onClick={() => onAjustar(ing)}
+                        aria-label={`Corregir conteo de ${ing.nombre}`}
                         className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
                       >
-                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                        <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                         Corregir conteo
                       </button>
                       )}

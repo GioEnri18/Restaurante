@@ -49,15 +49,16 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
               onClick={() => window.print()}
               className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
             >
-              <Printer className="h-4 w-4" />
+              <Printer className="h-4 w-4" aria-hidden="true" />
               Imprimir ahora
             </button>
             <button
               type="button"
               onClick={onClose}
+              aria-label="Cerrar vista previa de impresión"
               className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
         </div>

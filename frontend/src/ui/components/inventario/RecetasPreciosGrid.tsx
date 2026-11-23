@@ -3,6 +3,7 @@ import { FolderPlus, Plus, Search, X } from 'lucide-react';
 import { PlatilloModel } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
+import { Field } from '../common/Field';
 import { FotoPlatillo } from '../common/FotoPlatillo';
 import { Pagination, usePaginacionLocal } from '../common/Pagination';
 
@@ -70,7 +71,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
                 onClick={onNuevaCategoria}
                 className="inline-flex min-h-[42px] items-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
-                <FolderPlus className="h-4 w-4 text-brand-600" />
+                <FolderPlus className="h-4 w-4 text-brand-600" aria-hidden="true" />
                 Nueva Categoría
               </button>
             )}
@@ -80,7 +81,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
                 onClick={onNuevoPlatillo}
                 className="inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-brand-600 px-3.5 text-xs font-bold text-white hover:bg-brand-700"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" aria-hidden="true" />
                 Nuevo Platillo
               </button>
             )}
@@ -112,27 +113,37 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
 
       {/* Buscador y filtro rápido */}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
-        <div className="relative min-w-[220px] flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar platillo por nombre, código o categoría..."
-            className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 text-sm outline-none focus:border-brand-500 focus:bg-white"
-          />
-          {busqueda && (
-            <button
-              type="button"
-              onClick={() => setBusqueda('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
-            >
-              <X className="h-4 w-4" />
-            </button>
+        <Field label="Buscar platillo" srOnlyLabel className="min-w-[220px] flex-1">
+          {(controlProps) => (
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                {...controlProps}
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar platillo por nombre, código o categoría..."
+                className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-9 text-sm outline-none focus:border-brand-500 focus:bg-white"
+              />
+              {busqueda && (
+                <button
+                  type="button"
+                  onClick={() => setBusqueda('')}
+                  aria-label="Limpiar búsqueda de platillos"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:text-slate-700"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
           )}
-        </div>
+        </Field>
         <button
           type="button"
+          aria-pressed={soloPendientes}
           onClick={() => setSoloPendientes((v) => !v)}
           className={`min-h-[42px] rounded-xl border px-3.5 text-xs font-bold transition ${
             soloPendientes

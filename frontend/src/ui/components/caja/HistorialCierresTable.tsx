@@ -19,22 +19,23 @@ export const HistorialCierresTable: React.FC<HistorialCierresTableProps> = ({
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center gap-2">
-        <History className="h-5 w-5 text-slate-600" />
+        <History className="h-5 w-5 text-slate-600" aria-hidden="true" />
         <h2 className="text-lg font-extrabold text-slate-900">Historial de Cierres y Cuadres</h2>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[780px] text-left text-sm">
+          <caption className="sr-only">Historial de sesiones de caja, cierres y cuadres</caption>
           <thead>
             <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-              <th className="py-3 px-2">Turno / Fecha</th>
-              <th className="py-3 px-2">Responsables</th>
-              <th className="py-3 px-2 text-right">Inicial</th>
-              <th className="py-3 px-2 text-right">Ventas Totales</th>
-              <th className="py-3 px-2 text-right">Esperado Efec.</th>
-              <th className="py-3 px-2 text-right">Contado</th>
-              <th className="py-3 px-2 text-right">Diferencia</th>
-              <th className="py-3 px-2">Estado</th>
+              <th scope="col" className="py-3 px-2">Turno / Fecha</th>
+              <th scope="col" className="py-3 px-2">Responsables</th>
+              <th scope="col" className="py-3 px-2 text-right">Inicial</th>
+              <th scope="col" className="py-3 px-2 text-right">Ventas Totales</th>
+              <th scope="col" className="py-3 px-2 text-right">Esperado Efec.</th>
+              <th scope="col" className="py-3 px-2 text-right">Contado</th>
+              <th scope="col" className="py-3 px-2 text-right">Diferencia</th>
+              <th scope="col" className="py-3 px-2">Estado</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">

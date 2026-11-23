@@ -122,7 +122,7 @@ export const QuickHelpModal: React.FC<QuickHelpModalProps> = ({ open, pathname, 
     <Modal open={open} title={guia.titulo} onClose={onClose} maxWidthClass="max-w-lg">
       <div className="space-y-4">
         <div className="flex items-start gap-3 rounded-2xl bg-brand-50 p-3.5 text-brand-950">
-          <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
+          <HelpCircle className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" aria-hidden="true" />
           <p className="text-sm font-medium leading-relaxed">{guia.resumen}</p>
         </div>
 
@@ -142,7 +142,7 @@ export const QuickHelpModal: React.FC<QuickHelpModalProps> = ({ open, pathname, 
 
         {guia.consejo && (
           <div className="flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-900">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
             <span>{guia.consejo}</span>
           </div>
         )}

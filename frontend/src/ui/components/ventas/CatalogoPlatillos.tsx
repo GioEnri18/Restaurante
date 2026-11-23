@@ -14,6 +14,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { MenuDataModel, PlatilloModel } from '../../../models';
+import { Field } from '../common/Field';
 import { FotoPlatillo } from '../common/FotoPlatillo';
 import { Pagination, usePaginacionLocal } from '../common/Pagination';
 import { formatCurrency } from '../../../utils/formatters';
@@ -102,7 +103,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
       {canCreatePlatillo && pendientesConfigCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
           <div className="flex items-center gap-2.5 text-xs sm:text-sm">
-            <Settings2 className="h-5 w-5 shrink-0 text-amber-600" />
+            <Settings2 className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
             <p>
               Tienes <strong>{pendientesConfigCount} platillo(s)</strong> pendientes de activar (falta precio, receta o stock).
             </p>
@@ -118,25 +119,34 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-3.5 flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[220px] flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Buscar platillo por nombre o código..."
-              className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-11 text-base font-medium outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-200"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => onSearchChange('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
-              >
-                <X className="h-4 w-4" />
-              </button>
+          <Field label="Buscar platillo por nombre o código" srOnlyLabel className="min-w-[220px] flex-1">
+            {(controlProps) => (
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+                  aria-hidden="true"
+                />
+                <input
+                  {...controlProps}
+                  type="text"
+                  value={search}
+                  onChange={(e) => onSearchChange(e.target.value)}
+                  placeholder="Buscar platillo por nombre o código..."
+                  className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-slate-50 pl-12 pr-11 text-base font-medium outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-200"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => onSearchChange('')}
+                    aria-label="Limpiar búsqueda de platillos"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
             )}
-          </div>
+          </Field>
           <button
             type="button"
             onClick={onToggleOnlyAvailable}
@@ -154,7 +164,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
               onClick={onNuevaCategoria}
               className="inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
             >
-              <Plus className="h-4 w-4 text-brand-600" />
+              <Plus className="h-4 w-4 text-brand-600" aria-hidden="true" />
               Categoría
             </button>
           )}
@@ -164,7 +174,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
               onClick={onNuevoPlatillo}
               className="inline-flex min-h-[48px] shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-xs font-bold text-white shadow-sm hover:bg-brand-700"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" aria-hidden="true" />
               Nuevo Platillo
             </button>
           )}
@@ -181,7 +191,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
           >
-            <UtensilsCrossed className="h-4 w-4" />
+            <UtensilsCrossed className="h-4 w-4" aria-hidden="true" />
             <span>Menú general</span>
             <span
               className={`rounded-full px-2 py-0.5 text-xs ${selectedCat === null ? 'bg-white/20 text-white' : 'bg-white text-slate-600'
@@ -203,7 +213,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                   : 'bg-amber-50 text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100'
                 }`}
             >
-              <Sparkles className="h-4 w-4" />
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
               <span>{menu.menuEspecialActivo.nombre}</span>
               <span className="rounded-full bg-white/25 px-2 py-0.5 text-xs">
                 {menu.menuEspecialActivo.platillosIds.length}
@@ -219,10 +229,10 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
               return 0;
             })
             .map((cat) => {
-            const visual = getCategoriaVisual(cat.nombre);
-            const CatIcon = visual.Icon;
-            const active = selectedCat === cat.id;
-            const count = countByCategoria.get(cat.id) ?? 0;
+              const visual = getCategoriaVisual(cat.nombre);
+              const CatIcon = visual.Icon;
+              const active = selectedCat === cat.id;
+              const count = countByCategoria.get(cat.id) ?? 0;
 
             return (
               <button
@@ -235,7 +245,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
               >
-                <CatIcon className="h-4 w-4" />
+                <CatIcon className="h-4 w-4" aria-hidden="true" />
                 <span>{cat.nombre}</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/25 text-white' : 'bg-white text-slate-600'
@@ -244,8 +254,8 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                   {count}
                 </span>
               </button>
-            );
-          })}
+              );
+            })}
         </div>
       </div>
 
@@ -258,7 +268,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
         </div>
       ) : platillosFiltrados.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <UtensilsCrossed className="mx-auto mb-2 h-10 w-10 text-slate-300" />
+          <UtensilsCrossed className="mx-auto mb-2 h-10 w-10 text-slate-300" aria-hidden="true" />
           <p className="font-bold text-slate-700">No hay platillos que coincidan</p>
           <p className="mt-1 text-sm text-slate-500">Prueba cambiando la categoría o limpiando el buscador.</p>
         </div>
@@ -296,7 +306,11 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                     } px-4 py-2 text-white`}
                 >
                   <div className="flex items-center gap-1.5 text-xs font-bold">
-                    {p.esEspecialHoy ? <Sparkles className="h-3.5 w-3.5" /> : <CatIcon className="h-3.5 w-3.5" />}
+                    {p.esEspecialHoy ? (
+                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : (
+                      <CatIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
                     <span className="truncate">
                       {p.esEspecialHoy ? 'Especial Hoy' : p.categoriaNombre}
                     </span>
@@ -367,22 +381,22 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                           type="button"
                           onClick={() => onUpdateQty(p.id, -1)}
                           className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-brand-700 shadow-sm hover:bg-brand-100"
-                          aria-label="Restar unidad"
+                          aria-label={`Restar una unidad de ${p.nombre}`}
                         >
-                          <Minus className="h-4 w-4" />
+                          <Minus className="h-4 w-4" aria-hidden="true" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onAddItem(p)}
                           className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white shadow-sm hover:bg-brand-700"
-                          aria-label="Sumar unidad"
+                          aria-label={`Sumar una unidad de ${p.nombre}`}
                         >
-                          <Plus className="h-4 w-4" />
+                          <Plus className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>
                     ) : (
                       <span className="inline-flex h-10 items-center gap-1 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition group-hover:bg-brand-600">
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-4 w-4" aria-hidden="true" />
                         Agregar
                       </span>
                     )}

@@ -17,6 +17,7 @@ import { env } from '../../../config/env';
 import { CartItemModel, MesaModel, TipoServicio } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { FaltanteStock } from '../../../utils/stockPedido';
+import { Field } from '../common/Field';
 import { FaltantesPedido } from './FaltantesPedido';
 
 const NOTAS_RAPIDAS = [
@@ -102,7 +103,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
         <div className="flex items-center justify-between bg-slate-900 px-4 py-3.5 text-white">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600">
-              <ShoppingCart className="h-5 w-5" />
+              <ShoppingCart className="h-5 w-5" aria-hidden="true" />
             </div>
             <div>
               <h2 className="text-base font-extrabold leading-tight">Orden de Mostrador</h2>
@@ -127,6 +128,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
           <div className={`grid gap-2 ${habilitarMesas ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <button
               type="button"
+              aria-pressed={tipoServicio === 'MOSTRADOR'}
               onClick={() => onSetTipoServicio('MOSTRADOR')}
               className={`flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border text-xs font-extrabold transition ${
                 tipoServicio === 'MOSTRADOR'
@@ -134,11 +136,12 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <Store className="h-4 w-4" />
+              <Store className="h-4 w-4" aria-hidden="true" />
               Mostrador
             </button>
             <button
               type="button"
+              aria-pressed={tipoServicio === 'LLEVAR'}
               onClick={() => onSetTipoServicio('LLEVAR')}
               className={`flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border text-xs font-extrabold transition ${
                 tipoServicio === 'LLEVAR'
@@ -146,12 +149,13 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                   : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
-              <ShoppingBag className="h-4 w-4" />
+              <ShoppingBag className="h-4 w-4" aria-hidden="true" />
               Para Llevar
             </button>
             {habilitarMesas && (
               <button
                 type="button"
+                aria-pressed={tipoServicio === 'MESA'}
                 onClick={() => onSetTipoServicio('MESA')}
                 className={`flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border text-xs font-extrabold transition ${
                   tipoServicio === 'MESA'
@@ -159,7 +163,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                <Utensils className="h-4 w-4" />
+                <Utensils className="h-4 w-4" aria-hidden="true" />
                 Mesa
               </button>
             )}
@@ -167,16 +171,24 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
 
           {/* Campo rápido de nombre o turno para entrega en mostrador */}
           {(!habilitarMesas || tipoServicio !== 'MESA') && (
-            <div className="relative">
-              <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={nombreTurno}
-                onChange={(e) => onSetNombreTurno(e.target.value)}
-                placeholder="Nombre o turno para llamar en mostrador (opcional)"
-                className="min-h-[40px] w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-semibold text-slate-800 outline-none focus:border-brand-400"
-              />
-            </div>
+            <Field label="Nombre o turno para llamar en mostrador (opcional)" srOnlyLabel>
+              {(controlProps) => (
+                <div className="relative">
+                  <UserRound
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                    aria-hidden="true"
+                  />
+                  <input
+                    {...controlProps}
+                    type="text"
+                    value={nombreTurno}
+                    onChange={(e) => onSetNombreTurno(e.target.value)}
+                    placeholder="Nombre o turno para llamar en mostrador (opcional)"
+                    className="min-h-[40px] w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-semibold text-slate-800 outline-none focus:border-brand-400"
+                  />
+                </div>
+              )}
+            </Field>
           )}
 
           {/* Mapa de mesas conservado y listo para activar en el futuro (VITE_ENABLE_TABLE_SERVICE=true) */}
@@ -213,7 +225,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
         <div className="max-h-[38vh] divide-y divide-slate-100 overflow-y-auto px-4">
           {items.length === 0 ? (
             <div className="py-12 text-center">
-              <ShoppingCart className="mx-auto mb-2 h-9 w-9 text-slate-200" />
+              <ShoppingCart className="mx-auto mb-2 h-9 w-9 text-slate-200" aria-hidden="true" />
               <p className="text-sm font-semibold text-slate-500">Tu orden está vacía</p>
               <p className="mt-0.5 text-xs text-slate-400">
                 Toca cualquier platillo de la carta para agregarlo al pedido.
@@ -243,9 +255,10 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                       <button
                         type="button"
                         onClick={() => onUpdateQty(item.platillo.id, -1)}
+                        aria-label={`Restar una unidad de ${item.platillo.nombre}`}
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-200"
                       >
-                        <Minus className="h-3.5 w-3.5" />
+                        <Minus className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                       <span className="w-7 text-center text-sm font-extrabold">
                         {item.cantidad}
@@ -253,9 +266,10 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                       <button
                         type="button"
                         onClick={() => onUpdateQty(item.platillo.id, 1)}
+                        aria-label={`Sumar una unidad de ${item.platillo.nombre}`}
                         className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-200"
                       >
-                        <Plus className="h-3.5 w-3.5" />
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     </div>
 
@@ -267,35 +281,39 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                             expandedNoteId === item.platillo.id ? null : item.platillo.id,
                           )
                         }
+                        aria-label={`Notas de cocina para ${item.platillo.nombre}`}
                         className={`inline-flex h-8 items-center gap-1 rounded-lg px-2 text-xs font-bold transition ${
                           item.notas
                             ? 'bg-amber-100 text-amber-800'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
-                        <StickyNote className="h-3.5 w-3.5" />
+                        <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
                         Nota
                       </button>
                       <button
                         type="button"
                         onClick={() => onRemoveItem(item.platillo.id)}
+                        aria-label={`Quitar ${item.platillo.nombre} del pedido`}
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-red-500 hover:bg-red-50"
                         title="Quitar ítem"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
 
                   {notesOpen && (
                     <div className="mt-2 space-y-1.5 rounded-xl bg-amber-50/70 p-2.5">
-                      <input
-                        type="text"
-                        value={item.notas}
-                        onChange={(e) => onUpdateNotes(item.platillo.id, e.target.value)}
-                        placeholder="Indicaciones para cocina..."
-                        className="w-full rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-medium outline-none focus:border-amber-400"
-                      />
+                      <Field label={`Indicaciones para cocina de ${item.platillo.nombre}`} srOnlyLabel>
+                        <input
+                          type="text"
+                          value={item.notas}
+                          onChange={(e) => onUpdateNotes(item.platillo.id, e.target.value)}
+                          placeholder="Indicaciones para cocina..."
+                          className="w-full rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-medium outline-none focus:border-amber-400"
+                        />
+                      </Field>
                       <div className="flex flex-wrap gap-1">
                         {NOTAS_RAPIDAS.map((chip) => {
                           const active = item.notas.toLowerCase().includes(chip.toLowerCase());
@@ -343,7 +361,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
           {!cajaAbierta && (
             <div className="flex items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
               <span className="flex items-center gap-1.5">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
                 Abre la caja primero para poder cobrar
               </span>
               {canOpenCaja && (
@@ -383,7 +401,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               onClick={onAbrirCobro}
               className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 text-base font-extrabold text-white shadow-lg shadow-brand-600/25 transition hover:from-brand-700 hover:to-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <CheckCircle2 className="h-5 w-5" />
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
               {items.length === 0 ? 'Agrega platillos para cobrar' : `Cobrar ${formatCurrency(totals.total)}`}
             </button>
           </div>

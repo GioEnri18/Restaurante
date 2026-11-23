@@ -43,7 +43,7 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
           </div>
 
           <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-            <Store className="h-3.5 w-3.5 text-brand-600" />
+            <Store className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
             {habilitarMesas ? 'Servicio: Mostrador y Mesas' : 'Servicio en Mostrador'}
           </span>
         </div>
@@ -55,7 +55,7 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
               onClick={() => onReimprimirUltimo(ultimoTicket)}
               className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
             >
-              <Printer className="h-4 w-4 text-brand-600" />
+              <Printer className="h-4 w-4 text-brand-600" aria-hidden="true" />
               Último ticket ({ultimoTicket.factura.numeroCompleto})
             </button>
           )}
@@ -65,12 +65,12 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
                 to="/caja"
                 className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 text-xs font-bold text-white shadow-sm hover:bg-amber-700"
               >
-                <AlertTriangle className="h-4 w-4" />
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                 Abrir Caja para Vender
               </Link>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
-                <AlertTriangle className="h-4 w-4" />
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                 Solicita al Administrador abrir caja
               </span>
             )
@@ -82,7 +82,7 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
       {menu?.menuEspecialActivo && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-brand-600 to-rose-600 px-5 py-3.5 text-white shadow-md">
           <div className="flex items-center gap-3">
-            <Sparkles className="h-6 w-6 shrink-0 text-amber-200" />
+            <Sparkles className="h-6 w-6 shrink-0 text-amber-200" aria-hidden="true" />
             <div>
               <p className="text-sm font-black uppercase tracking-wide">
                 Menú Especial Vigente Hoy: {menu.menuEspecialActivo.nombre}

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { env } from '../../../config/env';
 import { PlatilloModel } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
+import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 
 interface CambiarPrecioModalProps {
@@ -45,22 +47,24 @@ export const CambiarPrecioModal: React.FC<CambiarPrecioModalProps> = ({
         <p className="text-sm text-slate-600">
           Precio actual: <strong>{target && target.precioRegular > 0 ? formatCurrency(target.precioRegular) : 'Pendiente'}</strong>
         </p>
-        <input
-          required
-          type="number"
-          step="0.01"
-          min="0.01"
-          value={nuevoPrecio}
-          onChange={(e) => setNuevoPrecio(e.target.value)}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-base font-bold"
-        />
-        <input
-          required
-          placeholder="Motivo del cambio de precio"
-          value={motivoPrecio}
-          onChange={(e) => setMotivoPrecio(e.target.value)}
-          className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-        />
+        <Field label={`Nuevo precio de venta (${env.CURRENCY_SYMBOL})`} required>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={nuevoPrecio}
+            onChange={(e) => setNuevoPrecio(e.target.value)}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-base font-bold"
+          />
+        </Field>
+        <Field label="Motivo del cambio de precio" required>
+          <input
+            placeholder="Motivo del cambio de precio"
+            value={motivoPrecio}
+            onChange={(e) => setMotivoPrecio(e.target.value)}
+            className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+          />
+        </Field>
         <button
           type="submit"
           className="min-h-[46px] w-full rounded-xl bg-brand-600 text-sm font-bold text-white"
