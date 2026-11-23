@@ -61,6 +61,8 @@ Venta.hasOne(Comanda, { foreignKey: 'ventaId', as: 'comanda' });
 Comanda.belongsTo(Venta, { foreignKey: 'ventaId', as: 'venta' });
 Comanda.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
 AuditoriaLog.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+AuditoriaLog.belongsTo(Usuario, { foreignKey: 'aprobadorId', as: 'aprobador' });
+AuditoriaLog.belongsTo(CajaSesion, { foreignKey: 'cajaSesionId', as: 'cajaSesion' });
 
 module.exports = {
   ...require('./enums'),

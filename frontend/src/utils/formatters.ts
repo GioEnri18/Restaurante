@@ -54,11 +54,3 @@ export function getTodayISO(): string {
   const local = new Date(now.getTime() - offset * 60 * 1000);
   return local.toISOString().slice(0, 10);
 }
-
-export function getDaysAgoISO(days: number): string {
-  const now = new Date();
-  now.setDate(now.getDate() - days);
-  const offset = now.getTimezoneOffset();
-  const local = new Date(now.getTime() - offset * 60 * 1000);
-  return local.toISOString().slice(0, 10);
-}

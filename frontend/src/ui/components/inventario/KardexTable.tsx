@@ -15,6 +15,22 @@ interface KardexTableProps {
   onIrACompras?: () => void;
 }
 
+const ETIQUETA_MOVIMIENTO: Record<string, string> = {
+  ENTRADA_COMPRA: 'Compra',
+  SALIDA_VENTA: 'Venta',
+  SALIDA_MERMA: 'Merma',
+  AJUSTE_MANUAL: 'Ajuste de conteo',
+  AJUSTE_POSITIVO: 'Ajuste (+)',
+  AJUSTE_NEGATIVO: 'Ajuste (−)',
+  REINTEGRO_ANULACION: 'Reintegro por anulación',
+};
+
+function formatearTipoMovimiento(tipo: string): string {
+  if (ETIQUETA_MOVIMIENTO[tipo]) return ETIQUETA_MOVIMIENTO[tipo];
+  const limpio = tipo.toLowerCase().replaceAll('_', ' ');
+  return limpio.charAt(0).toUpperCase() + limpio.slice(1);
+}
+
 export const KardexTable: React.FC<KardexTableProps> = ({
   movimientos,
   cargando = false,
@@ -72,7 +88,7 @@ export const KardexTable: React.FC<KardexTableProps> = ({
                             : 'warning'
                       }
                     >
-                      {m.tipo}
+                      {formatearTipoMovimiento(m.tipo)}
                     </Badge>
                   </td>
                   <td

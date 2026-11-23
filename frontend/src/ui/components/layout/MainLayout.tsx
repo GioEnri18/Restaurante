@@ -91,9 +91,8 @@ export const MainLayout: React.FC = () => {
                   {usuario?.sucursal.nombre ?? env.APP_NAME}
                 </p>
                 <p className="hidden text-xs text-slate-500 sm:block">
-                  NIT: {usuario?.sucursal.nit} · Servicio:{' '}
-                  {env.ENABLE_TABLE_SERVICE ? 'Mostrador y Mesas' : 'En Mostrador'} · Moneda:{' '}
-                  {env.CURRENCY_CODE} ({env.CURRENCY_SYMBOL})
+                  NIT: {usuario?.sucursal.nit} ·{' '}
+                  {env.ENABLE_TABLE_SERVICE ? 'Mostrador y mesas' : 'Servicio en mostrador'}
                 </p>
               </div>
             </div>
@@ -161,8 +160,8 @@ export const MainLayout: React.FC = () => {
         {isAdmin && alertaDestacada && idAviso !== avisoOculto && (
           <div
             className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5 text-sm lg:px-6 ${alertaDestacada.requiereAtencion
-                ? 'border-amber-200 bg-amber-50 text-amber-950'
-                : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+              ? 'border-amber-200 bg-amber-50 text-amber-950'
+              : 'border-emerald-200 bg-emerald-50 text-emerald-950'
               }`}
           >
             <div className="flex items-center gap-2.5">

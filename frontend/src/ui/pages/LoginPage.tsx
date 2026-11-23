@@ -77,7 +77,7 @@ export const LoginPage: React.FC = () => {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Ej. admin, cajero o mesero"
+                  placeholder="Ej. admin o cajero"
                   autoComplete="username"
                   className="min-h-[48px] w-full rounded-xl border border-slate-300 pl-11 pr-4 text-base outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
                 />

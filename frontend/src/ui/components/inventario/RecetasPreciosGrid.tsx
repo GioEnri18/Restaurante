@@ -100,7 +100,7 @@ export const RecetasPreciosGrid: React.FC<RecetasPreciosGridProps> = ({
           <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="rounded-xl bg-white p-2.5 shadow-sm">
               <strong className="text-slate-900">1. Registra stock y costo</strong>
-              <p className="mt-0.5 text-slate-500">En la pestaña «Compras (lb → oz)» agrega existencias a sus ingredientes.</p>
+              <p className="mt-0.5 text-slate-600">En la pestaña «Compras» agrega existencias a sus ingredientes.</p>
             </div>
             <div className="rounded-xl bg-white p-2.5 shadow-sm">
               <strong className="text-slate-900">2. Ponle precio de venta</strong>

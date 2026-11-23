@@ -22,6 +22,14 @@ const MOTIVOS: Array<{ value: MotivoMerma; label: string }> = [
   { value: 'OTRO', label: 'Otro' },
 ];
 
+const ETIQUETA_MOTIVO: Record<MotivoMerma, string> = {
+  VENCIMIENTO: 'Vencimiento',
+  DANO: 'Daño / Deterioro',
+  ERROR_PREPARACION: 'Error de preparación',
+  ACCIDENTE: 'Accidente en cocina',
+  OTRO: 'Otro',
+};
+
 export const MermasPage: React.FC = () => {
   const canCreate = useAuthStore((s) => s.can('mermas:crear'));
   const esCajero = useAuthStore((s) => s.usuario?.rol?.codigo === 'CAJERO');
@@ -318,9 +326,9 @@ export const MermasPage: React.FC = () => {
                         {m.cantidadOriginal} {m.unidadOriginal} ({m.cantidadOz} oz)
                       </td>
                       <td className="py-2.5 px-2">
-                        <Badge variant="warning">{m.motivo}</Badge>
+                        <Badge variant="warning">{ETIQUETA_MOTIVO[m.motivo] ?? m.motivo}</Badge>
                         {m.observacion && (
-                          <p className="mt-0.5 text-xs text-slate-500">{m.observacion}</p>
+                          <p className="mt-0.5 text-xs text-slate-600">{m.observacion}</p>
                         )}
                       </td>
                       <td className="py-2.5 px-2 text-right font-bold text-red-600">

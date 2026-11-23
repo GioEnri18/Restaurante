@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Search, Eye, Printer, Ban, RotateCcw, Receipt } from 'lucide-react';
+import { Search, Eye, Printer, Ban, RotateCcw, Receipt, SlidersHorizontal } from 'lucide-react';
 import { env } from '../../config/env';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { FacturaDetalleModel, FacturaResumenModel, PaginationMeta } from '../../models';
@@ -15,6 +15,18 @@ import { Modal } from '../components/common/Modal';
 import { Pagination } from '../components/common/Pagination';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 import { PrintTicketsModal } from '../components/print/PrintTicketsModal';
+
+const ETIQUETA_PAGO: Record<string, string> = {
+  EFECTIVO: 'Efectivo',
+  TARJETA: 'Tarjeta',
+};
+
+const ETIQUETA_SERVICIO: Record<string, string> = {
+  MOSTRADOR: 'Mostrador',
+  LLEVAR: 'Para llevar',
+  MESA: 'En mesa',
+  DELIVERY: 'Delivery',
+};
 
 export const FacturasPage: React.FC = () => {
   const canReprint = useAuthStore((s) => s.can('facturas:reimprimir'));
@@ -39,6 +51,7 @@ export const FacturasPage: React.FC = () => {
   const [montoMin, setMontoMin] = useState('');
   const [montoMax, setMontoMax] = useState('');
   const [estado, setEstado] = useState('');
+  const [mostrarFiltrosAvanzados, setMostrarFiltrosAvanzados] = useState(false);
 
   // Debounce de 350ms solo para filtros de texto y monto; fechas y estado se aplican de inmediato
   const debouncedNumero = useDebouncedValue(numero, 350);
@@ -113,9 +126,8 @@ export const FacturasPage: React.FC = () => {
     };
   }, [cargar]);
 
-  const hayFiltros = Boolean(
-    numero.trim() || cliente.trim() || fechaDesde || fechaHasta || montoMin || montoMax || estado,
-  );
+  const filtrosAvanzadosActivos = [fechaDesde, fechaHasta, montoMin, montoMax].filter(Boolean).length;
+  const hayFiltros = Boolean(numero.trim() || cliente.trim() || estado || filtrosAvanzadosActivos > 0);
 
   const limpiarFiltros = () => {
     setNumero('');
@@ -182,94 +194,125 @@ export const FacturasPage: React.FC = () => {
       {error && <Alert type="error" message={error} />}
       {feedback && <Alert type="success" message={feedback} />}
 
-      {/* Filtros */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Número de factura" srOnlyLabel>
+      {/* Filtros: búsqueda rápida siempre alineada + filtros avanzados colapsables */}
+      <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12">
+          <Field label="Número de factura" srOnlyLabel className="lg:col-span-3">
             <input
               type="text"
               value={numero}
               onChange={(e) => setNumero(e.target.value)}
               placeholder="Número (ej. A-000001)"
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
             />
           </Field>
-          <Field label="Nombre del cliente o NIT" srOnlyLabel>
+          <Field label="Nombre del cliente o NIT" srOnlyLabel className="lg:col-span-3">
             <input
               type="text"
               value={cliente}
               onChange={(e) => setCliente(e.target.value)}
               placeholder="Cliente o NIT"
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
             />
           </Field>
-          <Field label="Fecha inicial" labelClassName="mb-1 block text-sm font-semibold text-slate-700">
-            <input
-              type="date"
-              value={fechaDesde}
-              onChange={(e) => setFechaDesde(e.target.value)}
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
-          </Field>
-          <Field label="Fecha final" labelClassName="mb-1 block text-sm font-semibold text-slate-700">
-            <input
-              type="date"
-              value={fechaHasta}
-              onChange={(e) => setFechaHasta(e.target.value)}
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
-          </Field>
-          <Field label={`Monto mínimo (${env.CURRENCY_SYMBOL})`} srOnlyLabel>
-            <input
-              type="number"
-              step="0.01"
-              value={montoMin}
-              onChange={(e) => setMontoMin(e.target.value)}
-              placeholder={`Monto mínimo (${env.CURRENCY_SYMBOL})`}
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
-          </Field>
-          <Field label={`Monto máximo (${env.CURRENCY_SYMBOL})`} srOnlyLabel>
-            <input
-              type="number"
-              step="0.01"
-              value={montoMax}
-              onChange={(e) => setMontoMax(e.target.value)}
-              placeholder={`Monto máximo (${env.CURRENCY_SYMBOL})`}
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
-            />
-          </Field>
-          <Field label="Estado de la factura" srOnlyLabel>
+          <Field label="Estado de la factura" srOnlyLabel className="lg:col-span-2">
             <select
               value={estado}
               onChange={(e) => setEstado(e.target.value)}
-              className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              className="min-h-[44px] w-full rounded-xl border border-slate-300 px-3 text-sm"
             >
               <option value="">Todos los estados</option>
               <option value="EMITIDA">Emitidas</option>
               <option value="ANULADA">Anuladas</option>
             </select>
           </Field>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-4">
             <button
               type="button"
               onClick={() => void cargar(1, { numero, cliente, montoMin, montoMax })}
-              className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-700 px-3 text-sm font-bold text-white hover:bg-brand-800"
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-brand-700 px-3 text-sm font-bold text-white hover:bg-brand-800"
             >
               <Search className="h-4 w-4" aria-hidden="true" />
               Buscar
             </button>
             <button
               type="button"
-              onClick={limpiarFiltros}
-              className="inline-flex min-h-[42px] items-center justify-center rounded-xl border border-slate-300 px-3 text-slate-600 hover:bg-slate-100"
-              title="Limpiar filtros"
-              aria-label="Limpiar filtros"
+              aria-expanded={mostrarFiltrosAvanzados || filtrosAvanzadosActivos > 0}
+              onClick={() => setMostrarFiltrosAvanzados((prev) => !prev)}
+              className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition ${
+                mostrarFiltrosAvanzados || filtrosAvanzadosActivos > 0
+                  ? 'border-brand-300 bg-brand-50 text-brand-800'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
             >
-              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              <span>Más filtros</span>
+              {filtrosAvanzadosActivos > 0 && (
+                <span className="rounded-full bg-brand-700 px-1.5 py-0.5 text-xs text-white">
+                  {filtrosAvanzadosActivos}
+                </span>
+              )}
             </button>
+            {hayFiltros && (
+              <button
+                type="button"
+                onClick={limpiarFiltros}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-300 px-3 text-slate-600 hover:bg-slate-100"
+                title="Limpiar filtros"
+                aria-label="Limpiar filtros"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
+
+        {(mostrarFiltrosAvanzados || filtrosAvanzadosActivos > 0) && (
+          <div className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label="Fecha inicial" labelClassName="mb-1 block text-xs font-semibold text-slate-700">
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              />
+            </Field>
+            <Field label="Fecha final" labelClassName="mb-1 block text-xs font-semibold text-slate-700">
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              />
+            </Field>
+            <Field
+              label={`Monto mínimo (${env.CURRENCY_SYMBOL})`}
+              labelClassName="mb-1 block text-xs font-semibold text-slate-700"
+            >
+              <input
+                type="number"
+                step="0.01"
+                value={montoMin}
+                onChange={(e) => setMontoMin(e.target.value)}
+                placeholder="Ej. 50.00"
+                className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              />
+            </Field>
+            <Field
+              label={`Monto máximo (${env.CURRENCY_SYMBOL})`}
+              labelClassName="mb-1 block text-xs font-semibold text-slate-700"
+            >
+              <input
+                type="number"
+                step="0.01"
+                value={montoMax}
+                onChange={(e) => setMontoMax(e.target.value)}
+                placeholder="Ej. 500.00"
+                className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
+              />
+            </Field>
+          </div>
+        )}
       </div>
 
       {/* Tabla */}
@@ -329,10 +372,12 @@ export const FacturasPage: React.FC = () => {
                       <p className="text-xs text-slate-500">NIT: {f.clienteNit}</p>
                     </td>
                     <td className="py-3 px-2">
-                      <span className="text-xs font-semibold text-slate-700">{f.metodoPago}</span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {ETIQUETA_PAGO[f.metodoPago] ?? f.metodoPago}
+                      </span>
                       <span className="mx-1 text-slate-300">·</span>
-                      <span className="text-xs text-slate-500">
-                        {f.tipoServicio}
+                      <span className="text-xs text-slate-600">
+                        {ETIQUETA_SERVICIO[f.tipoServicio] ?? f.tipoServicio}
                         {f.mesaNumero ? ` (${f.mesaNumero})` : ''}
                       </span>
                     </td>
@@ -341,7 +386,7 @@ export const FacturasPage: React.FC = () => {
                     </td>
                     <td className="py-3 px-2">
                       <Badge variant={f.estado === 'EMITIDA' ? 'success' : 'danger'}>
-                        {f.estado}
+                        {f.estado === 'EMITIDA' ? 'Emitida' : 'Anulada'}
                       </Badge>
                     </td>
                     <td className="py-3 px-2">
@@ -411,17 +456,18 @@ export const FacturasPage: React.FC = () => {
                 <p className="text-xs text-slate-500">Emisión y Estado</p>
                 <p className="font-semibold">{formatDateTime(detalle.factura.createdAt)}</p>
                 <Badge variant={detalle.factura.estado === 'EMITIDA' ? 'success' : 'danger'}>
-                  {detalle.factura.estado}
+                  {detalle.factura.estado === 'EMITIDA' ? 'Emitida' : 'Anulada'}
                 </Badge>
               </div>
               <div>
-                <p className="text-xs text-slate-500">Cajero / Mesero</p>
+                <p className="text-xs text-slate-500">Cajero / Responsable</p>
                 <p className="font-medium">{detalle.venta.cajeroNombre}</p>
               </div>
               <div>
                 <p className="text-xs text-slate-500">Método de Pago</p>
                 <p className="font-medium">
-                  {detalle.venta.metodoPago} · {detalle.venta.tipoServicio}
+                  {ETIQUETA_PAGO[detalle.venta.metodoPago] ?? detalle.venta.metodoPago} ·{' '}
+                  {ETIQUETA_SERVICIO[detalle.venta.tipoServicio] ?? detalle.venta.tipoServicio}
                 </p>
               </div>
             </div>

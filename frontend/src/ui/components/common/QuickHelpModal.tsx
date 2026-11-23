@@ -20,7 +20,7 @@ const GUIAS_POR_RUTA: Record<string, GuiaSeccion> = {
       'Presiona el botón naranja «Cobrar», elige Efectivo o Tarjeta y confirma para emitir factura y comanda.',
     ],
     consejo:
-      'Si un platillo aparece como «Falta precio/receta» o «Agotado», el Administrador puede activarlo desde Inventario → Recetas y Precios.',
+      'Si un platillo aparece como «Falta precio», «Pendiente activar» o «Sin stock», el Administrador puede activarlo desde Inventario → Recetas y Precios.',
   },
   '/caja': {
     titulo: 'Cómo abrir, controlar y cerrar caja',
@@ -29,29 +29,29 @@ const GUIAS_POR_RUTA: Record<string, GuiaSeccion> = {
       'Al iniciar el día, ingresa el fondo inicial de efectivo en gaveta (ej. Q500.00) y abre turno.',
       'Si eres Cajero, un Administrador o Auditor ingresará su usuario y contraseña para autorizar la apertura o el cierre.',
       'Durante el turno puedes registrar entradas o salidas manuales (por ejemplo pago a repartidor o compra menor).',
-      'Al terminar, cuenta el efectivo físico, escríbelo en «Cerrar Caja» y revisa si el cuadre está exacto.',
+      'Al terminar, cuenta el efectivo físico, usa «Cuadrar y cerrar turno» y revisa si el cuadre está exacto.',
     ],
   },
   '/facturas': {
     titulo: 'Cómo consultar, reimprimir o anular facturas',
     resumen: 'Encuentra cualquier venta pasada por número de factura, cliente o NIT.',
     pasos: [
-      'Usa el buscador o las fechas para encontrar la factura.',
-      'Haz clic en una factura para ver todos los platillos cobrados y su desglose de IVA.',
+      'Usa el buscador rápido o abre «Más filtros» para buscar por fechas y montos.',
+      'Pulsa «Ver» en cualquier factura para revisar todos los platillos cobrados y su desglose de IVA.',
       'Si necesitas volver a imprimir el comprobante, usa el botón «Reimprimir».',
       'Si hubo un error y tienes permiso, puedes anularla escribiendo el motivo (con caja abierta).',
     ],
   },
   '/inventario': {
     titulo: 'Cómo manejar ingredientes, compras y activar platillos',
-    resumen: 'Las compras se registran en libras (lb) y el sistema las convierte automáticamente a onzas (1 lb = 16 oz).',
+    resumen: 'Las compras se pueden registrar en libras (lb) u onzas (oz); el sistema convierte y actualiza el costo promedio automáticamente.',
     pasos: [
-      'En «Existencias» ves cuánto queda de cada ingrediente y alertas en amarillo si está por agotarse.',
-      'En «Compras (lb → oz)» registras lo que compraste al proveedor: esto actualiza el stock y el costo promedio.',
-      'En «Recetas y Precios» pones el precio de venta, ajustas la receta y activas los platillos para que se puedan vender.',
+      'En «Existencias» ves cuánto queda de cada ingrediente y alertas si está por agotarse.',
+      'En «Compras» registras lo que compraste al proveedor: esto suma stock y actualiza el costo promedio.',
+      'En «Recetas y Precios» pones el precio de venta, ajustas la receta y activas los platillos para vender.',
     ],
     consejo:
-      'Para que un platillo nuevo o del menú BX pueda venderse, necesita: 1) Precio de venta, 2) Receta con ingredientes que tengan costo, y 3) Stock suficiente.',
+      'Para que un platillo pueda venderse necesita: 1) Precio de venta, 2) Receta configurada y habilitada en ventas, y 3) Stock suficiente.',
   },
   '/mermas': {
     titulo: 'Cómo registrar una merma o desperdicio',
@@ -66,7 +66,7 @@ const GUIAS_POR_RUTA: Record<string, GuiaSeccion> = {
     titulo: 'Cómo programar menús por fechas especiales',
     resumen: 'Crea promociones o menús de temporada (Día de la Madre, Navidad, fin de semana) con aviso anticipado.',
     pasos: [
-      'Haz clic en «Programar Menú Especial» y elige el nombre y las fechas de inicio y fin.',
+      'Pulsa «Nueva temporada» y elige el nombre, las fechas de vigencia y cuándo recibir el aviso.',
       'Marca los platillos participantes y, si deseas, ponles un precio promocional temporal.',
       'Al llegar la fecha, el sistema los mostrará automáticamente en Menú / Ventas.',
     ],
@@ -75,8 +75,8 @@ const GUIAS_POR_RUTA: Record<string, GuiaSeccion> = {
     titulo: 'Cómo leer y exportar tus reportes',
     resumen: 'Consulta ventas del día, ganancias estimadas, platillos más vendidos y cierres de caja.',
     pasos: [
-      'Elige el rango de fechas que deseas revisar.',
-      'Revisa los totales por método de pago (Efectivo vs. Tarjeta) y margen de utilidad.',
+      'Elige el rango de fechas o usa los botones rápidos (Hoy, Esta semana, Este mes).',
+      'Revisa los totales por método de pago (Efectivo vs. Tarjeta) y el margen de ganancia.',
       'Usa los botones de PDF o Excel para descargar el reporte y compartirlo o archivarlo.',
     ],
   },
@@ -84,16 +84,16 @@ const GUIAS_POR_RUTA: Record<string, GuiaSeccion> = {
     titulo: 'Bitácora de auditoría (solo lectura)',
     resumen: 'Registro permanente e inalterable de todas las acciones importantes del restaurante.',
     pasos: [
-      'Filtra por acción (ventas, anulaciones, cambios de precio, apertura/cierre de caja) o por fechas.',
-      'Haz clic en cualquier evento para ver qué cambió (valor anterior vs. valor nuevo) y quién lo hizo.',
+      'Filtra por usuario, acción o fechas para encontrar un movimiento.',
+      'Pulsa «Ver cambio» en cualquier evento para comparar cómo estaba antes y cómo quedó después.',
     ],
   },
   '/accesos': {
     titulo: 'Cómo crear usuarios y configurar permisos',
     resumen: 'Solo el Administrador puede entrar aquí para dar de alta al equipo del restaurante.',
     pasos: [
-      'Usa los botones de «Alta rápida» («Nuevo Cajero», «Nuevo Mesero», «Nuevo Auditor») para crear personal en segundos.',
-      'Cada contraseña debe tener al menos 10 caracteres, incluyendo letras y números.',
+      'Usa los botones de «Alta rápida por perfil» o «Agregar persona» para registrar a tu equipo.',
+      'Configura su fecha de ingreso y sueldo mensual para llevar el control en Nómina.',
       'En la pestaña «Roles y Permisos» puedes activar o quitar permisos específicos de cada puesto sin programar.',
     ],
   },

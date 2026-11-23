@@ -14,6 +14,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { MenuDataModel, PlatilloModel } from '../../../models';
+import { EmptyState } from '../common/EmptyState';
 import { Field } from '../common/Field';
 import { FotoPlatillo } from '../common/FotoPlatillo';
 import { Pagination, usePaginacionLocal } from '../common/Pagination';
@@ -70,6 +71,7 @@ interface CatalogoPlatillosProps {
   onSearchChange: (value: string) => void;
   onSelectCat: (cat: number | 'ESPECIAL' | null) => void;
   onToggleOnlyAvailable: () => void;
+  onLimpiarFiltros: () => void;
   onAddItem: (platillo: PlatilloModel) => void;
   onUpdateQty: (platilloId: number, delta: number) => void;
   onVerReceta: (platillo: PlatilloModel) => void;
@@ -91,6 +93,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
   onSearchChange,
   onSelectCat,
   onToggleOnlyAvailable,
+  onLimpiarFiltros,
   onAddItem,
   onUpdateQty,
   onVerReceta,
@@ -221,39 +224,36 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
             </button>
           )}
 
-          {[...(menu?.categorias ?? [])]
-            .sort((a, b) => {
-              const ca = countByCategoria.get(a.id) ?? 0;
-              const cb = countByCategoria.get(b.id) ?? 0;
-              if ((ca > 0) !== (cb > 0)) return ca > 0 ? -1 : 1;
-              return 0;
-            })
+          {(menu?.categorias ?? [])
+            .filter((cat) => (countByCategoria.get(cat.id) ?? 0) > 0 || selectedCat === cat.id)
             .map((cat) => {
               const visual = getCategoriaVisual(cat.nombre);
               const CatIcon = visual.Icon;
               const active = selectedCat === cat.id;
               const count = countByCategoria.get(cat.id) ?? 0;
 
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => onSelectCat(cat.id)}
-                aria-pressed={active}
-                className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${active
-                  ? `${visual.pillActive} shadow-md`
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => onSelectCat(cat.id)}
+                  aria-pressed={active}
+                  className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                    active
+                      ? `${visual.pillActive} shadow-md`
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
-              >
-                <CatIcon className="h-4 w-4" aria-hidden="true" />
-                <span>{cat.nombre}</span>
-                <span
-                  className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white/25 text-white' : 'bg-white text-slate-600'
-                    }`}
                 >
-                  {count}
-                </span>
-              </button>
+                  <CatIcon className="h-4 w-4" aria-hidden="true" />
+                  <span>{cat.nombre}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs ${
+                      active ? 'bg-white/25 text-white' : 'bg-white text-slate-600'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
               );
             })}
         </div>
@@ -261,16 +261,24 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
 
       {/* Grid visual de platillos */}
       {loading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3" aria-busy="true">
+          <p role="status" className="sr-only">Cargando platillos del menú...</p>
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} className="h-48 animate-pulse rounded-2xl bg-white p-4 shadow-sm" />
+            <div key={n} aria-hidden="true" className="h-48 animate-pulse rounded-2xl bg-white p-4 shadow-sm" />
           ))}
         </div>
       ) : platillosFiltrados.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <UtensilsCrossed className="mx-auto mb-2 h-10 w-10 text-slate-300" aria-hidden="true" />
-          <p className="font-bold text-slate-700">No hay platillos que coincidan</p>
-          <p className="mt-1 text-sm text-slate-500">Prueba cambiando la categoría o limpiando el buscador.</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <EmptyState
+            icon={UtensilsCrossed}
+            title="No hay platillos que coincidan"
+            description="Prueba cambiando la categoría, quitando el filtro o limpiando el buscador."
+            action={
+              search || selectedCat !== null || onlyAvailable
+                ? { label: 'Ver todos los platillos', onClick: onLimpiarFiltros, variant: 'secondary' }
+                : undefined
+            }
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -385,6 +393,9 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
                         >
                           <Minus className="h-4 w-4" aria-hidden="true" />
                         </button>
+                        <span className="min-w-[1.5rem] text-center text-sm font-black text-brand-900">
+                          {inCartQty}
+                        </span>
                         <button
                           type="button"
                           onClick={() => onAddItem(p)}

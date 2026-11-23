@@ -123,12 +123,26 @@ AuditoriaLog.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     sucursalId: { type: DataTypes.INTEGER, allowNull: true, field: 'sucursal_id' },
     usuarioId: { type: DataTypes.INTEGER, allowNull: true, field: 'usuario_id' },
+    // Snapshot del rol del actor al momento del evento
+    actorRolCodigo: { type: DataTypes.STRING(40), allowNull: true, field: 'actor_rol_codigo' },
+    // Supervisor que autorizó la operación en control dual (opcional)
+    aprobadorId: { type: DataTypes.INTEGER, allowNull: true, field: 'aprobador_id' },
+    // Turno de caja asociado al evento (opcional)
+    cajaSesionId: { type: DataTypes.INTEGER, allowNull: true, field: 'caja_sesion_id' },
     accion: { type: DataTypes.STRING(60), allowNull: false },
+    // Severidad del evento (NULL en registros históricos previos a la migración; se deriva en lectura)
+    severidad: { type: DataTypes.STRING(10), allowNull: true },
     entidad: { type: DataTypes.STRING(60), allowNull: false },
     entidadId: { type: DataTypes.STRING(60), allowNull: true, field: 'entidad_id' },
     valorAnterior: { type: DataTypes.JSONB, allowNull: true, field: 'valor_anterior' },
     valorNuevo: { type: DataTypes.JSONB, allowNull: true, field: 'valor_nuevo' },
+    // Código de motivo estandarizado (motivo conserva la nota libre)
+    codigoMotivo: { type: DataTypes.STRING(40), allowNull: true, field: 'codigo_motivo' },
     motivo: { type: DataTypes.STRING(300), allowNull: true },
+    // Impacto financiero en quetzales (positivo o negativo)
+    impactoFinanciero: { type: DataTypes.DECIMAL(12, 2), allowNull: true, field: 'impacto_financiero' },
+    // UUID para agrupar múltiples eventos generados por una misma operación de negocio
+    correlacionId: { type: DataTypes.UUID, allowNull: true, field: 'correlacion_id' },
     ipAddress: { type: DataTypes.STRING(64), allowNull: true, field: 'ip_address' },
     userAgent: { type: DataTypes.STRING(255), allowNull: true, field: 'user_agent' },
 }, { sequelize, tableName: 'auditoria_logs', timestamps: true, createdAt: true, updatedAt: false });

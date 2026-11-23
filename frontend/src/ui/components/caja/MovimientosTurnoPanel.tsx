@@ -1,10 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, CreditCard } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, CreditCard, Wallet } from 'lucide-react';
 import { cajaService, FiltroMovimientoCaja } from '../../../services/caja.service';
 import { formatCurrency, formatDateTime } from '../../../utils/formatters';
 import { Alert } from '../common/Alert';
 import { Badge } from '../common/Badge';
+import { EmptyState } from '../common/EmptyState';
 import { Pagination } from '../common/Pagination';
+
+const ETIQUETA_TIPO_CAJA: Record<string, string> = {
+  INGRESO_VENTA: 'Venta',
+  INGRESO_MANUAL: 'Ingreso manual',
+  EGRESO_MANUAL: 'Egreso manual',
+  EGRESO_ANULACION: 'Anulación',
+};
+
+const ETIQUETA_METODO: Record<string, string> = {
+  EFECTIVO: 'Efectivo',
+  TARJETA: 'Tarjeta',
+};
 
 export const MovimientosTurnoPanel: React.FC = () => {
   const [movFiltro, setMovFiltro] = useState<FiltroMovimientoCaja>('TODOS');
@@ -45,11 +58,10 @@ export const MovimientosTurnoPanel: React.FC = () => {
                 setMovFiltro(f.id);
                 setPagina(1);
               }}
-              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
-                movFiltro === f.id
+              className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${movFiltro === f.id
                   ? 'bg-slate-900 text-white'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+                }`}
             >
               {f.label}
             </button>
@@ -57,13 +69,46 @@ export const MovimientosTurnoPanel: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100" aria-busy={!resultado && !error}>
         {error ? <Alert type="error" message={error} /> : !resultado ? (
-          <p role="status" className="py-8 text-center text-sm text-slate-600">Cargando movimientos...</p>
+          <div className="space-y-3 py-3">
+            <p role="status" className="sr-only">Cargando movimientos del turno...</p>
+            {[1, 2, 3].map((n) => (
+              <div key={n} aria-hidden="true" className="flex animate-pulse items-center justify-between gap-3 py-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-xl bg-slate-200" />
+                  <div className="space-y-1.5">
+                    <div className="h-4 w-44 rounded bg-slate-200" />
+                    <div className="h-3 w-32 rounded bg-slate-200" />
+                  </div>
+                </div>
+                <div className="h-5 w-20 rounded bg-slate-200" />
+              </div>
+            ))}
+          </div>
         ) : resultado.items.length === 0 ? (
-          <p className="py-10 text-center text-sm text-slate-600">
-            No hay movimientos en esta categoría durante el turno actual.
-          </p>
+          <EmptyState
+            compact
+            icon={Wallet}
+            title="Sin movimientos en esta categoría"
+            description={
+              movFiltro === 'TODOS'
+                ? 'Las ventas e ingresos o salidas de efectivo del turno actual aparecerán aquí.'
+                : 'No hay registros de este tipo durante el turno actual.'
+            }
+            action={
+              movFiltro !== 'TODOS'
+                ? {
+                  label: 'Ver todos los movimientos',
+                  variant: 'secondary',
+                  onClick: () => {
+                    setMovFiltro('TODOS');
+                    setPagina(1);
+                  },
+                }
+                : undefined
+            }
+          />
         ) : (
           resultado.items.map((m) => {
             const esEgreso = m.tipo === 'EGRESO_MANUAL' || m.tipo === 'EGRESO_ANULACION';
@@ -74,13 +119,12 @@ export const MovimientosTurnoPanel: React.FC = () => {
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                      esEgreso
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl ${esEgreso
                         ? 'bg-red-50 text-red-600'
                         : m.metodoPago === 'TARJETA'
                           ? 'bg-sky-50 text-sky-600'
                           : 'bg-emerald-50 text-emerald-600'
-                    }`}
+                      }`}
                   >
                     {esEgreso ? (
                       <ArrowDownCircle className="h-5 w-5" aria-hidden="true" />
@@ -92,17 +136,18 @@ export const MovimientosTurnoPanel: React.FC = () => {
                   </div>
                   <div>
                     <p className="font-bold text-slate-900">{m.descripcion}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-600">
                       {formatDateTime(m.createdAt)} · {m.usuarioNombre} ·{' '}
-                      <span className="font-semibold">{m.metodoPago}</span>
+                      <span className="font-semibold">
+                        {ETIQUETA_METODO[m.metodoPago] ?? m.metodoPago}
+                      </span>
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p
-                    className={`text-base font-black ${
-                      esEgreso ? 'text-red-600' : 'text-emerald-700'
-                    }`}
+                    className={`text-base font-black ${esEgreso ? 'text-red-600' : 'text-emerald-700'
+                      }`}
                   >
                     {esEgreso ? '−' : '+'} {formatCurrency(m.monto)}
                   </p>
@@ -111,7 +156,7 @@ export const MovimientosTurnoPanel: React.FC = () => {
                       esEgreso ? 'danger' : m.tipo === 'INGRESO_VENTA' ? 'success' : 'info'
                     }
                   >
-                    {m.tipo.replace('_', ' ')}
+                    {ETIQUETA_TIPO_CAJA[m.tipo] ?? m.tipo.replace('_', ' ')}
                   </Badge>
                 </div>
               </div>

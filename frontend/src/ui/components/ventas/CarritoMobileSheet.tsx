@@ -40,6 +40,7 @@ export const CarritoMobileSheet: React.FC<CarritoMobileSheetProps> = ({
   useEffect(() => {
     if (!open) return;
 
+    const triggerEl = triggerRef.current;
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
@@ -96,8 +97,8 @@ export const CarritoMobileSheet: React.FC<CarritoMobileSheetProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       mediaQuery.removeEventListener('change', handleMediaChange);
       document.body.style.overflow = prevOverflow;
-      if (triggerRef.current && triggerRef.current.isConnected) {
-        triggerRef.current.focus();
+      if (triggerEl && triggerEl.isConnected) {
+        triggerEl.focus();
       }
     };
   }, [open]);

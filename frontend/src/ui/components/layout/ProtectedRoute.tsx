@@ -1,5 +1,6 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { Loader2, Lock } from 'lucide-react';
 import { useAuthStore } from '../../../store/auth.store';
 
 interface ProtectedRouteProps {
@@ -17,8 +18,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (!initialized) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">
-        Cargando sesión...
+      <div
+        role="status"
+        className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-50 text-slate-600"
+      >
+        <Loader2 className="h-7 w-7 animate-spin text-brand-700" aria-hidden="true" />
+        <p className="text-sm font-semibold">Cargando tu sesión…</p>
       </div>
     );
   }
@@ -34,11 +39,23 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (permiso && !can(permiso)) {
     return (
-      <div className="mx-auto mt-16 max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
-        <h2 className="text-xl font-bold text-red-700">Acceso restringido</h2>
+      <div className="mx-auto mt-16 max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <div
+          className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-red-700"
+          aria-hidden="true"
+        >
+          <Lock className="h-6 w-6" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900">Acceso restringido</h2>
         <p className="mt-2 text-sm text-slate-600">
-          Tu rol ({usuario.rol.nombre}) no tiene permiso para acceder a esta vista.
+          Tu perfil (<strong>{usuario.rol.nombre}</strong>) no tiene permiso para ver esta sección.
         </p>
+        <Link
+          to={usuario.rol.vistaInicial || '/ventas'}
+          className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-xl bg-brand-700 px-5 text-sm font-bold text-white hover:bg-brand-800"
+        >
+          Ir a mi pantalla principal
+        </Link>
       </div>
     );
   }

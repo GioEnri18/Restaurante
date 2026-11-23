@@ -1,11 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Store, Printer, AlertTriangle, Sparkles } from 'lucide-react';
+import { Printer, AlertTriangle, Sparkles } from 'lucide-react';
 import { MenuDataModel, TicketImprimibleModel } from '../../../models';
 
 interface VentasStatusHeaderProps {
   menu: MenuDataModel | null;
-  habilitarMesas: boolean;
   canOpenCaja: boolean;
   ultimoTicket: TicketImprimibleModel | null;
   selectedCat: number | 'ESPECIAL' | null;
@@ -15,7 +14,6 @@ interface VentasStatusHeaderProps {
 
 export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
   menu,
-  habilitarMesas,
   canOpenCaja,
   ultimoTicket,
   selectedCat,
@@ -24,11 +22,11 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
 }) => {
   return (
     <>
-      {/* BARRA SUPERIOR DE ESTADO POS (MOSTRADOR) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
+      {/* Barra compacta de estado de caja y acciones rápidas */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2.5">
           <div
-            className={`flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-bold ${
+            className={`flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-bold ${
               menu?.cajaAbierta
                 ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
                 : 'bg-red-50 text-red-700 ring-1 ring-red-200'
@@ -38,42 +36,37 @@ export const VentasStatusHeader: React.FC<VentasStatusHeaderProps> = ({
               className={`h-2.5 w-2.5 rounded-full ${
                 menu?.cajaAbierta ? 'animate-pulse bg-emerald-500' : 'bg-red-500'
               }`}
+              aria-hidden="true"
             />
-            {menu?.cajaAbierta ? `Caja Abierta (Turno #${menu.cajaSesionId})` : 'Caja Cerrada'}
+            {menu?.cajaAbierta ? `Caja abierta · Turno #${menu.cajaSesionId}` : 'Caja cerrada'}
           </div>
-
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-            <Store className="h-3.5 w-3.5 text-brand-600" aria-hidden="true" />
-            {habilitarMesas ? 'Servicio: Mostrador y Mesas' : 'Servicio en Mostrador'}
-          </span>
+          {!menu?.cajaAbierta && menu && !canOpenCaja && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800">
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              Solicita al Administrador abrir caja para cobrar
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {ultimoTicket && (
             <button
               type="button"
               onClick={() => onReimprimirUltimo(ultimoTicket)}
               className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100"
             >
-              <Printer className="h-4 w-4 text-brand-600" aria-hidden="true" />
-              Último ticket ({ultimoTicket.factura.numeroCompleto})
+              <Printer className="h-4 w-4 text-brand-700" aria-hidden="true" />
+              Reimprimir {ultimoTicket.factura.numeroCompleto}
             </button>
           )}
-          {menu && !menu.cajaAbierta && (
-            canOpenCaja ? (
-              <Link
-                to="/caja"
-                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 text-xs font-bold text-white shadow-sm hover:bg-amber-700"
-              >
-                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                Abrir Caja para Vender
-              </Link>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
-                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                Solicita al Administrador abrir caja
-              </span>
-            )
+          {menu && !menu.cajaAbierta && canOpenCaja && (
+            <Link
+              to="/caja"
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-amber-600 px-3.5 text-xs font-bold text-white shadow-sm hover:bg-amber-700"
+            >
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              Abrir Caja para Vender
+            </Link>
           )}
         </div>
       </div>

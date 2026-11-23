@@ -47,10 +47,6 @@ export const ventasService = {
     return ventasAdapter.fromConfirmarVentaJson(res.data);
   },
 
-  async actualizarEstadoMesa(mesaId: number, estado: 'DISPONIBLE' | 'OCUPADA' | 'RESERVADA') {
-    return httpClient.patch(`/ventas/mesas/${mesaId}/estado`, { estado });
-  },
-
   async listarMenusEspeciales(): Promise<MenuEspecialModel[]> {
     const res = await httpClient.get<unknown[]>('/ventas/menus-especiales');
     return (res.data ?? []).map((m) => ventasAdapter.fromMenuEspecialJson(m));

@@ -114,20 +114,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ openMobile, onCloseMobile }) =
       </div>
 
       {/* Navegación agrupada por contexto operativo (scroll interno solo si no cabe en pantallas bajas) */}
-      <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4">
+      <nav aria-label="Navegación principal" className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-3">
         {visibleGroups.map((group) => (
           <div key={group.title}>
-            <p className="mb-2 px-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+            <p className="mb-1.5 px-3 text-xs font-bold uppercase tracking-wider text-slate-400">
               {group.title}
             </p>
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {group.items.map(({ to, label, hint, Icon }) => (
                 <NavLink
                   key={to}
                   to={to}
                   onClick={onCloseMobile}
                   className={({ isActive }) =>
-                    `group flex min-h-[50px] items-center gap-3 rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
+                    `group flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
                       isActive
                         ? 'bg-gradient-to-r from-brand-700 to-brand-800 text-white shadow-md shadow-brand-950/50'
                         : 'text-slate-200 hover:bg-slate-900 hover:text-white'

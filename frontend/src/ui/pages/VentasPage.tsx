@@ -218,7 +218,6 @@ export const VentasPage: React.FC = () => {
     <div className="space-y-4 pb-24 lg:pb-0">
       <VentasStatusHeader
         menu={menu}
-        habilitarMesas={habilitarMesas}
         canOpenCaja={canOpenCaja}
         ultimoTicket={ultimoTicket}
         selectedCat={selectedCat}
@@ -245,6 +244,11 @@ export const VentasPage: React.FC = () => {
           onSearchChange={setSearch}
           onSelectCat={setSelectedCat}
           onToggleOnlyAvailable={() => setOnlyAvailable((prev) => !prev)}
+          onLimpiarFiltros={() => {
+            setSearch('');
+            setSelectedCat(null);
+            setOnlyAvailable(false);
+          }}
           onAddItem={addItem}
           onUpdateQty={updateQty}
           onVerReceta={setInfoPlatillo}
