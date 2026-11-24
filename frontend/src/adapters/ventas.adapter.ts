@@ -167,6 +167,9 @@ interface RawTicketVentaDetalleJson {
   cantidad?: number | string;
   precioUnitario?: number | string;
   subtotal?: number | string;
+  cantidadCortesia?: number | string;
+  consumoPendiente?: boolean;
+  costoPendiente?: boolean;
   notas?: string | null;
 }
 
@@ -239,7 +242,7 @@ function toEstadoMesa(value: unknown): MesaModel['estado'] {
 
 /** Normaliza el método de pago a la unión de dominio permitida. */
 function toMetodoPago(value: unknown): MetodoPago {
-  return value === 'TARJETA' ? 'TARJETA' : 'EFECTIVO';
+  return value === 'TARJETA' || value === 'SIN_COBRO' ? value : 'EFECTIVO';
 }
 
 /** Normaliza el estado de la factura emitida. */
@@ -435,6 +438,9 @@ export const ventasAdapter = {
             cantidad: Number(d.cantidad ?? 0),
             precioUnitario: Number(d.precioUnitario ?? 0),
             subtotal: Number(d.subtotal ?? 0),
+            cantidadCortesia: Number(d.cantidadCortesia ?? 0),
+            consumoPendiente: Boolean(d.consumoPendiente),
+            costoPendiente: Boolean(d.costoPendiente),
             notas: d.notas ?? null,
           };
         }),

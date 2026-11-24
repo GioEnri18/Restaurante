@@ -80,7 +80,7 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || undefined,
         precioVenta: Number(precioVenta),
-        disponible: publicar && receta.length > 0,
+        disponible: publicar,
         ...(recetaPayload ? { receta: recetaPayload } : {}),
       });
 
@@ -93,7 +93,7 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
         }
       }
 
-      const msg = publicar && receta.length > 0
+      const msg = publicar
         ? `Platillo "${nombre.trim()}" listo para vender según las existencias.`
         : `Platillo "${nombre.trim()}" guardado como borrador.`;
 
@@ -114,7 +114,7 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
   return (
     <Modal
       open={open}
-      title="Nuevo platillo con receta"
+      title="Nuevo platillo"
       onClose={() => { if (!guardando) onClose(); }}
       maxWidthClass="max-w-xl"
     >
@@ -217,10 +217,10 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
 
         {receta.length === 0 && (
           <p className="text-xs text-amber-800">
-            Sin receta el platillo se guarda como borrador (no disponible) hasta asignarle ingredientes con costo en Inventario → Recetas y Precios.
+            Puedes habilitarlo sin receta. Las ventas quedarán con consumo y costo pendientes.
           </p>
         )}
-        {receta.length > 0 && (
+        {(
           <label className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm font-semibold text-teal-950">
             <input type="checkbox" checked={publicar} onChange={(e) => setPublicar(e.target.checked)} />
             Habilitar para vender al guardar
@@ -236,7 +236,7 @@ export const NuevoPlatilloModal: React.FC<NuevoPlatilloModalProps> = ({
           disabled={guardando || categorias.length === 0}
           className="min-h-[46px] w-full rounded-xl bg-brand-700 text-sm font-bold text-white hover:bg-brand-800 disabled:opacity-50"
         >
-          {guardando ? 'Guardando…' : publicar && receta.length > 0 ? 'Guardar y habilitar venta' : 'Guardar borrador'}
+          {guardando ? 'Guardando…' : publicar ? 'Guardar y habilitar venta' : 'Guardar borrador'}
         </button>
       </form>
     </Modal>

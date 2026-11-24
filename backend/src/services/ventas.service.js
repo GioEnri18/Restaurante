@@ -56,8 +56,8 @@ class VentasService {
     return CheckoutService.actualizarEstadoMesa(user, mesaId, estado);
   }
 
-  static obtenerComanda(ventaId, sucursalId) {
-    return CheckoutService.obtenerComanda(ventaId, sucursalId);
+  static obtenerComanda(ventaId, sucursalId, user) {
+    return CheckoutService.obtenerComanda(ventaId, sucursalId, user);
   }
 }
 

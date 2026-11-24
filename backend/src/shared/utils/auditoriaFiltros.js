@@ -4,6 +4,12 @@ const { env } = require('../../config/env');
 const { SEVERIDAD_BASE_POR_ACCION } = require('./auditoriaSeveridad');
 const { endOfDayInTimezone, startOfDayInTimezone } = require('./dates');
 
+const ACCIONES_ECONOMICAS = [
+  'VENTA_CONFIRMADA', 'ANULACION_FACTURA', 'REIMPRESION_FACTURA', 'REIMPRESION_COMANDA', 'CORTESIA_APLICADA',
+  'CAMBIO_PRECIO', 'CAMBIO_DISPONIBILIDAD_PLATILLO', 'COMPRA_INVENTARIO', 'AJUSTE_INVENTARIO', 'REGISTRO_MERMA',
+  'APERTURA_CAJA', 'MOVIMIENTO_CAJA', 'CIERRE_CAJA',
+];
+
 // Listas derivadas desde la fuente única `SEVERIDAD_BASE_POR_ACCION` para evaluar filas históricas (severidad IS NULL) en SQL
 const ACCIONES_BASE_ALTA = Object.entries(SEVERIDAD_BASE_POR_ACCION)
   .filter(([, sev]) => sev === SEVERIDADES_AUDITORIA.ALTA)
@@ -70,7 +76,15 @@ function construirFiltrosAuditoria(sucursalId, query = {}, conNomina = false) {
   const replacements = { sucursalId };
   const filtrosAplicados = {};
 
-  if (!conNomina) {
+  if (conNomina === 'economica' || conNomina === 'sistema') {
+    andSequelize.push({ sucursalId });
+    sqlClauses.push('a."sucursal_id" = :sucursalId');
+  }
+  if (conNomina === 'economica') {
+    andSequelize.push({ accion: { [Op.in]: ACCIONES_ECONOMICAS } });
+    sqlClauses.push('a."accion" IN (:accionesEconomicas)');
+    replacements.accionesEconomicas = ACCIONES_ECONOMICAS;
+  } else if (!conNomina) {
     andSequelize.push({ accion: { [Op.ne]: ACCIONES_AUDITORIA.GESTION_NOMINA } });
     sqlClauses.push('a."accion" <> :accionNomina');
     replacements.accionNomina = ACCIONES_AUDITORIA.GESTION_NOMINA;
@@ -225,6 +239,7 @@ function escaparCeldaCsv(valor) {
 }
 
 module.exports = {
+  ACCIONES_ECONOMICAS,
   expresionSqlSeveridadEfectiva,
   construirFiltrosAuditoria,
   escaparCeldaCsv,

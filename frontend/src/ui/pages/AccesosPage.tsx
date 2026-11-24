@@ -79,6 +79,7 @@ export const AccesosPage: React.FC = () => {
     password: '',
     rolId: '',
     fechaIngreso: '',
+    fechaBajaNomina: '',
     sueldoMensual: '',
   });
 
@@ -180,12 +181,13 @@ export const AccesosPage: React.FC = () => {
       password: '',
       rolId: rolEncontrado ? String(rolEncontrado.id) : '',
       fechaIngreso: getTodayISO(),
+      fechaBajaNomina: '',
       sueldoMensual: '',
     });
     setUserModal(true);
   };
 
-  const rolesAccesoRapido = ['CAJERO', 'AUDITOR', 'CHEF', 'ADMIN']
+  const rolesAccesoRapido = ['CAJERO', 'AUDITOR', 'AUDITOR_SISTEMA', 'CHEF', 'ADMIN']
     .map((codigo) => roles.find((r) => r.codigo.toUpperCase() === codigo))
     .filter((r): r is RolModel => Boolean(r));
 
@@ -202,6 +204,7 @@ export const AccesosPage: React.FC = () => {
       password: '',
       rolId: String(u.rol.id),
       fechaIngreso: u.fechaIngreso ?? '',
+      fechaBajaNomina: u.fechaBajaNomina ?? '',
       sueldoMensual: u.sueldoMensual == null ? '' : String(u.sueldoMensual),
     });
     setUserModal(true);
@@ -222,6 +225,7 @@ export const AccesosPage: React.FC = () => {
           rolId: Number(userForm.rolId),
           password: userForm.password || undefined,
           fechaIngreso: userForm.fechaIngreso || undefined,
+          fechaBajaNomina: userForm.fechaBajaNomina || null,
           sueldoMensual: userForm.sueldoMensual ? Number(userForm.sueldoMensual) : undefined,
         });
         setSuccess('Usuario actualizado y registrado en auditoría.');
@@ -646,6 +650,14 @@ export const AccesosPage: React.FC = () => {
           )}
           <fieldset className="grid gap-3 rounded-xl border border-teal-200 bg-teal-50 p-3 sm:grid-cols-2">
             <legend className="px-1 text-sm font-bold text-teal-900">Datos laborales</legend>
+            {editingUser && (
+              <Field label="Último día en nómina (opcional)" labelClassName="mb-1 block text-sm font-semibold text-slate-700">
+                <input type="date" min={userForm.fechaIngreso || undefined} max={getTodayISO()}
+                  value={userForm.fechaBajaNomina}
+                  onChange={(e) => setUserForm({ ...userForm, fechaBajaNomina: e.target.value })}
+                  className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 text-sm" />
+              </Field>
+            )}
             <Field
               label="Fecha de ingreso"
               required={!editingUser}

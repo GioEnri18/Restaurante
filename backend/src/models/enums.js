@@ -13,6 +13,7 @@ const TipoServicio = {
 const MetodoPago = {
     EFECTIVO: 'EFECTIVO',
     TARJETA: 'TARJETA',
+    SIN_COBRO: 'SIN_COBRO',
 };
 const EstadoVenta = {
     COMPLETADA: 'COMPLETADA',

@@ -129,7 +129,7 @@ class PlatillosService {
           nombre: input.nombre.trim(),
           descripcion: input.descripcion?.trim() || null,
           precioVenta,
-          disponible: Boolean(input.receta?.length) && input.disponible !== false,
+          disponible: input.disponible !== false,
         },
         { transaction: tx },
       );
@@ -205,8 +205,7 @@ class PlatillosService {
       if (input.precioVenta !== undefined && !(precioNuevo >= 0.01)) {
         throw new BadRequestError('El precio debe ser de al menos Q0.01');
       }
-      const tieneReceta = (input.receta ?? actual.receta ?? []).length > 0;
-      const nuevoDisponible = precioNuevo >= 0.01 && tieneReceta && (input.disponible ?? actual.disponible);
+      const nuevoDisponible = precioNuevo >= 0.01 && (input.disponible ?? actual.disponible);
       const eventosTotales = Number(Boolean(input.receta))
         + Number(precioNuevo !== precioAnterior)
         + Number(nuevoDisponible !== prevDisponible);

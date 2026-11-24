@@ -225,7 +225,7 @@ class MenuService {
         precioRegular: precioBase,
         esEspecialHoy: Boolean(especial),
         costoReceta: puedeVerCostos ? costoReceta : null,
-        disponible: p.disponible && recetaValida && precioVigente >= 0.01,
+        disponible: p.disponible && precioVigente >= 0.01,
         stockDisponible,
         receta: receta.map((r) => ({
           ingredienteId: r.ingredienteId,

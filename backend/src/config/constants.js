@@ -16,6 +16,7 @@ const ACCIONES_AUDITORIA = {
     VENTA_CONFIRMADA: 'VENTA_CONFIRMADA',
     ANULACION_FACTURA: 'ANULACION_FACTURA',
     REIMPRESION_FACTURA: 'REIMPRESION_FACTURA',
+    REIMPRESION_COMANDA: 'REIMPRESION_COMANDA',
     CAMBIO_PRECIO: 'CAMBIO_PRECIO',
     CAMBIO_RECETA: 'CAMBIO_RECETA',
     CAMBIO_DISPONIBILIDAD_PLATILLO: 'CAMBIO_DISPONIBILIDAD_PLATILLO',
@@ -33,18 +34,18 @@ const ACCIONES_AUDITORIA = {
     GESTION_ROL: 'GESTION_ROL',
     GESTION_MENU_ESPECIAL: 'GESTION_MENU_ESPECIAL',
     EXPORTAR_AUDITORIA: 'EXPORTAR_AUDITORIA',
+    CORTESIA_APLICADA: 'CORTESIA_APLICADA',
+    AUTORIZACION_CORTESIA_RECHAZADA: 'AUTORIZACION_CORTESIA_RECHAZADA',
 };
 // Códigos reservados para funcionalidades aún inexistentes en el POS (sin UI ni lógica)
 const ACCIONES_AUDITORIA_RESERVADAS = {
     DESCUENTO_APLICADO: 'DESCUENTO_APLICADO',
-    CORTESIA_APLICADA: 'CORTESIA_APLICADA',
     PROPINA_MODIFICADA: 'PROPINA_MODIFICADA',
     CAMBIO_METODO_PAGO: 'CAMBIO_METODO_PAGO',
     REAPERTURA_ORDEN: 'REAPERTURA_ORDEN',
     ELIMINACION_ITEM_COMANDA: 'ELIMINACION_ITEM_COMANDA',
     CAMBIO_MESA: 'CAMBIO_MESA',
     DIVISION_CUENTA: 'DIVISION_CUENTA',
-    REIMPRESION_COMANDA: 'REIMPRESION_COMANDA',
 };
 // Severidades válidas para auditoría de investigación
 const SEVERIDADES_AUDITORIA = {
@@ -72,6 +73,7 @@ const PERMISOS_CATALOGO = [
     // Menú / Ventas
     { codigo: 'ventas:ver', vista: 'ventas', accion: 'ver', descripcion: 'Acceder a Menú y Ventas' },
     { codigo: 'ventas:crear', vista: 'ventas', accion: 'crear', descripcion: 'Confirmar y cobrar ventas' },
+    { codigo: 'ventas:autorizar_cortesia', vista: 'ventas', accion: 'autorizar_cortesia', descripcion: 'Autorizar cortesías' },
     { codigo: 'ventas:gestionar_menu', vista: 'ventas', accion: 'gestionar_menu', descripcion: 'Crear y editar platillos, precios y recetas' },
     // Facturas
     { codigo: 'facturas:ver', vista: 'facturas', accion: 'ver', descripcion: 'Consultar historial y detalle de facturas' },
@@ -93,9 +95,12 @@ const PERMISOS_CATALOGO = [
     { codigo: 'caja:autorizar', vista: 'caja', accion: 'autorizar', descripcion: 'Autorizar con usuario y contraseña la apertura y el cierre de caja de otros usuarios' },
     // Reportes
     { codigo: 'reportes:ver', vista: 'reportes', accion: 'ver', descripcion: 'Ver reportes de ventas, costos y estadísticas' },
+    { codigo: 'reportes:balance', vista: 'reportes', accion: 'balance', descripcion: 'Consultar el balance económico' },
     { codigo: 'reportes:exportar', vista: 'reportes', accion: 'exportar', descripcion: 'Exportar reportes a PDF y Excel' },
     // Auditoría
     { codigo: 'auditoria:ver', vista: 'auditoria', accion: 'ver', descripcion: 'Consultar bitácora inmutable de auditoría' },
+    { codigo: 'auditoria:economica', vista: 'auditoria', accion: 'economica', descripcion: 'Consultar la bitácora económica' },
+    { codigo: 'auditoria:sistema', vista: 'auditoria', accion: 'sistema', descripcion: 'Consultar la bitácora del sistema' },
     { codigo: 'auditoria:exportar', vista: 'auditoria', accion: 'exportar', descripcion: 'Exportar bitácora de auditoría en formato CSV' },
     // Accesos (exclusivo Administrador)
     { codigo: 'accesos:ver', vista: 'accesos', accion: 'ver', descripcion: 'Ver usuarios, roles y permisos (solo Admin)' },

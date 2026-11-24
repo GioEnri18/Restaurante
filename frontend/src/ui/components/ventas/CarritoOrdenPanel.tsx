@@ -61,6 +61,7 @@ export interface CarritoOrdenPanelProps {
   onUpdateNotes: (platilloId: number, notas: string) => void;
   onRemoveItem: (platilloId: number) => void;
   onClearCart: () => void;
+  onCortesia: (id: number, cantidad: number) => void;
   onAbrirCobro: () => void;
 }
 
@@ -88,6 +89,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
   onUpdateNotes,
   onRemoveItem,
   onClearCart,
+  onCortesia,
   onAbrirCobro,
 }) => {
   const [expandedNoteId, setExpandedNoteId] = useState<number | null>(null);
@@ -275,7 +277,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                       </p>
                     </div>
                     <p className="shrink-0 text-sm font-black text-slate-900">
-                      {formatCurrency(item.platillo.precioVenta * item.cantidad)}
+                      {formatCurrency(item.platillo.precioVenta * (item.cantidad - (item.cantidadCortesia ?? 0)))}
                     </p>
                   </div>
 
@@ -332,6 +334,21 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                     </div>
                   </div>
 
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" checked={Boolean(item.cantidadCortesia)}
+                        onChange={(e) => onCortesia(item.platillo.id, e.target.checked ? 1 : 0)} />
+                      Cortesía
+                    </label>
+                    {!!item.cantidadCortesia && item.cantidad > 1 && (
+                      <label className="flex items-center gap-1">
+                        Unidades de cortesía
+                        <input type="number" min={1} max={item.cantidad} value={item.cantidadCortesia}
+                          onChange={(e) => onCortesia(item.platillo.id, Math.max(1, Math.min(item.cantidad, Math.floor(Number(e.target.value)))))}
+                          className="w-16 rounded border border-slate-300 px-2 py-1" />
+                      </label>
+                    )}
+                  </div>
                   {notesOpen && (
                     <div className="mt-2 space-y-1.5 rounded-xl bg-amber-50/70 p-2.5">
                       <Field label={`Indicaciones para cocina de ${item.platillo.nombre}`} srOnlyLabel>
@@ -417,6 +434,11 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               </button>
             </>
           )}
+          {items.some((item) => item.platillo.receta.length === 0) && (
+            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-950">
+              Los platillos sin receta se pueden vender. Su consumo y costo quedarán pendientes.
+            </p>
+          )}
 
           <div className="flex gap-2 pt-1">
             {items.length > 0 && (
@@ -430,7 +452,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
             )}
             <button
               type="button"
-              disabled={!canCreate || items.length === 0 || !cajaAbierta || faltantes.length > 0}
+              disabled={!canCreate || items.length === 0 || !cajaAbierta}
               onClick={onAbrirCobro}
               className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-700 to-brand-800 px-4 text-base font-extrabold text-white shadow-lg shadow-brand-900/25 transition hover:from-brand-800 hover:to-brand-900 disabled:cursor-not-allowed disabled:opacity-50"
             >

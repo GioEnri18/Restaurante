@@ -19,6 +19,7 @@ const impactoStr = z
   .regex(/^-?\d{1,9}(\.\d{1,2})?$/, 'Monto de impacto inválido (máximo 2 decimales)');
 
 const filtrosComunesAuditoria = {
+  ambito: z.enum(['economica', 'sistema']).optional(),
   ...rangoFechasQuery,
   usuarioId: enteroPositivoStr.optional(),
   aprobadorId: enteroPositivoStr.optional(),
@@ -67,7 +68,7 @@ router.get(
   validate(listarAuditoriaQuerySchema, 'query'),
   AuditoriaController.listar,
 );
-router.get('/acciones', requirePermission('auditoria:ver'), AuditoriaController.catalogo);
+router.get('/acciones', requirePermission('auditoria:ver'), validate(filtrosAuditoriaQuerySchema, 'query'), AuditoriaController.catalogo);
 router.get(
   '/resumen',
   requirePermission('auditoria:ver'),
@@ -90,6 +91,7 @@ router.get(
   '/:id',
   requirePermission('auditoria:ver'),
   validate(idParamsSchema, 'params'),
+  validate(filtrosAuditoriaQuerySchema, 'query'),
   AuditoriaController.detalle,
 );
 

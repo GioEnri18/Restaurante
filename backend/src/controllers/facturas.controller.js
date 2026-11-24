@@ -14,7 +14,7 @@ class FacturasController {
                 estado: req.query.estado === 'EMITIDA' || req.query.estado === 'ANULADA'
                     ? req.query.estado
                     : undefined,
-            });
+            }, req.user);
             res.status(200).json({ ok: true, data: items, meta });
         }
         catch (error) {
@@ -24,7 +24,7 @@ class FacturasController {
     static async detalle(req, res, next) {
         try {
             const id = Number(req.params.id);
-            const data = await FacturasService.obtenerDetalle(id, req.user.sucursalId);
+            const data = await FacturasService.obtenerDetalle(id, req.user.sucursalId, req.user);
             res.status(200).json({ ok: true, data });
         }
         catch (error) {
@@ -34,7 +34,7 @@ class FacturasController {
     static async reimprimir(req, res, next) {
         try {
             const id = Number(req.params.id);
-            const data = await FacturasService.reimprimir(req.user, id, req.clientMeta);
+            const data = await FacturasService.reimprimir(req.user, id, req.clientMeta, req.body.documento);
             res.status(200).json({ ok: true, data });
         }
         catch (error) {

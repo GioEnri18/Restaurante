@@ -26,6 +26,7 @@ const topProductosSchema = z
 const router = Router();
 router.use(authenticate);
 router.get('/resumen', requirePermission('reportes:ver'), validate(rangoReporteSchema, 'query'), ReportesController.resumen);
+router.get('/balance', requirePermission('reportes:balance'), validate(rangoReporteSchema, 'query'), ReportesController.balance);
 router.get('/ventas-periodo', requirePermission('reportes:ver'), validate(ventasPeriodoSchema, 'query'), ReportesController.ventasPeriodo);
 router.get('/productos-mas-vendidos', requirePermission('reportes:ver'), validate(topProductosSchema, 'query'), ReportesController.productosMasVendidos);
 router.get('/exportar/pdf', requirePermission('reportes:exportar'), validate(rangoReporteSchema, 'query'), ReportesController.exportarPdf);

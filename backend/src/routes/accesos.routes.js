@@ -42,6 +42,7 @@ const actualizarUsuarioSchema = z.object({
     email: z.string().trim().email('Correo electrónico inválido').max(120).optional(),
     password: passwordSchema.optional().or(z.literal('')),
     fechaIngreso: fechaIngreso.optional(),
+    fechaBajaNomina: fechaIngreso.nullable().optional(),
     sueldoMensual: sueldoMensual.optional(),
     rolId: z.coerce.number().int().positive().optional(),
     permisosPersonalizados: z.array(permisoOverrideSchema).max(200).optional(),

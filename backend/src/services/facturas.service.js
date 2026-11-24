@@ -5,15 +5,26 @@ const { CajaMovimiento, CajaSesion, Comanda, EstadoCaja, EstadoFactura, EstadoMe
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { normalizarCodigoMotivo, validarMotivoObligatorio } = require('../shared/utils/auditoriaSeveridad');
-const { endOfDayInTimezone, startOfDayInTimezone } = require('../shared/utils/dates');
+const { endOfDayInTimezone, startOfDayInTimezone, toIsoDateInTimezone } = require('../shared/utils/dates');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { patronContiene } = require('../shared/utils/busqueda');
 const { round2, round4 } = require('../shared/utils/tax');
+async function alcanceTurnoCajero(user, transaction) {
+    if (user?.rolCodigo !== 'CAJERO') return null;
+    const turno = await CajaSesion.findOne({
+        where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+        transaction,
+        ...(transaction ? { lock: transaction.LOCK.UPDATE } : {}),
+    });
+    if (!turno) return { id: -1, fecha: { [Op.gte]: new Date('9999-01-01Z') } };
+    return { id: turno.id, fecha: { [Op.gte]: turno.fechaApertura, [Op.lte]: endOfDayInTimezone(toIsoDateInTimezone(turno.fechaApertura)) } };
+}
 class FacturasService {
-    static async listar(sucursalId, query) {
+    static async listar(sucursalId, query, user) {
         // Paginación obligatoria de 10 registros por página por defecto
         const { page, limit, skip } = parsePagination(query.page, query.limit, FACTURAS_PAGE_SIZE, 50);
         const where = { sucursalId };
+        const turno = await alcanceTurnoCajero(user);
         if (query.numero?.trim()) {
             where.numeroCompleto = { [Op.iLike]: patronContiene(query.numero.trim()) };
         }
@@ -43,6 +54,7 @@ class FacturasService {
                 rangoMonto[Op.lte] = Number(query.montoMax);
             where.total = rangoMonto;
         }
+        if (turno) where[Op.and] = [{ createdAt: turno.fecha }];
         const { rows, count } = await Factura.findAndCountAll({
             where: where,
             order: [['createdAt', 'DESC']],
@@ -53,6 +65,7 @@ class FacturasService {
                     model: Venta,
                     as: 'venta',
                     attributes: ['id', 'tipoServicio', 'metodoPago'],
+                    ...(turno ? { where: { cajaSesionId: turno.id } } : {}),
                     include: [
                         { model: Usuario, as: 'usuario', attributes: ['id', 'nombreCompleto'] },
                         { model: Mesa, as: 'mesa', attributes: ['numero'] },
@@ -72,9 +85,10 @@ class FacturasService {
             meta: buildPaginationMeta(count, page, limit),
         };
     }
-    static async obtenerDetalle(id, sucursalId) {
+    static async obtenerDetalle(id, sucursalId, user) {
+        const turno = await alcanceTurnoCajero(user);
         const factura = await Factura.findOne({
-            where: { id, sucursalId },
+            where: { id, sucursalId, ...(turno ? { createdAt: turno.fecha } : {}) },
             include: [
                 {
                     model: Sucursal,
@@ -85,6 +99,7 @@ class FacturasService {
                 {
                     model: Venta,
                     as: 'venta',
+                    ...(turno ? { where: { cajaSesionId: turno.id } } : {}),
                     include: [
                         { model: Usuario, as: 'usuario', attributes: ['id', 'nombreCompleto'] },
                         { model: Mesa, as: 'mesa', attributes: ['id', 'numero'] },
@@ -105,19 +120,22 @@ class FacturasService {
             total: Number(factura.total),
         };
     }
-    static async reimprimir(user, facturaId, clientMeta) {
+    static async reimprimir(user, facturaId, clientMeta, documento = 'FACTURA') {
         return withTransaction(async (tx) => {
+            const turno = await alcanceTurnoCajero(user, tx);
             const actual = await Factura.findOne({
-                where: { id: facturaId, sucursalId: user.sucursalId },
+                where: { id: facturaId, sucursalId: user.sucursalId, ...(turno ? { createdAt: turno.fecha } : {}) },
                 lock: tx.LOCK.UPDATE,
                 transaction: tx,
             });
-            if (!actual) {
+            if (!actual || (turno && !(await Venta.count({ where: { id: actual.ventaId, cajaSesionId: turno.id }, transaction: tx })))) {
                 throw new NotFoundError('Factura no encontrada');
             }
             const prevCount = actual.reimpresionesCount;
-            await actual.increment('reimpresionesCount', { by: 1, transaction: tx });
-            await actual.reload({ transaction: tx });
+            if (documento === 'FACTURA') {
+                await actual.increment('reimpresionesCount', { by: 1, transaction: tx });
+                await actual.reload({ transaction: tx });
+            }
             const actualizada = await Factura.findByPk(facturaId, {
                 include: [
                     {
@@ -138,6 +156,9 @@ class FacturasService {
                 ],
                 transaction: tx,
             });
+            const comanda = actualizada?.venta?.comanda;
+            if (documento === 'COMANDA' && !comanda) throw new NotFoundError('Comanda no encontrada');
+            const accion = documento === 'COMANDA' ? ACCIONES_AUDITORIA.REIMPRESION_COMANDA : ACCIONES_AUDITORIA.REIMPRESION_FACTURA;
             const cajaAbierta = await CajaSesion.findOne({
                 where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
                 attributes: ['id'],
@@ -148,14 +169,14 @@ class FacturasService {
                 sucursalId: user.sucursalId,
                 usuarioId: user.id,
                 cajaSesionId,
-                accion: ACCIONES_AUDITORIA.REIMPRESION_FACTURA,
+                accion,
             }, tx);
             await AuditService.registrarEvento({
                 user,
                 clientMeta,
                 cajaSesionId,
             }, {
-                accion: ACCIONES_AUDITORIA.REIMPRESION_FACTURA,
+                accion,
                 entidad: 'Factura',
                 entidadId: actual.id,
                 valorAnterior: {
@@ -163,11 +184,14 @@ class FacturasService {
                     reimpresionesCount: prevCount,
                 },
                 valorNuevo: {
+                    documento,
+                    ...(documento === 'COMANDA' ? { numeroComanda: comanda.numeroComanda } : {}),
                     numeroCompleto: actual.numeroCompleto,
                     reimpresionesCount: actual.reimpresionesCount,
                     total: round2(Number(actual.total)),
                 },
-                motivo: `Reimpresión #${actual.reimpresionesCount} de factura ${actual.numeroCompleto}`,
+                motivo: documento === 'COMANDA' ? `Reimpresión de comanda ${comanda.numeroComanda}`
+                    : `Reimpresión #${actual.reimpresionesCount} de factura ${actual.numeroCompleto}`,
                 impactoFinanciero: 0,
                 repeticionesEnTurno,
             }, tx);
@@ -242,7 +266,7 @@ class FacturasService {
             const referenciaSesion = factura.venta.cajaSesionId === cajaAbierta.id
                 ? `caja actual #${cajaAbierta.id}`
                 : `venta original en caja #${factura.venta.cajaSesionId}`;
-            const movimientoEgreso = await CajaMovimiento.create({
+            const movimientoEgreso = totalAnulado > 0 ? await CajaMovimiento.create({
                 sucursalId: user.sucursalId,
                 cajaSesionId: cajaAbierta.id,
                 usuarioId: user.id,
@@ -251,13 +275,13 @@ class FacturasService {
                 metodoPago: factura.venta.metodoPago,
                 monto: totalAnulado,
                 descripcion: `Anulación factura ${factura.numeroCompleto} (${referenciaSesion}): ${motivo}`,
-            }, { transaction: tx });
+            }, { transaction: tx }) : null;
             // Criterio contable unificado: totales brutos intactos; egreso registrado en totalEgresos
             // (+ totalEgresosTarjeta cuando fue tarjeta para cuadrar gaveta física y vouchers por separado)
             if (factura.venta.metodoPago === MetodoPago.TARJETA) {
                 await cajaAbierta.increment({ totalEgresos: totalAnulado, totalEgresosTarjeta: totalAnulado }, { transaction: tx });
             }
-            else {
+            else if (totalAnulado > 0) {
                 await cajaAbierta.increment('totalEgresos', { by: totalAnulado, transaction: tx });
             }
             // 4. Opcional: reintegrar ingredientes al inventario con bloqueo FOR UPDATE ordenado por ID
@@ -339,7 +363,7 @@ class FacturasService {
                     total: totalAnulado,
                     motivoAnulacion: motivo,
                     cajaEgresoId: cajaAbierta.id,
-                    cajaMovimientoId: movimientoEgreso.id,
+                    cajaMovimientoId: movimientoEgreso?.id ?? null,
                     reintegrarInventario: input.reintegrarInventario,
                     ingredientesReintegrados,
                     mesaLiberada,
@@ -360,4 +384,4 @@ class FacturasService {
     }
 }
 
-module.exports = { FacturasService };
+module.exports = { FacturasService, alcanceTurnoCajero };

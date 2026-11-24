@@ -38,7 +38,14 @@ const confirmarVentaSchema = z
     tipoServicio: z.enum(['MOSTRADOR', 'LLEVAR', 'MESA', 'DELIVERY']).default('MOSTRADOR'),
     mesaId: z.coerce.number().int().positive().nullable().optional(),
     nombreTurno: z.string().trim().max(80).optional(),
-    metodoPago: z.enum(['EFECTIVO', 'TARJETA']),
+    metodoPago: z.enum(['EFECTIVO', 'TARJETA', 'SIN_COBRO']),
+    cortesia: z.object({
+        motivo: z.string().trim().min(3).max(250),
+        autorizacion: z.object({
+            identifier: z.string().trim().min(2).max(120),
+            password: z.string().min(1).max(128),
+        }),
+    }).optional(),
     montoRecibido: z.coerce.number().min(0).optional(),
     referenciaPago: z.string().trim().max(80).optional(),
     clienteNit: z.string().trim().max(25).optional(),
@@ -56,6 +63,7 @@ const confirmarVentaSchema = z
             .positive('La cantidad debe ser mayor a 0')
             .max(env.VENTA_MAX_CANTIDAD_POR_LINEA, `La cantidad por platillo no puede superar ${env.VENTA_MAX_CANTIDAD_POR_LINEA}`),
         notas: z.string().trim().max(250).optional(),
+        cantidadCortesia: z.number().int().nonnegative().optional(),
     }))
         .min(1, 'Agrega al menos un platillo al carrito')
         .max(env.VENTA_MAX_LINEAS, `El pedido no puede tener más de ${env.VENTA_MAX_LINEAS} líneas`),

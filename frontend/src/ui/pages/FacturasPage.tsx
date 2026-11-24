@@ -30,6 +30,7 @@ const ETIQUETA_SERVICIO: Record<string, string> = {
 };
 
 export const FacturasPage: React.FC = () => {
+  const esCajero = useAuthStore((s) => s.usuario?.rol.codigo === 'CAJERO');
   const [searchParams] = useSearchParams();
   const canReprint = useAuthStore((s) => s.can('facturas:reimprimir'));
   const canAnular = useAuthStore((s) => s.can('facturas:anular'));
@@ -68,6 +69,7 @@ export const FacturasPage: React.FC = () => {
   // Modales
   const [detalle, setDetalle] = useState<FacturaDetalleModel | null>(null);
   const [ticketReimpresion, setTicketReimpresion] = useState<FacturaDetalleModel | null>(null);
+  const [documentoReimpresion, setDocumentoReimpresion] = useState<'FACTURA' | 'COMANDA'>('FACTURA');
   const [anularTarget, setAnularTarget] = useState<FacturaResumenModel | null>(null);
   const [motivoAnulacion, setMotivoAnulacion] = useState('');
   const [reintegrarStock, setReintegrarStock] = useState(false);
@@ -150,13 +152,15 @@ export const FacturasPage: React.FC = () => {
     }
   };
 
-  const handleReimprimir = async (id: number) => {
+  const handleReimprimir = async (id: number, documento: 'FACTURA' | 'COMANDA' = 'FACTURA') => {
     setError(null);
     setFeedback(null);
     try {
-      const data = await facturasService.reimprimir(id);
+      const data = await facturasService.reimprimir(id, documento);
+      if (documento === 'COMANDA' && !data.comanda) throw new Error('Este pedido no tiene comanda');
+      setDocumentoReimpresion(documento);
       setTicketReimpresion(data);
-      setFeedback(`Reimpresión de ${data.factura.numeroCompleto} registrada en auditoría.`);
+      setFeedback(`Reimpresión de ${documento === 'FACTURA' ? data.factura.numeroCompleto : data.comanda?.numeroComanda} registrada en auditoría.`);
       await cargar(meta.page);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al reimprimir factura');
@@ -186,9 +190,9 @@ export const FacturasPage: React.FC = () => {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Historial de Facturas</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">{esCajero ? 'Facturas del turno' : 'Historial de facturas'}</h1>
           <p className="text-sm text-slate-500">
-            Busca una factura para consultar sus datos, reimprimirla o anularla con un motivo.
+            {esCajero ? 'Reimprime la factura o la comanda emitida el día de apertura del turno actual.' : 'Busca una factura para consultar sus datos, reimprimirla o anularla con un motivo.'}
           </p>
         </div>
       </div>
@@ -410,7 +414,14 @@ export const FacturasPage: React.FC = () => {
                             className="inline-flex h-9 items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2.5 text-xs font-semibold text-sky-700 hover:bg-sky-100"
                           >
                             <Printer className="h-3.5 w-3.5" aria-hidden="true" />
-                            Reimprimir
+                            {esCajero ? 'Factura' : 'Reimprimir'}
+                          </button>
+                        )}
+                        {esCajero && canReprint && f.numeroComanda && (
+                          <button type="button" onClick={() => void handleReimprimir(f.id, 'COMANDA')}
+                            aria-label={`Reimprimir comanda ${f.numeroComanda}`}
+                            className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                            <Printer className="h-3.5 w-3.5" aria-hidden="true" /> Comanda
                           </button>
                         )}
                         {canAnular && f.estado === 'EMITIDA' && (
@@ -499,6 +510,9 @@ export const FacturasPage: React.FC = () => {
                     <tr key={d.id}>
                       <td className="py-2">
                         <p className="font-semibold">{d.nombrePlatillo}</p>
+                        {!!d.cantidadCortesia && <p className="text-xs text-teal-800">{d.cantidadCortesia} de cortesía</p>}
+                        {d.consumoPendiente && <p className="text-xs text-amber-800">Consumo pendiente</p>}
+                        {!esCajero && d.costoPendiente && <p className="text-xs text-amber-800">Costo pendiente</p>}
                         {d.notas && <p className="text-xs text-amber-700">Nota: {d.notas}</p>}
                       </td>
                       <td className="py-2 text-center">{d.cantidad}</td>
@@ -590,7 +604,8 @@ export const FacturasPage: React.FC = () => {
 
       <PrintTicketsModal
         ticket={ticketReimpresion}
-        includeComanda={false}
+        includeFactura={documentoReimpresion === 'FACTURA'}
+        includeComanda={documentoReimpresion === 'COMANDA'}
         autoPrint
         onClose={() => setTicketReimpresion(null)}
       />

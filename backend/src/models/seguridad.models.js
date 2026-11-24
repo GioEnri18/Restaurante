@@ -56,6 +56,7 @@ Usuario.init({
     email: { type: DataTypes.STRING(120), allowNull: false, unique: true },
     passwordHash: { type: DataTypes.STRING(255), allowNull: false, field: 'password_hash' },
     fechaIngreso: { type: DataTypes.DATEONLY, field: 'fecha_ingreso' },
+    fechaBajaNomina: { type: DataTypes.DATEONLY, field: 'fecha_baja_nomina' },
     sueldoMensual: { type: DataTypes.DECIMAL(12, 2), field: 'sueldo_mensual' },
     activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
     ultimoAcceso: { type: DataTypes.DATE, allowNull: true, field: 'ultimo_acceso' },

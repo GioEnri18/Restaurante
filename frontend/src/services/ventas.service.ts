@@ -17,11 +17,12 @@ export interface ConfirmarVentaPayload {
   metodoPago: MetodoPago;
   montoRecibido?: number;
   referenciaPago?: string;
+  cortesia?: { motivo: string; autorizacion: { identifier: string; password: string } };
   clienteNit?: string;
   clienteNombre?: string;
   clienteDireccion?: string;
   observaciones?: string;
-  items: Array<{ platilloId: number; cantidad: number; notas?: string }>;
+  items: Array<{ platilloId: number; cantidad: number; cantidadCortesia?: number; notas?: string }>;
 }
 
 export interface MenuEspecialPayload {

@@ -2,7 +2,30 @@ import { reportesAdapter } from '../adapters/reportes.adapter';
 import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
+export interface BalanceEconomico {
+  periodo: { fechaDesde: string; fechaHasta: string };
+  ventasSinIva: number;
+  costoVendido: number;
+  costoCortesias: number;
+  valorCortesias: number;
+  unidadesCortesia: number;
+  mermas: number;
+  sueldos: number;
+  compras: number;
+  inventarioActual: number;
+  egresosSinClasificar: number;
+  resultado: number;
+  lineasCostoPendiente: number;
+  lineasConsumoPendiente: number;
+  personalConDatosPendientes: number;
+}
+
 export const reportesService = {
+  async obtenerBalance(fechaDesde: string, fechaHasta: string, signal?: AbortSignal): Promise<BalanceEconomico> {
+    const qs = buildQueryString({ fechaDesde, fechaHasta });
+    const res = await httpClient.get<BalanceEconomico>(`/reportes/balance${qs}`, { signal });
+    return res.data;
+  },
   async obtenerResumen(fechaDesde?: string, fechaHasta?: string, signal?: AbortSignal): Promise<ReporteResumenModel> {
     const qs = buildQueryString({ fechaDesde, fechaHasta });
     const res = await httpClient.get<unknown>(`/reportes/resumen${qs}`, { signal });

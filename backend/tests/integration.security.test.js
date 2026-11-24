@@ -871,7 +871,6 @@ describe('Correcciones de auditoría de seguridad (PostgreSQL + API HTTP)', () =
     );
     assert.equal((await apiGet('/auditoria/nomina', auditorJwt)).status, 403);
     const oculto = await apiGet('/auditoria?accion=GESTION_NOMINA', auditorJwt);
-    assert.equal(oculto.status, 200);
-    assert.equal(oculto.json.data.length, 0);
+    assert.equal(oculto.status, 403);
   });
 });

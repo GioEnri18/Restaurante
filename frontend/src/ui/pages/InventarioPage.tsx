@@ -403,7 +403,7 @@ export const InventarioPage: React.FC = () => {
           ingredienteId,
           cantidadOz: Number(cantidadOz),
         })),
-        disponible: recetaLineas.length > 0 && habilitarVenta,
+        disponible: habilitarVenta,
       });
       setRecetaTarget(null);
       setSuccess('Receta actualizada. El nuevo consumo se aplica a partir del siguiente cobro.');
@@ -602,8 +602,7 @@ export const InventarioPage: React.FC = () => {
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
-              checked={recetaLineas.length > 0 && habilitarVenta}
-              disabled={!recetaLineas.length}
+              checked={habilitarVenta}
               onChange={(event) => setHabilitarVenta(event.target.checked)}
             />
             Habilitar en ventas

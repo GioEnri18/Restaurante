@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { useCartStore } from '../../store/cart.store';
 import { generarUuid } from '../../utils/idempotency';
 import { calcularFaltantesPedido } from '../../utils/stockPedido';
+import { calcularIvaIncluido } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import {
   NuevaCategoriaModal,
@@ -142,7 +143,7 @@ export const VentasPage: React.FC = () => {
   const platillosFiltrados = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (menu?.platillos ?? []).filter((p) => {
-      if (onlyAvailable && (!p.disponible || !p.stockDisponible || p.precioVenta <= 0)) {
+      if (onlyAvailable && (!p.disponible || p.precioVenta <= 0)) {
         return false;
       }
       const matchCat =
@@ -165,11 +166,25 @@ export const VentasPage: React.FC = () => {
     [menu, mesaId],
   );
 
-  const totals = getTotals();
+  const [cortesias, setCortesias] = useState<Record<number, number>>({});
+  const itemsCobro = items.map((item) => ({
+    ...item, cantidadCortesia: Math.min(item.cantidad, cortesias[item.platillo.id] ?? 0),
+  }));
+  const totals = {
+    ...getTotals(),
+    ...calcularIvaIncluido(itemsCobro.reduce((total, item) => total
+      + (item.cantidad - item.cantidadCortesia) * item.platillo.precioVenta, 0)),
+  };
   const faltantesPedido = useMemo(() => calcularFaltantesPedido(items, menu?.platillos ?? []), [items, menu]);
+  const cambiarCortesia = (id: number, cantidad: number) => setCortesias((prev) => ({ ...prev, [id]: cantidad }));
+  const quitarLinea = (id: number) => { cambiarCortesia(id, 0); removeItem(id); };
+  const cambiarCantidad = (id: number, delta: number) => {
+    const proxima = (items.find((item) => item.platillo.id === id)?.cantidad ?? 0) + delta;
+    if (proxima < (cortesias[id] ?? 0)) cambiarCortesia(id, Math.max(0, proxima));
+    updateQty(id, delta);
+  };
 
   const abrirCobro = () => {
-    if (faltantesPedido.length > 0) return;
     if (habilitarMesas && tipoServicio === 'MESA' && !mesaId) {
       setError('Selecciona una mesa en el panel de la orden antes de cobrar.');
       return;
@@ -206,6 +221,7 @@ export const VentasPage: React.FC = () => {
 
   const handleVentaConfirmada = async (ticket: TicketImprimibleModel) => {
     clearCart();
+    setCortesias({});
     setCartNotice(null);
     setIdempotencyKey('');
     setCheckoutOpen(false);
@@ -250,14 +266,14 @@ export const VentasPage: React.FC = () => {
             setOnlyAvailable(false);
           }}
           onAddItem={addItem}
-          onUpdateQty={updateQty}
+          onUpdateQty={cambiarCantidad}
           onVerReceta={setInfoPlatillo}
           onNuevoPlatillo={() => void abrirNuevoPlatillo()}
           onNuevaCategoria={() => setCatModalOpen(true)}
         />
 
         <CarritoOrdenPanel
-          items={items}
+          items={itemsCobro}
           tipoServicio={tipoServicio}
           mesaId={mesaId}
           mesaSeleccionada={mesaSeleccionada}
@@ -273,11 +289,13 @@ export const VentasPage: React.FC = () => {
           onSetTipoServicio={setTipoServicio}
           onSetMesaId={setMesaId}
           onSetNombreTurno={setNombreTurno}
-          onUpdateQty={updateQty}
+          onUpdateQty={cambiarCantidad}
           onUpdateNotes={updateNotes}
-          onRemoveItem={removeItem}
+          onRemoveItem={quitarLinea}
+          onCortesia={cambiarCortesia}
           onClearCart={() => {
             clearCart();
+            setCortesias({});
             setCartNotice(null);
           }}
           onAbrirCobro={abrirCobro}
@@ -288,7 +306,7 @@ export const VentasPage: React.FC = () => {
         open={mobileCartOpen}
         onOpen={() => setMobileCartOpen(true)}
         onClose={() => setMobileCartOpen(false)}
-        items={items}
+        items={itemsCobro}
         tipoServicio={tipoServicio}
         mesaId={mesaId}
         mesaSeleccionada={mesaSeleccionada}
@@ -304,11 +322,13 @@ export const VentasPage: React.FC = () => {
         onSetTipoServicio={setTipoServicio}
         onSetMesaId={setMesaId}
         onSetNombreTurno={setNombreTurno}
-        onUpdateQty={updateQty}
+        onUpdateQty={cambiarCantidad}
         onUpdateNotes={updateNotes}
-        onRemoveItem={removeItem}
+        onRemoveItem={quitarLinea}
+        onCortesia={cambiarCortesia}
         onClearCart={() => {
           clearCart();
+          setCortesias({});
           setCartNotice(null);
         }}
         onAbrirCobro={abrirCobro}
@@ -325,7 +345,7 @@ export const VentasPage: React.FC = () => {
         mesaId={mesaId}
         mesaSeleccionada={mesaSeleccionada}
         nombreTurno={nombreTurno}
-        items={items}
+        items={itemsCobro}
         totals={totals}
         onVentaConfirmada={handleVentaConfirmada}
         onInventarioInsuficiente={() => void cargarMenu(true)}

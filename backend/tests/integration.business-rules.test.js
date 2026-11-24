@@ -229,7 +229,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
   // =========================================================================
   // 1. No vender más stock del existente + rollback intacto
   // =========================================================================
-  it('vende solo platillos con receta valorizada y descuenta las onzas por unidad al cobrar', async () => {
+  it('registra costo pendiente sin receta y descuenta las onzas por unidad cuando hay receta', async () => {
     async function enviar(path, body, method = 'POST') {
       const res = await fetch(`${API_BASE_URL}${path}`, {
         method,
@@ -263,7 +263,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     assert.equal(sinReceta.status, 201);
     const platillo = sinReceta.body.data;
     platillosTemporalesIds.push(platillo.id);
-    assert.equal(platillo.disponible, false);
+    assert.equal(platillo.disponible, true);
 
     const pedido = {
       idempotencyKey: crypto.randomUUID(),
@@ -272,7 +272,10 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
       montoRecibido: 100,
       items: [{ platilloId: platillo.id, cantidad: 2 }],
     };
-    assert.equal((await enviar('/ventas/confirmar', pedido)).status, 400);
+    const ventaPendiente = await enviar('/ventas/confirmar', pedido);
+    assert.equal(ventaPendiente.status, 201);
+    assert.equal(ventaPendiente.body.data.venta.detalles[0].costoPendiente, true);
+    assert.equal(ventaPendiente.body.data.venta.detalles[0].consumoPendiente, true);
     assert.equal((await enviar(`/ventas/platillos/${platillo.id}`, {
       disponible: true, receta: [{ ingredienteId: sinCosto.id, cantidadOz: 3 }],
     }, 'PUT')).status, 400);
@@ -326,12 +329,13 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     const antes = await Ingrediente.findByPk(ingrediente.id);
     assert.equal(Number(antes.stockActualOz), 20, 'Configurar una receta no consume existencias');
 
-    const confirmado = await enviar('/ventas/confirmar', pedido);
+    const nuevoPedido = { ...pedido, idempotencyKey: crypto.randomUUID() };
+    const confirmado = await enviar('/ventas/confirmar', nuevoPedido);
     assert.equal(confirmado.status, 201, JSON.stringify(confirmado.body.error));
     const venta = confirmado.body.data.venta;
     assert.equal(Number(venta.total), 50);
     assert.equal(Number(venta.costoTotalReceta), 12);
-    assert.equal((await enviar('/ventas/confirmar', pedido)).body.data.venta.id, venta.id);
+    assert.equal((await enviar('/ventas/confirmar', nuevoPedido)).body.data.venta.id, venta.id);
     const despues = await Ingrediente.findByPk(ingrediente.id);
     assert.equal(Number(despues.stockActualOz), 14, 'Dos porciones consumen seis onzas una sola vez');
     const movimiento = await InventarioMovimiento.findOne({
@@ -340,7 +344,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     assert.equal(Number(movimiento.cantidadOz), -6);
   });
 
-  it('impide vender más stock del existente (ConflictError 409) y mantiene el stock intacto tras rollback', async () => {
+  it('descuenta lo disponible y registra el consumo pendiente sin saldo negativo', async () => {
     const ing = await crearIngredienteTemporal('STK', 10);
     const platillo = await crearPlatilloTemporal('STK', ing.id, 6, 56);
 
@@ -359,10 +363,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     assert.ok(primeraVenta.factura.id > 0);
     assert.equal(await leerStockOz(ing.id), 4);
 
-    // Segunda venta: requiere 6 oz pero solo hay 4 oz -> debe lanzar ConflictError (409)
-    await assert.rejects(
-      () =>
-        VentasService.confirmarVenta(
+    const segundaVenta = await VentasService.confirmarVenta(
           adminUser,
           {
             tipoServicio: TipoServicio.MOSTRADOR,
@@ -371,26 +372,18 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
             items: [{ platilloId: platillo.id, cantidad: 1 }],
           },
           CLIENT_META,
-        ),
-      (err) => {
-        assert.ok(err instanceof ConflictError, `Esperado ConflictError, recibido ${err?.name}`);
-        assert.equal(err.statusCode, 409);
-        assert.match(err.message, /Inventario insuficiente/i);
-        assert.ok(Array.isArray(err.details?.faltantes) && err.details.faltantes.length === 1);
-        assert.equal(err.details.faltantes[0].requeridoOz, 6);
-        assert.equal(err.details.faltantes[0].disponibleOz, 4);
-        return true;
-      },
     );
-
-    // Verificar rollback intacto: el stock debe permanecer exactamente en 4 oz
-    assert.equal(await leerStockOz(ing.id), 4);
+    const detalle = segundaVenta.venta.detalles[0];
+    assert.equal(detalle.consumoPendiente, true);
+    assert.equal(detalle.consumoReceta[0].descontadoOz, 4);
+    assert.equal(detalle.consumoReceta[0].pendienteOz, 2);
+    assert.equal(await leerStockOz(ing.id), 0);
   });
 
   // =========================================================================
   // 2. Concurrencia sin sobreventa (Race Condition - Fase 1.1)
   // =========================================================================
-  it('garantiza concurrencia sin sobreventa (Fase 1.1): de 5 ventas simultáneas solo 1 triunfa y el stock queda en 0 oz', async () => {
+  it('descuenta una vez el saldo disponible y registra el pendiente en ventas concurrentes', async () => {
     const ing = await crearIngredienteTemporal('CONC', 6);
     const platillo = await crearPlatilloTemporal('CONC', ing.id, 6, 45);
 
@@ -410,18 +403,10 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
 
     const resultados = await Promise.allSettled(promesas);
     const exitosas = resultados.filter((r) => r.status === 'fulfilled');
-    const fallidas = resultados.filter((r) => r.status === 'rejected');
-
-    assert.equal(exitosas.length, 1, `Debe triunfar exactamente 1 venta, triunfaron ${exitosas.length}`);
-    assert.equal(fallidas.length, 4, `Deben fallar exactamente 4 ventas, fallaron ${fallidas.length}`);
-
-    for (const rechazo of fallidas) {
-      assert.ok(
-        rechazo.reason instanceof ConflictError,
-        `Cada rechazo debe ser ConflictError, recibido: ${rechazo.reason?.name}: ${rechazo.reason?.message}`,
-      );
-      assert.equal(rechazo.reason.statusCode, 409);
-    }
+    assert.equal(exitosas.length, 5, JSON.stringify(resultados.filter((r) => r.status === 'rejected')));
+    const consumos = exitosas.map((r) => r.value.venta.detalles[0].consumoReceta[0]);
+    assert.equal(consumos.reduce((suma, c) => suma + c.descontadoOz, 0), 6);
+    assert.equal(consumos.reduce((suma, c) => suma + c.pendienteOz, 0), 24);
 
     const stockFinal = await leerStockOz(ing.id);
     assert.equal(stockFinal, 0, `El stock final debe ser exactamente 0 oz, obtenido ${stockFinal}`);

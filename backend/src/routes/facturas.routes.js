@@ -18,6 +18,8 @@ const anularFacturaSchema = z.object({
     codigoMotivo: z.enum(Object.values(CODIGOS_MOTIVO_AUDITORIA)).optional(),
     reintegrarInventario: z.boolean().default(false),
 });
+const reimprimirSchema = z.object({ documento: z.enum(['FACTURA', 'COMANDA']).default('FACTURA') })
+    .default({ documento: 'FACTURA' });
 // Auditoría P1: filtros de listado validados (montos, fechas, estado y longitud de búsquedas)
 const listarFacturasQuerySchema = z
     .object({
@@ -35,6 +37,6 @@ router.use(authenticate);
 // Nota de negocio: NO existen endpoints PUT ni DELETE para facturas (inmutables)
 router.get('/', requirePermission('facturas:ver'), validate(listarFacturasQuerySchema, 'query'), FacturasController.listar);
 router.get('/:id', requirePermission('facturas:ver'), validate(idParamsSchema, 'params'), FacturasController.detalle);
-router.post('/:id/reimprimir', requirePermission('facturas:reimprimir'), validate(idParamsSchema, 'params'), FacturasController.reimprimir);
+router.post('/:id/reimprimir', requirePermission('facturas:reimprimir'), validate(idParamsSchema, 'params'), validate(reimprimirSchema), FacturasController.reimprimir);
 router.post('/:id/anular', requirePermission('facturas:anular'), validate(idParamsSchema, 'params'), validate(anularFacturaSchema), FacturasController.anular);
 module.exports = router;

@@ -42,6 +42,60 @@ async function consultar(sql, replacements) {
 }
 const num = (v) => round2(Number(v ?? 0));
 class ReportesService {
+    static async obtenerBalance(sucursalId, fechaDesde, fechaHasta) {
+        const { desde, hasta, labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
+        const fechas = { sucursalId, desde, hasta };
+        const [resumen, [lineas], [nomina], [egresos]] = await Promise.all([
+            this.obtenerResumen(sucursalId, fechaDesde, fechaHasta),
+            consultar(`SELECT
+                    COALESCE(SUM(ROUND(d.cantidad_cortesia * d.costo_unitario_receta, 2)), 0) AS "costoCortesias",
+                    COALESCE(SUM(d.cantidad_cortesia * d.precio_unitario), 0) AS "valorCortesias",
+                    COALESCE(SUM(d.cantidad_cortesia), 0) AS "unidadesCortesia",
+                    COUNT(*) FILTER (WHERE d.costo_pendiente) AS "lineasCostoPendiente",
+                    COUNT(*) FILTER (WHERE d.consumo_pendiente) AS "lineasConsumoPendiente"
+                FROM venta_detalles d JOIN ventas v ON v.id = d.venta_id
+                WHERE v.sucursal_id = :sucursalId AND v.estado = 'COMPLETADA'
+                  AND v.created_at BETWEEN :desde AND :hasta`, fechas),
+            consultar(`SELECT
+                    COALESCE(SUM(n.sueldo_mensual / EXTRACT(DAY FROM
+                        (date_trunc('month', d.dia) + INTERVAL '1 month - 1 day'))), 0) AS sueldos,
+                    COUNT(DISTINCT u.id) FILTER (WHERE n.sueldo_mensual IS NULL OR u.fecha_ingreso IS NULL) AS "personalConDatosPendientes"
+                FROM usuarios u
+                JOIN generate_series(CAST(:labelDesde AS date), CAST(:labelHasta AS date), INTERVAL '1 day') d(dia)
+                  ON (u.fecha_ingreso IS NULL OR u.fecha_ingreso <= d.dia::date)
+                 AND (u.fecha_baja_nomina IS NULL OR u.fecha_baja_nomina >= d.dia::date)
+                LEFT JOIN LATERAL (
+                    SELECT sueldo_mensual FROM nomina_vigencias
+                    WHERE usuario_id = u.id AND desde <= d.dia::date ORDER BY desde DESC LIMIT 1
+                ) n ON true
+                WHERE u.sucursal_id = :sucursalId AND (u.activo OR u.fecha_ingreso IS NOT NULL)`,
+            { sucursalId, labelDesde, labelHasta }),
+            consultar(`SELECT COALESCE(SUM(monto), 0) AS "egresosSinClasificar"
+                FROM caja_movimientos WHERE sucursal_id = :sucursalId AND tipo = 'EGRESO_MANUAL'
+                AND created_at BETWEEN :desde AND :hasta`, fechas),
+        ]);
+        const k = resumen.kpis;
+        const sueldos = num(nomina.sueldos);
+        const costoCortesias = num(lineas.costoCortesias);
+        const costoVendido = round2(k.costoRecetasTotal - costoCortesias);
+        return {
+            periodo: resumen.periodo,
+            ventasSinIva: k.subtotalSinIva,
+            costoVendido,
+            costoCortesias,
+            valorCortesias: num(lineas.valorCortesias),
+            unidadesCortesia: Number(lineas.unidadesCortesia),
+            mermas: k.costoMermasTotal,
+            sueldos,
+            compras: k.totalCompras,
+            inventarioActual: k.valorInventarioActual,
+            egresosSinClasificar: num(egresos.egresosSinClasificar),
+            resultado: round2(k.subtotalSinIva - costoVendido - costoCortesias - k.costoMermasTotal - sueldos),
+            lineasCostoPendiente: Number(lineas.lineasCostoPendiente),
+            lineasConsumoPendiente: Number(lineas.lineasConsumoPendiente),
+            personalConDatosPendientes: Number(nomina.personalConDatosPendientes),
+        };
+    }
     static async obtenerResumen(sucursalId, fechaDesde, fechaHasta) {
         const { desde, hasta, labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
         const rango = { sucursalId, desde, hasta };
@@ -115,7 +169,7 @@ class ReportesService {
                 margenBrutoPct,
                 ticketPromedio,
             },
-            porMetodoPago: agrupar(porMetodo, ['EFECTIVO', 'TARJETA']),
+            porMetodoPago: agrupar(porMetodo, ['EFECTIVO', 'TARJETA', 'SIN_COBRO']),
             porTipoServicio: agrupar(porServicio, ['MOSTRADOR', 'LLEVAR', 'MESA', 'DELIVERY']),
         };
     }

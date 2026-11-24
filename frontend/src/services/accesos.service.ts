@@ -36,6 +36,7 @@ export const accesosService = {
       email?: string;
       password?: string;
       fechaIngreso?: string;
+      fechaBajaNomina?: string | null;
       sueldoMensual?: number;
       rolId?: number;
       permisosPersonalizados?: Array<{ permisoId: number; permitido: boolean }>;

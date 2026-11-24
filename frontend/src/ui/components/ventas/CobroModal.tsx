@@ -60,11 +60,19 @@ export const CobroModal: React.FC<CobroModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [faltantes, setFaltantes] = useState<FaltanteStock[]>([]);
+  const [motivoCortesia, setMotivoCortesia] = useState('');
+  const [supervisor, setSupervisor] = useState('');
+  const [claveSupervisor, setClaveSupervisor] = useState('');
+  const tieneCortesia = items.some((item) => (item.cantidadCortesia ?? 0) > 0);
+  const sinCobro = tieneCortesia && totals.total === 0;
 
   useEffect(() => {
     if (open) {
       setCheckoutError(null);
       setFaltantes([]);
+      setMotivoCortesia('');
+      setSupervisor('');
+      setClaveSupervisor('');
       setMetodoPago('EFECTIVO');
       setMontoRecibido(totals.total.toFixed(2));
       setReferenciaPago('');
@@ -88,12 +96,12 @@ export const CobroModal: React.FC<CobroModalProps> = ({
       return;
     }
 
-    if (metodoPago === 'EFECTIVO' && recibidoNum < totals.total) {
+    if (!sinCobro && metodoPago === 'EFECTIVO' && recibidoNum < totals.total) {
       setCheckoutError('El monto recibido en efectivo es menor al total a cobrar');
       return;
     }
 
-    if (metodoPago === 'TARJETA' && !referenciaPago.trim()) {
+    if (!sinCobro && metodoPago === 'TARJETA' && !referenciaPago.trim()) {
       setCheckoutError('Ingresa el número de autorización / voucher POS para pagos con tarjeta');
       return;
     }
@@ -105,15 +113,20 @@ export const CobroModal: React.FC<CobroModalProps> = ({
         tipoServicio: habilitarMesas ? tipoServicio : tipoServicio === 'MESA' ? 'MOSTRADOR' : tipoServicio,
         mesaId: habilitarMesas && tipoServicio === 'MESA' ? mesaId : null,
         nombreTurno: nombreTurno.trim() || undefined,
-        metodoPago,
-        montoRecibido: metodoPago === 'EFECTIVO' ? recibidoNum : totals.total,
-        referenciaPago: metodoPago === 'TARJETA' ? referenciaPago.trim() : undefined,
+        metodoPago: sinCobro ? 'SIN_COBRO' : metodoPago,
+        montoRecibido: sinCobro ? 0 : metodoPago === 'EFECTIVO' ? recibidoNum : totals.total,
+        referenciaPago: !sinCobro && metodoPago === 'TARJETA' ? referenciaPago.trim() : undefined,
+        cortesia: tieneCortesia ? {
+          motivo: motivoCortesia.trim(),
+          autorizacion: { identifier: supervisor.trim(), password: claveSupervisor },
+        } : undefined,
         clienteNit: clienteNit.trim() || 'CF',
         clienteNombre: clienteNombre.trim() || 'Consumidor Final',
         clienteDireccion: clienteDireccion.trim() || 'Ciudad',
         items: items.map((i) => ({
           platilloId: i.platillo.id,
           cantidad: i.cantidad,
+          cantidadCortesia: i.cantidadCortesia,
           notas: i.notas.trim() || undefined,
         })),
       });
@@ -128,6 +141,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
         setCheckoutError(err instanceof Error ? err.message : 'No se pudo confirmar la venta');
       }
     } finally {
+      setClaveSupervisor('');
       setSubmitting(false);
     }
   };
@@ -210,6 +224,27 @@ export const CobroModal: React.FC<CobroModalProps> = ({
           </div>
         </div>
 
+        {tieneCortesia && (
+          <fieldset className="space-y-2 rounded-xl border border-amber-300 p-3">
+            <legend className="px-1 text-sm font-bold">Autorizar cortesía</legend>
+            <label className="block text-sm">Motivo de la cortesía
+              <input required minLength={3} maxLength={250} value={motivoCortesia}
+                onChange={(e) => setMotivoCortesia(e.target.value)}
+                className="block w-full rounded-lg border border-slate-300 p-2" />
+            </label>
+            <label className="block text-sm">Usuario del auditor o administrador
+              <input required minLength={2} maxLength={120} value={supervisor}
+                onChange={(e) => setSupervisor(e.target.value)} autoComplete="off"
+                className="block w-full rounded-lg border border-slate-300 p-2" />
+            </label>
+            <label className="block text-sm">Contraseña de autorización
+              <input required type="password" maxLength={128} value={claveSupervisor}
+                onChange={(e) => setClaveSupervisor(e.target.value)} autoComplete="off"
+                className="block w-full rounded-lg border border-slate-300 p-2" />
+            </label>
+          </fieldset>
+        )}
+        {sinCobro ? <p className="rounded-xl bg-teal-50 p-3 text-sm">Cortesía completa · Sin cobro</p> : <>
         <fieldset>
           <legend className="mb-2 block text-xs font-extrabold uppercase tracking-wider text-slate-600">
             2. ¿Cómo paga el cliente?
@@ -306,6 +341,7 @@ export const CobroModal: React.FC<CobroModalProps> = ({
           </Field>
         )}
 
+        </>}
         <div className="flex justify-end gap-3 pt-2">
           <button
             type="button"

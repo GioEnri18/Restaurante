@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { Op, col, fn, where } = require('sequelize');
-const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA, ROL_ADMIN_CODIGO } = require('../config/constants');
 const { CajaSesion, EstadoCaja, Rol, Usuario } = require('../models');
 const { BadRequestError, ForbiddenError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
@@ -23,14 +23,17 @@ const MENSAJE_RECHAZO = 'Autorización de supervisor inválida';
  *
  * @returns {{ id: number, username: string, autoAutorizado: boolean }}
  */
-async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMeta) {
-  if (user.permisos?.includes(PERMISO_AUTORIZAR_CAJA)) {
+async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMeta, esCortesia = false) {
+  const permiso = esCortesia ? 'ventas:autorizar_cortesia' : PERMISO_AUTORIZAR_CAJA;
+  if (!esCortesia && user.permisos?.includes(permiso)) {
     return { id: user.id, username: user.username, autoAutorizado: true };
   }
 
   if (!autorizacion?.identifier || !autorizacion?.password) {
     throw new BadRequestError(
-      `Para ${operacion} la caja se requiere el usuario y la contraseña de un administrador o auditor`,
+      esCortesia
+        ? 'Ingresa el usuario y la contraseña que autorizan la cortesía'
+        : `Para ${operacion} la caja se requiere el usuario y la contraseña de un administrador o auditor`,
       [{ campo: 'autorizacion', mensaje: 'Ingresa las credenciales del supervisor que autoriza' }],
     );
   }
@@ -38,6 +41,7 @@ async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMe
   const identificador = autorizacion.identifier.trim().toLowerCase();
   const supervisor = await Usuario.findOne({
     where: {
+      ...(esCortesia ? { sucursalId: user.sucursalId } : {}),
       [Op.or]: [
         where(fn('lower', col('Usuario.username')), identificador),
         where(fn('lower', col('Usuario.email')), identificador),
@@ -64,7 +68,7 @@ async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMe
       cajaSesionId: cajaAbierta?.id ?? null,
       correlacionId,
     }, {
-      accion: ACCIONES_AUDITORIA.AUTORIZACION_CAJA_RECHAZADA,
+      accion: esCortesia ? ACCIONES_AUDITORIA.AUTORIZACION_CORTESIA_RECHAZADA : ACCIONES_AUDITORIA.AUTORIZACION_CAJA_RECHAZADA,
       entidad: 'CajaSesion',
       entidadId: cajaAbierta?.id ?? null,
       valorNuevo: { operacion, supervisor: sanitizarIdentificadorAuditoria(identificador), motivo },
@@ -93,7 +97,7 @@ async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMe
           valorNuevo: {
             supervisor: sanitizarIdentificadorAuditoria(identificador),
             bloqueadoHasta: resultadoIntento.bloqueadoHasta,
-            origen: `autorizacion_${operacion}_caja`,
+            origen: esCortesia ? 'autorizacion_cortesia' : `autorizacion_${operacion}_caja`,
           },
           codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
           motivo: 'Cuenta bloqueada temporalmente por intentos fallidos al autorizar caja',
@@ -103,19 +107,25 @@ async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMe
     await rechazar(bloqueado ? 'Supervisor bloqueado temporalmente' : 'Credenciales incorrectas', MENSAJE_RECHAZO, correlacionId);
   }
 
-  if (supervisor.id === user.id) {
+  if (!esCortesia && supervisor.id === user.id) {
     await rechazar('Autorización propia', 'La caja debe autorizarla un supervisor distinto de quien la opera');
   }
   if (!supervisor.activo || !supervisor.rol?.activo || supervisor.sucursalId !== user.sucursalId) {
     await rechazar('Supervisor inactivo o de otra sucursal');
   }
   const permisos = await obtenerPermisosEfectivos(supervisor.id, supervisor.rolId);
-  if (!permisos.includes(PERMISO_AUTORIZAR_CAJA)) {
-    await rechazar('Sin permiso caja:autorizar', 'El usuario indicado no puede autorizar operaciones de caja');
+  if (!permisos.includes(permiso) || (esCortesia && ![ROL_ADMIN_CODIGO, 'AUDITOR'].includes(supervisor.rol.codigo))) {
+    await rechazar(
+      esCortesia ? 'Sin permiso para autorizar cortesías' : 'Sin permiso caja:autorizar',
+      esCortesia ? MENSAJE_RECHAZO : 'El usuario indicado no puede autorizar operaciones de caja',
+    );
   }
 
   await supervisor.update({ intentosFallidos: 0 });
   return { id: supervisor.id, username: supervisor.username, autoAutorizado: false };
 }
 
-module.exports = { verificarAutorizacionCaja, PERMISO_AUTORIZAR_CAJA };
+const verificarAutorizacionCortesia = (user, autorizacion, clientMeta) =>
+  verificarAutorizacionCaja(user, autorizacion, 'cortesia', clientMeta, true);
+
+module.exports = { verificarAutorizacionCaja, verificarAutorizacionCortesia, PERMISO_AUTORIZAR_CAJA };

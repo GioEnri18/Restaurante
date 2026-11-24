@@ -108,7 +108,7 @@ class VentasController {
     static async obtenerComanda(req, res, next) {
         try {
             const ventaId = Number(req.params.id);
-            const data = await VentasService.obtenerComanda(ventaId, req.user.sucursalId);
+            const data = await VentasService.obtenerComanda(ventaId, req.user.sucursalId, req.user);
             res.status(200).json({ ok: true, data });
         }
         catch (error) {

@@ -30,6 +30,8 @@ const {
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { calcularDesgloseIvaIncluido, round2, round4 } = require('../shared/utils/tax');
+const { verificarAutorizacionCortesia } = require('./autorizacion-supervisor.service');
+const { alcanceTurnoCajero } = require('./facturas.service');
 const { ORDEN_PRECEDENCIA_MENU_ESPECIAL } = require('./menu.service');
 
 /**
@@ -62,6 +64,11 @@ function calcularHuellaPedido(input) {
         ? round2(input.montoRecibido)
         : null,
     referenciaPago: input.referenciaPago?.trim() || null,
+    ...((input.items ?? []).some((item) => item.cantidadCortesia) ? {
+      cortesias: input.items.filter((item) => item.cantidadCortesia)
+        .map((item) => [item.platilloId, item.cantidadCortesia]).sort((a, b) => a[0] - b[0] || a[1] - b[1]),
+      motivoCortesia: input.cortesia?.motivo?.trim(),
+    } : {}),
   };
   return crypto.createHash('sha256').update(JSON.stringify(normalizado)).digest('hex');
 }
@@ -121,6 +128,17 @@ class CheckoutService {
       }
     }
 
+    if (input.items.some((item) => !Number.isInteger(item.cantidadCortesia ?? 0)
+      || (item.cantidadCortesia ?? 0) < 0 || (item.cantidadCortesia ?? 0) > item.cantidad)) {
+      throw new BadRequestError('La cantidad de cortesía debe estar entre cero y las unidades pedidas');
+    }
+    const tieneCortesia = input.items.some((item) => item.cantidadCortesia > 0);
+    if (tieneCortesia && (input.cortesia?.motivo?.trim().length ?? 0) < 3) {
+      throw new BadRequestError('Ingresa el motivo de la cortesía');
+    }
+    const aprobador = tieneCortesia
+      ? await verificarAutorizacionCortesia(user, input.cortesia.autorizacion, clientMeta)
+      : null;
     try {
       return await withTransaction(
         async (tx) => {
@@ -203,9 +221,6 @@ class CheckoutService {
             if (!platillo.disponible) {
               throw new BadRequestError(`El platillo "${platillo.nombre}" no está disponible`);
             }
-            if (!platillo.receta?.length) {
-              throw new BadRequestError(`Configura la receta de "${platillo.nombre}" antes de venderlo`);
-            }
             for (const r of platillo.receta ?? []) {
               ingredienteIdsSet.add(r.ingredienteId);
             }
@@ -252,42 +267,35 @@ class CheckoutService {
             if (precioUnitario < 0.01) {
               throw new BadRequestError(`Configura un precio de venta válido para "${platillo.nombre}"`);
             }
-            const subtotalItem = round2(precioUnitario * item.cantidad);
+            const cantidadCortesia = item.cantidadCortesia ?? 0;
+            const subtotalItem = round2(precioUnitario * (item.cantidad - cantidadCortesia));
             totalConIva = round2(totalConIva + subtotalItem);
 
             let costoUnitarioReceta = 0;
+            let costoPendiente = !platillo.receta?.length;
+            let consumoPendiente = !platillo.receta?.length;
+            const consumoReceta = [];
             for (const r of platillo.receta ?? []) {
               const ingBloqueado = ingredientesBloqueadosMap.get(r.ingredienteId);
-              if (!ingBloqueado) {
-                throw new NotFoundError(
-                  `Ingrediente ID ${r.ingredienteId} de la receta "${platillo.nombre}" no encontrado en esta sucursal`,
-                );
-              }
               const ozPorUnidad = Number(r.cantidadOz);
-              const costoOz = ingBloqueado.costoPromedioOz;
-              if (ozPorUnidad <= 0 || costoOz <= 0) {
-                throw new BadRequestError(
-                  `Revisa la cantidad y el costo de "${ingBloqueado.nombre}" en la receta de "${platillo.nombre}"`,
-                );
-              }
+              if (!(ozPorUnidad > 0)) throw new BadRequestError('La receta contiene una cantidad inválida');
+              const costoOz = ingBloqueado?.costoPromedioOz ?? 0;
+              if (costoOz <= 0) costoPendiente = true;
               costoUnitarioReceta = round4(costoUnitarioReceta + ozPorUnidad * costoOz);
-
-              const consumoTotalItemOz = round4(ozPorUnidad * item.cantidad);
+              const requeridoOz = round4(ozPorUnidad * item.cantidad);
               const prev = consumoIngredientes.get(r.ingredienteId);
-              if (prev) {
-                prev.cantidadRequeridaOz = round4(prev.cantidadRequeridaOz + consumoTotalItemOz);
-              } else {
-                consumoIngredientes.set(r.ingredienteId, {
-                  nombre: ingBloqueado.nombre,
-                  cantidadRequeridaOz: consumoTotalItemOz,
-                  stockBloqueadoOz: ingBloqueado.stockActualOz,
-                  costoUnitarioOz: costoOz,
-                });
-              }
-            }
-
-            if (round2(costoUnitarioReceta) < 0.01) {
-              throw new BadRequestError(`Configura un costo de receta válido para "${platillo.nombre}"`);
+              const stockBloqueadoOz = Math.max(0, ingBloqueado?.stockActualOz ?? 0);
+              const descontadoTotal = prev?.cantidadDescontadaOz ?? 0;
+              const descontadoOz = round4(Math.min(requeridoOz, round4(stockBloqueadoOz - descontadoTotal)));
+              const pendienteOz = round4(requeridoOz - descontadoOz);
+              consumoPendiente ||= pendienteOz > 0;
+              consumoReceta.push({ ingredienteId: r.ingredienteId, requeridoOz, descontadoOz, pendienteOz, costoOz });
+              consumoIngredientes.set(r.ingredienteId, {
+                nombre: ingBloqueado?.nombre ?? String(r.ingredienteId),
+                cantidadDescontadaOz: round4(descontadoTotal + descontadoOz),
+                stockBloqueadoOz,
+                costoUnitarioOz: costoOz,
+              });
             }
             costoTotalReceta = round2(costoTotalReceta + costoUnitarioReceta * item.cantidad);
             detallesData.push({
@@ -296,26 +304,12 @@ class CheckoutService {
               cantidad: item.cantidad,
               precioUnitario,
               costoUnitarioReceta,
+              cantidadCortesia,
+              costoPendiente,
+              consumoPendiente,
+              consumoReceta,
               subtotal: subtotalItem,
               notas: item.notas?.trim() || null,
-            });
-          }
-
-          // 6. Validar existencias suficientes usando los saldos bloqueados
-          const faltantes = [];
-          for (const [, consumo] of consumoIngredientes.entries()) {
-            if (consumo.stockBloqueadoOz < consumo.cantidadRequeridaOz) {
-              faltantes.push({
-                ingrediente: consumo.nombre,
-                requeridoOz: consumo.cantidadRequeridaOz,
-                disponibleOz: consumo.stockBloqueadoOz,
-              });
-            }
-          }
-
-          if (faltantes.length > 0) {
-            throw new ConflictError('Inventario insuficiente para preparar el pedido', {
-              faltantes,
             });
           }
 
@@ -326,6 +320,9 @@ class CheckoutService {
           let montoRecibido = total;
           let cambio = 0;
 
+          if ((total === 0) !== (input.metodoPago === MetodoPago.SIN_COBRO)) {
+            throw new BadRequestError('El método sin cobro corresponde únicamente a pedidos completos de cortesía');
+          }
           if (input.metodoPago === MetodoPago.EFECTIVO) {
             montoRecibido = round2(input.montoRecibido ?? total);
             if (montoRecibido < total) {
@@ -334,7 +331,7 @@ class CheckoutService {
               );
             }
             cambio = round2(montoRecibido - total);
-          } else if (!input.referenciaPago?.trim()) {
+          } else if (input.metodoPago === MetodoPago.TARJETA && !input.referenciaPago?.trim()) {
             throw new BadRequestError(
               'La referencia o autorización de pago es obligatoria para pagos con tarjeta',
             );
@@ -379,7 +376,9 @@ class CheckoutService {
               metodoPago: input.metodoPago,
               montoRecibido,
               cambio,
-              referenciaPago: input.referenciaPago?.trim() || null,
+              referenciaPago: total > 0 ? input.referenciaPago?.trim() || null : null,
+              cortesiaAutorizadaPorId: aprobador?.id ?? null,
+              cortesiaMotivo: aprobador ? input.cortesia.motivo.trim() : null,
               observaciones: input.observaciones?.trim() || null,
               idempotencyKey: idempotencyKey ?? null,
               idempotencyHuella: huella,
@@ -431,7 +430,7 @@ class CheckoutService {
           const detalleVuelto = cambio > 0
             ? ` · Recibido Q${montoRecibido.toFixed(2)}, vuelto Q${cambio.toFixed(2)}`
             : '';
-          await CajaMovimiento.create(
+          if (total > 0) await CajaMovimiento.create(
             {
               sucursalId: user.sucursalId,
               cajaSesionId: cajaAbierta.id,
@@ -447,17 +446,17 @@ class CheckoutService {
 
           if (input.metodoPago === MetodoPago.EFECTIVO) {
             await cajaAbierta.increment('totalVentasEfectivo', { by: montoNetoCaja, transaction: tx });
-          } else {
+          } else if (input.metodoPago === MetodoPago.TARJETA) {
             await cajaAbierta.increment('totalVentasTarjeta', { by: total, transaction: tx });
           }
 
           // 14. Descuento atómico condicionado en orden ascendente + Kardex desde saldo bloqueado
           for (const ingredienteId of sortedIngredienteIds) {
             const consumo = consumoIngredientes.get(ingredienteId);
-            if (!consumo) continue;
+            if (!consumo?.cantidadDescontadaOz) continue;
 
             const stockAnteriorOz = consumo.stockBloqueadoOz;
-            const stockNuevoOz = round4(stockAnteriorOz - consumo.cantidadRequeridaOz);
+            const stockNuevoOz = round4(stockAnteriorOz - consumo.cantidadDescontadaOz);
 
             const updatedRows = await sequelize.query(
               `UPDATE ingredientes
@@ -469,7 +468,7 @@ class CheckoutService {
                RETURNING id`,
               {
                 replacements: {
-                  qty: consumo.cantidadRequeridaOz,
+                  qty: consumo.cantidadDescontadaOz,
                   id: ingredienteId,
                   sucursalId: user.sucursalId,
                 },
@@ -490,7 +489,7 @@ class CheckoutService {
                 ingredienteId,
                 usuarioId: user.id,
                 tipo: TipoMovimientoInventario.SALIDA_VENTA,
-                cantidadOz: -consumo.cantidadRequeridaOz,
+                cantidadOz: -consumo.cantidadDescontadaOz,
                 stockAnteriorOz,
                 stockNuevoOz,
                 costoUnitarioOz: consumo.costoUnitarioOz,
@@ -523,11 +522,30 @@ class CheckoutService {
                 mesaNumero,
                 nombreTurno: comanda.nombreTurno,
                 items: detallesData.length,
+                lineasCostoPendiente: detallesData.filter((d) => d.costoPendiente).length,
+                lineasConsumoPendiente: detallesData.filter((d) => d.consumoPendiente).length,
               },
               impactoFinanciero: total,
             },
             tx,
           );
+
+          if (aprobador) {
+            const lineas = detallesData.filter((d) => d.cantidadCortesia > 0).map((d) => ({
+              platillo: d.nombrePlatillo, cantidad: d.cantidadCortesia,
+              valorHabitual: round2(d.cantidadCortesia * d.precioUnitario),
+              costo: round2(d.cantidadCortesia * d.costoUnitarioReceta),
+              costoPendiente: d.costoPendiente, consumoPendiente: d.consumoPendiente,
+            }));
+            await AuditService.registrarEvento({ user, clientMeta, cajaSesionId: cajaAbierta.id, aprobadorId: aprobador.id }, {
+              accion: ACCIONES_AUDITORIA.CORTESIA_APLICADA,
+              entidad: 'Venta',
+              entidadId: venta.id,
+              valorNuevo: { factura: numeroCompleto, lineas },
+              motivo: input.cortesia.motivo.trim(),
+              impactoFinanciero: -round2(lineas.reduce((suma, linea) => suma + linea.valorHabitual, 0)),
+            }, tx);
+          }
 
           const ventaCompleta = await Venta.findByPk(venta.id, {
             include: [
@@ -581,7 +599,8 @@ class CheckoutService {
     return mesa.get({ plain: true });
   }
 
-  static async obtenerComanda(ventaId, sucursalId) {
+  static async obtenerComanda(ventaId, sucursalId, user) {
+    const turno = await alcanceTurnoCajero(user);
     const comanda = await Comanda.findOne({
       where: { ventaId, sucursalId },
       include: [
@@ -589,6 +608,7 @@ class CheckoutService {
         {
           model: Venta,
           as: 'venta',
+          ...(turno ? { where: { cajaSesionId: turno.id, createdAt: turno.fecha } } : {}),
           include: [
             { model: Usuario, as: 'usuario', attributes: ['nombreCompleto'] },
             { model: VentaDetalle, as: 'detalles' },

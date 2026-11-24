@@ -12,7 +12,7 @@ import {
 import { BarChart3, FileDown, FileSpreadsheet, Filter, UtensilsCrossed } from 'lucide-react';
 import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../../models';
 import { isAbortError } from '../../services/httpClient';
-import { reportesService } from '../../services/reportes.service';
+import { BalanceEconomico, reportesService } from '../../services/reportes.service';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
@@ -34,9 +34,11 @@ function rangoActual(periodo: 'dia' | 'semana' | 'mes') {
 
 export const ReportesPage: React.FC = () => {
   const canExport = useAuthStore((s) => s.can('reportes:exportar'));
+  const puedeVerBalance = useAuthStore((s) => s.can('reportes:balance'));
   const [fechaDesde, setFechaDesde] = useState(() => rangoActual('mes').desde);
   const [fechaHasta, setFechaHasta] = useState(() => rangoActual('mes').hasta);
   const [resumen, setResumen] = useState<ReporteResumenModel | null>(null);
+  const [balance, setBalance] = useState<BalanceEconomico | null>(null);
   const [serie, setSerie] = useState<SerieVentasDiaModel[]>([]);
   const [topProductos, setTopProductos] = useState<TopProductoModel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,13 +59,15 @@ export const ReportesPage: React.FC = () => {
     setCargandoDetalle(false);
     setError(null);
     try {
-      const [res, ser, top] = await Promise.all([
+      const [res, ser, top, balancePeriodo] = await Promise.all([
         reportesService.obtenerResumen(fechaDesde, fechaHasta, controller.signal),
         reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta, 1, controller.signal),
         reportesService.obtenerTopProductos(fechaDesde, fechaHasta, 1, controller.signal),
+        puedeVerBalance ? reportesService.obtenerBalance(fechaDesde, fechaHasta, controller.signal) : null,
       ]);
       if (solicitud !== solicitudActual.current || controller.signal.aborted) return;
       setResumen(res);
+      setBalance(balancePeriodo);
       setSerie(ser.items);
       setMetaDetalle(ser.meta);
       setTopProductos(top.items);
@@ -72,12 +76,13 @@ export const ReportesPage: React.FC = () => {
       if (isAbortError(err) || solicitud !== solicitudActual.current) return;
       setError(err instanceof Error ? err.message : 'Error cargando reportes');
       setResumen(null);
+      setBalance(null);
       setSerie([]);
       setTopProductos([]);
     } finally {
       if (solicitud === solicitudActual.current) setLoading(false);
     }
-  }, [fechaDesde, fechaHasta]);
+  }, [fechaDesde, fechaHasta, puedeVerBalance]);
 
   useEffect(() => {
     void cargar();
@@ -268,7 +273,44 @@ export const ReportesPage: React.FC = () => {
         </div>
       </div>
 
-      {resumen && !loading && (
+      {balance && !loading && (
+        <section className="rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
+          <h2 className="text-base font-bold text-teal-950">Balance general del período</h2>
+          <p className="text-sm text-slate-600">{balance.periodo.fechaDesde} al {balance.periodo.fechaHasta}</p>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {([
+              ['Ventas sin IVA', balance.ventasSinIva],
+              ['Costo de lo vendido', balance.costoVendido],
+              ['Costo de cortesías', balance.costoCortesias],
+              ['Costo de mermas', balance.mermas],
+              ['Sueldos del período', balance.sueldos],
+              ['Compras del período', balance.compras],
+              ['Valor del inventario actual', balance.inventarioActual],
+              ['Egresos de caja sin clasificar', balance.egresosSinClasificar],
+            ] as const).map(([etiqueta, monto]) => (
+              <div key={etiqueta}>
+                <dt className="text-sm text-slate-600">{etiqueta}</dt>
+                <dd className="text-lg font-bold">{formatCurrency(monto)}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-4 text-lg font-bold text-teal-950">
+            {balance.lineasCostoPendiente || balance.personalConDatosPendientes || balance.egresosSinClasificar
+              ? 'Resultado parcial' : balance.resultado < 0 ? 'Pérdida del período' : 'Ganancia del período'}{' '}
+            {formatCurrency(balance.resultado)}
+          </p>
+          <p className="mt-2 text-sm text-slate-600">
+            {balance.unidadesCortesia} unidades de cortesía · Valor habitual {formatCurrency(balance.valorCortesias)}
+            {' · '}{balance.lineasCostoPendiente} líneas con costo pendiente
+            {' · '}{balance.lineasConsumoPendiente} líneas con consumo pendiente
+            {' · '}{balance.personalConDatosPendientes} personas con datos de nómina pendientes.
+          </p>
+          {balance.egresosSinClasificar > 0 && <p className="mt-1 text-sm text-slate-600">
+            Los egresos de caja sin clasificar se muestran aparte hasta confirmar a qué gasto corresponden.
+          </p>}
+        </section>
+      )}
+      {!puedeVerBalance && resumen && !loading && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-bold text-slate-900">Balance del período</h2>
           <p className="mt-1 text-sm text-slate-600">

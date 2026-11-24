@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { Op, col, fn } = require('sequelize');
 const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA, ROL_ADMIN_CODIGO } = require('../config/constants');
-const { withTransaction } = require('../config/database');
+const { sequelize, withTransaction } = require('../config/database');
 const { env } = require('../config/env');
 const { Permiso, Rol, RolPermiso, Usuario, UsuarioPermiso } = require('../models');
 const { BadRequestError, NotFoundError } = require('../shared/errors/AppError');
@@ -9,10 +9,21 @@ const { AuditService } = require('../shared/services/audit.service');
 const { PermisosCache } = require('../shared/services/permisosCache');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { revocarSesionesUsuario } = require('./auth.service');
+const { toIsoDateInTimezone } = require('../shared/utils/dates');
+
+async function registrarSueldoVigente(usuario, desde, transaction) {
+    if (usuario.sueldoMensual === null || usuario.sueldoMensual === undefined || !desde) return;
+    await sequelize.query(`INSERT INTO nomina_vigencias (usuario_id, desde, sueldo_mensual)
+        VALUES (:usuarioId, :desde, :sueldo)
+        ON CONFLICT (usuario_id, desde) DO UPDATE SET sueldo_mensual = EXCLUDED.sueldo_mensual`, {
+        replacements: { usuarioId: usuario.id, desde, sueldo: usuario.sueldoMensual }, transaction,
+    });
+}
 
 function datosNomina(usuario) {
     return {
         fechaIngreso: usuario.fechaIngreso ?? null,
+        fechaBajaNomina: usuario.fechaBajaNomina ?? null,
         sueldoMensual: usuario.sueldoMensual ? Number(usuario.sueldoMensual) : null,
     };
 }
@@ -28,7 +39,8 @@ async function obtenerRolParaAlta(rolId, transaction) {
 
 async function auditarNomina(admin, usuario, anterior, clientMeta, tx, correlacionId = null) {
     const nuevo = datosNomina(usuario);
-    if (anterior && nuevo.fechaIngreso === anterior.fechaIngreso && nuevo.sueldoMensual === anterior.sueldoMensual) return;
+    if (anterior && nuevo.fechaIngreso === anterior.fechaIngreso && nuevo.fechaBajaNomina === anterior.fechaBajaNomina
+        && nuevo.sueldoMensual === anterior.sueldoMensual) return;
     await AuditService.registrarEvento({
         user: admin,
         clientMeta,
@@ -127,6 +139,7 @@ class AccesosService {
                 fechaIngreso: input.fechaIngreso,
                 sueldoMensual: input.sueldoMensual,
             }, { transaction: tx });
+            await registrarSueldoVigente(usuario, usuario.fechaIngreso, tx);
             if (input.permisosPersonalizados?.length) {
                 await UsuarioPermiso.bulkCreate(input.permisosPersonalizados.map((p) => ({
                     usuarioId: usuario.id,
@@ -193,6 +206,10 @@ class AccesosService {
             const prevRolCodigo = actual.rol.codigo;
             const prevRolId = actual.rolId;
             const nominaAnterior = datosNomina(actual);
+            const fechaBaja = input.fechaBajaNomina === undefined ? actual.fechaBajaNomina : input.fechaBajaNomina;
+            if (fechaBaja && fechaBaja < (input.fechaIngreso ?? actual.fechaIngreso ?? fechaBaja)) {
+                throw new BadRequestError('La fecha de salida de nómina no puede ser anterior al ingreso');
+            }
             const prevOverrides = (actual.usuarioPermisos ?? []).map((up) => ({
                 permiso: up.permiso?.codigo ?? '',
                 permitido: up.permitido,
@@ -206,10 +223,13 @@ class AccesosService {
                 email: input.email ? input.email.trim().toLowerCase() : actual.email,
                 rolId: input.rolId ?? actual.rolId,
                 fechaIngreso: input.fechaIngreso ?? actual.fechaIngreso,
+                fechaBajaNomina: fechaBaja,
                 sueldoMensual: input.sueldoMensual ?? actual.sueldoMensual,
                 ...(passwordHash ? { passwordHash } : {}),
             }, { transaction: tx });
-            const nominaCambia = actual.fechaIngreso !== nominaAnterior.fechaIngreso
+            const sueldoCambia = datosNomina(actual).sueldoMensual !== nominaAnterior.sueldoMensual;
+            if (sueldoCambia) await registrarSueldoVigente(actual, toIsoDateInTimezone(), tx);
+            const nominaCambia = actual.fechaIngreso !== nominaAnterior.fechaIngreso || actual.fechaBajaNomina !== nominaAnterior.fechaBajaNomina
                 || (actual.sueldoMensual ? Number(actual.sueldoMensual) : null) !== nominaAnterior.sueldoMensual;
             const correlacionId = nominaCambia ? AuditService.crearCorrelacionId() : null;
             await auditarNomina(adminUser, actual, nominaAnterior, clientMeta, tx, correlacionId);

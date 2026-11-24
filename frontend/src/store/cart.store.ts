@@ -140,10 +140,7 @@ export const useCartStore = create<CartState>()(
               });
               continue;
             }
-            const sinDisponibilidad =
-              !vigente.disponible ||
-              vigente.precioVenta <= 0 ||
-              (!vigente.stockDisponible && vigente.receta.length === 0);
+            const sinDisponibilidad = !vigente.disponible || vigente.precioVenta <= 0;
             if (sinDisponibilidad) {
               eliminados.push({
                 platilloId: entry.platilloId,

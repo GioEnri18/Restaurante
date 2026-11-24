@@ -21,6 +21,7 @@ const { NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const {
   construirFiltrosAuditoria,
+  ACCIONES_ECONOMICAS,
   escaparCeldaCsv,
   expresionSqlSeveridadEfectiva,
 } = require('../shared/utils/auditoriaFiltros');
@@ -80,6 +81,17 @@ function formatearLog(registro) {
     impactoFinanciero,
     actorRolCodigo: plain.actorRolCodigo ?? plain.usuario?.rol?.codigo ?? null,
   };
+}
+
+function formatearPorAmbito(registro, ambito) {
+  const log = formatearLog(registro);
+  if (ambito === 'sistema' && log.accion === ACCIONES_AUDITORIA.GESTION_NOMINA) {
+    return { ...log, valorAnterior: null, valorNuevo: null, impactoFinanciero: null };
+  }
+  if (ambito === 'economica') {
+    return { ...log, ipAddress: null, userAgent: null };
+  }
+  return log;
 }
 
 /**
@@ -234,13 +246,16 @@ class AuditoriaService {
     });
 
     return {
-      items: rows.map(formatearLog),
+      items: rows.map((fila) => formatearPorAmbito(fila, conNomina)),
       meta: buildPaginationMeta(count, page, limit),
     };
   }
 
   static async obtenerDetalle(sucursalId, id, conNomina = false) {
-    const log = await AuditoriaLog.findByPk(id, { include: INCLUDES_LISTADO });
+    const { whereSequelize } = construirFiltrosAuditoria(sucursalId, {}, conNomina);
+    const log = await AuditoriaLog.findOne({
+      where: { [Op.and]: [whereSequelize, { id }] }, include: INCLUDES_LISTADO,
+    });
     if (!log) {
       throw new NotFoundError('Registro de auditoría no encontrado');
     }
@@ -251,14 +266,13 @@ class AuditoriaService {
       throw new NotFoundError('Registro de auditoría no encontrado');
     }
 
-    const formateado = formatearLog(log);
+    const formateado = formatearPorAmbito(log, conNomina);
     const [entidadOrigen, correlacionados] = await Promise.all([
       resolverEntidadOrigen(formateado, sucursalId),
       formateado.correlacionId
         ? AuditoriaLog.findAll({
             where: {
-              correlacionId: formateado.correlacionId,
-              ...(conNomina ? {} : { accion: { [Op.ne]: ACCIONES_AUDITORIA.GESTION_NOMINA } }),
+              [Op.and]: [whereSequelize, { correlacionId: formateado.correlacionId }],
             },
             order: [['createdAt', 'ASC'], ['id', 'ASC']],
             include: INCLUDES_LISTADO,
@@ -271,7 +285,7 @@ class AuditoriaService {
       entidadOrigen,
       eventosCorrelacionados: correlacionados
         .filter((ev) => ev.id !== formateado.id && (ev.sucursalId === null || ev.sucursalId === sucursalId))
-        .map(formatearLog),
+        .map((fila) => formatearPorAmbito(fila, conNomina)),
     };
   }
 
@@ -574,7 +588,7 @@ class AuditoriaService {
       const loteAProcesar = hayMasDelLimite ? filas.slice(0, restante) : filas;
 
       for (const raw of loteAProcesar) {
-        const log = formatearLog(raw);
+        const log = formatearPorAmbito(raw, conNomina);
         const linea = [
           log.id,
           log.createdAt instanceof Date ? log.createdAt.toISOString() : log.createdAt,
@@ -660,7 +674,7 @@ class AuditoriaService {
     );
 
     return {
-      acciones: Object.values(ACCIONES_AUDITORIA).filter(
+      acciones: conNomina === 'economica' ? ACCIONES_ECONOMICAS : Object.values(ACCIONES_AUDITORIA).filter(
         (accion) => conNomina || accion !== ACCIONES_AUDITORIA.GESTION_NOMINA,
       ),
       usuarios: usuariosPlanos,

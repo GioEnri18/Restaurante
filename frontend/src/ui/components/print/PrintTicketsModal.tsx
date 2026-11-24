@@ -6,6 +6,7 @@ import { formatCurrency, formatDateTime } from '../../../utils/formatters';
 
 interface PrintTicketsModalProps {
   ticket: TicketImprimibleModel | null;
+  includeFactura?: boolean;
   includeComanda?: boolean;
   autoPrint?: boolean;
   onClose: () => void;
@@ -17,6 +18,7 @@ interface PrintTicketsModalProps {
  */
 export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   ticket,
+  includeFactura = true,
   includeComanda = true,
   autoPrint = false,
   onClose,
@@ -110,7 +112,9 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
         <div className="no-print flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h3 id={titleId} className="text-lg font-bold text-slate-900">
-              {includeComanda ? 'Factura y Comanda de Cocina' : `Reimpresión Factura ${ticket.factura.numeroCompleto}`}
+              {includeComanda
+                ? includeFactura ? 'Factura y comanda de cocina' : `Reimpresión de comanda ${ticket.comanda?.numeroComanda ?? ''}`
+                : `Reimpresión de factura ${ticket.factura.numeroCompleto}`}
             </h3>
             <p className="text-xs text-slate-600">Formato optimizado para impresora térmica de 80 mm</p>
           </div>
@@ -139,7 +143,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
         <div className="overflow-y-auto bg-slate-100 p-5">
           <div className="print-area mx-auto grid grid-cols-1 gap-6 md:grid-cols-2">
             {/* TICKET 1: FACTURA */}
-            <div className="mx-auto w-full max-w-[320px] rounded-xl border border-slate-300 bg-white p-4 font-mono text-xs text-slate-900 shadow-sm">
+            {includeFactura && <div className="mx-auto w-full max-w-[320px] rounded-xl border border-slate-300 bg-white p-4 font-mono text-xs text-slate-900 shadow-sm">
               <div className="border-b border-dashed border-slate-400 pb-2 text-center">
                 <p className="text-sm font-bold uppercase">{ticket.sucursal.nombre}</p>
                 <p>NIT: {ticket.sucursal.nit}</p>
@@ -176,6 +180,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                     <div className="flex justify-between">
                       <span>
                         {item.cantidad}x {item.nombrePlatillo}
+                        {!!item.cantidadCortesia && ` · ${item.cantidadCortesia} de cortesía`}
                       </span>
                       <span>{formatCurrency(item.subtotal)}</span>
                     </div>
@@ -199,7 +204,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
               </div>
 
               <div className="pt-2 text-xs">
-                <p>Pago: {ticket.venta.metodoPago}</p>
+                <p>Pago: {ticket.venta.metodoPago === 'SIN_COBRO' ? 'Cortesía · sin cobro' : ticket.venta.metodoPago}</p>
                 {ticket.venta.metodoPago === 'EFECTIVO' && (
                   <>
                     <p>Recibido: {formatCurrency(ticket.venta.montoRecibido)}</p>
@@ -209,7 +214,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                 {ticket.factura.felUuid && <p className="mt-1 break-all">FEL UUID: {ticket.factura.felUuid}</p>}
                 <p className="mt-2 text-center font-semibold">¡Gracias por su preferencia!</p>
               </div>
-            </div>
+            </div>}
 
             {/* TICKET 2: COMANDA DE COCINA */}
             {includeComanda && ticket.comanda && (
@@ -217,6 +222,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                 <div className="border-b-2 border-dashed border-slate-900 pb-2 text-center">
                   <p className="text-base font-black tracking-wide">COMANDA COCINA</p>
                   <p className="text-sm font-bold">{ticket.comanda.numeroComanda}</p>
+                  {!includeFactura && <p className="text-xs font-bold">REIMPRESIÓN</p>}
                   <p className="mt-1 text-sm font-bold uppercase">
                     {ticket.comanda.tipoServicio === 'MOSTRADOR'
                       ? 'EN MOSTRADOR'
@@ -241,6 +247,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                     <div key={item.id} className="border-b border-dotted border-slate-300 pb-1.5">
                       <p className="text-sm font-bold">
                         [{item.cantidad}] {item.nombrePlatillo}
+                        {!!item.cantidadCortesia && ` · ${item.cantidadCortesia} de cortesía`}
                       </p>
                       {item.notas && (
                         <p className="mt-0.5 rounded bg-amber-100 px-1.5 py-0.5 font-bold text-slate-900">

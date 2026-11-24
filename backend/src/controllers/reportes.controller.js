@@ -1,5 +1,13 @@
 const { ReportesService } = require('../services/reportes.service');
 class ReportesController {
+    static async balance(req, res, next) {
+        try {
+            const data = await ReportesService.obtenerBalance(req.user.sucursalId, req.query.fechaDesde, req.query.fechaHasta);
+            res.set('Cache-Control', 'no-store').json({ ok: true, data });
+        } catch (error) {
+            next(error);
+        }
+    }
     static async resumen(req, res, next) {
         try {
             const fechaDesde = typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined;

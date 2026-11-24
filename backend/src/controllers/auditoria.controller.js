@@ -1,5 +1,13 @@
 const { ROL_ADMIN_CODIGO } = require('../config/constants');
 const { AuditoriaService } = require('../services/auditoria.service');
+const { ForbiddenError } = require('../shared/errors/AppError');
+
+function alcanceAuditoria(user, query) {
+  if (user.rolCodigo === ROL_ADMIN_CODIGO) return query?.ambito === 'economica' ? 'economica' : true;
+  if (user.rolCodigo === 'AUDITOR_SISTEMA' && user.permisos.includes('auditoria:sistema')) return 'sistema';
+  if (user.permisos.includes('auditoria:economica')) return 'economica';
+  throw new ForbiddenError('No tienes acceso al ámbito de auditoría');
+}
 
 function extraerFiltrosQuery(query) {
   return {
@@ -22,7 +30,7 @@ function extraerFiltrosQuery(query) {
 class AuditoriaController {
   static async listar(req, res, next) {
     try {
-      const conNomina = req.user.rolCodigo === ROL_ADMIN_CODIGO;
+      const conNomina = alcanceAuditoria(req.user, req.query);
       const { items, meta } = await AuditoriaService.listar(
         req.user.sucursalId,
         extraerFiltrosQuery(req.query),
@@ -36,7 +44,7 @@ class AuditoriaController {
 
   static async resumen(req, res, next) {
     try {
-      const conNomina = req.user.rolCodigo === ROL_ADMIN_CODIGO;
+      const conNomina = alcanceAuditoria(req.user, req.query);
       const data = await AuditoriaService.obtenerResumen(
         req.user.sucursalId,
         extraerFiltrosQuery(req.query),
@@ -50,7 +58,7 @@ class AuditoriaController {
 
   static async detalle(req, res, next) {
     try {
-      const conNomina = req.user.rolCodigo === ROL_ADMIN_CODIGO;
+      const conNomina = alcanceAuditoria(req.user, req.query);
       const data = await AuditoriaService.obtenerDetalle(
         req.user.sucursalId,
         Number(req.params.id),
@@ -64,7 +72,7 @@ class AuditoriaController {
 
   static async exportar(req, res, next) {
     try {
-      const conNomina = req.user.rolCodigo === ROL_ADMIN_CODIGO;
+      const conNomina = alcanceAuditoria(req.user, req.query);
       await AuditoriaService.exportarCsv(
         req.user,
         extraerFiltrosQuery(req.query),
@@ -79,7 +87,7 @@ class AuditoriaController {
 
   static async catalogo(req, res, next) {
     try {
-      const conNomina = req.user.rolCodigo === ROL_ADMIN_CODIGO;
+      const conNomina = alcanceAuditoria(req.user, req.query);
       const data = await AuditoriaService.obtenerCatalogoFiltros(req.user.sucursalId, conNomina);
       res.status(200).json({ ok: true, data });
     } catch (error) {

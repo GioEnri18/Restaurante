@@ -39,7 +39,7 @@ export interface LoginResultModel {
 
 // --- VENTAS / MENÚ ---
 export type TipoServicio = 'MOSTRADOR' | 'LLEVAR' | 'MESA' | 'DELIVERY';
-export type MetodoPago = 'EFECTIVO' | 'TARJETA';
+export type MetodoPago = 'EFECTIVO' | 'TARJETA' | 'SIN_COBRO';
 
 export interface CategoriaModel {
   id: number;
@@ -150,6 +150,7 @@ export interface CartItemModel {
   platillo: PlatilloModel;
   cantidad: number;
   notas: string;
+  cantidadCortesia?: number;
 }
 
 export interface TicketImprimibleModel {
@@ -195,6 +196,9 @@ export interface TicketImprimibleModel {
       cantidad: number;
       precioUnitario: number;
       subtotal: number;
+      cantidadCortesia?: number;
+      consumoPendiente?: boolean;
+      costoPendiente?: boolean;
       notas: string | null;
     }>;
   };
@@ -547,6 +551,7 @@ export interface UsuarioAdminModel {
   activo: boolean;
   ultimoAcceso: string | null;
   fechaIngreso: string | null;
+  fechaBajaNomina?: string | null;
   sueldoMensual: number | null;
   rol: {
     id: number;

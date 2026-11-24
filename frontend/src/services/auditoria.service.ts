@@ -10,6 +10,7 @@ import {
 import { buildQueryString, httpClient } from './httpClient';
 
 export interface AuditoriaQueryParams {
+  ambito?: 'economica' | 'sistema';
   page?: number;
   limit?: number;
   usuarioId?: string;
@@ -52,8 +53,8 @@ export const auditoriaService = {
     return auditoriaAdapter.fromResumenJson(res.data);
   },
 
-  async obtenerDetalle(id: number, signal?: AbortSignal): Promise<AuditoriaDetalleModel> {
-    const res = await httpClient.get<unknown>(`/auditoria/${id}`, { signal });
+  async obtenerDetalle(id: number, signal?: AbortSignal, ambito?: AuditoriaQueryParams['ambito']): Promise<AuditoriaDetalleModel> {
+    const res = await httpClient.get<unknown>(`/auditoria/${id}${buildQueryString({ ambito })}`, { signal });
     return auditoriaAdapter.fromDetalleJson(res.data);
   },
 
@@ -65,8 +66,8 @@ export const auditoriaService = {
     await httpClient.downloadFile(`/auditoria/exportar${qs}`, `auditoria-pos${sufijo}.csv`);
   },
 
-  async obtenerCatalogo(signal?: AbortSignal): Promise<AuditoriaCatalogoModel> {
-    const res = await httpClient.get<unknown>('/auditoria/acciones', { signal });
+  async obtenerCatalogo(signal?: AbortSignal, ambito?: AuditoriaQueryParams['ambito']): Promise<AuditoriaCatalogoModel> {
+    const res = await httpClient.get<unknown>(`/auditoria/acciones${buildQueryString({ ambito })}`, { signal });
     return auditoriaAdapter.fromCatalogoJson(res.data);
   },
 };

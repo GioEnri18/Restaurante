@@ -11,7 +11,7 @@ import {
   PaginationMeta,
   SeveridadAuditoria,
 } from '../../models';
-import { auditoriaService } from '../../services/auditoria.service';
+import { AuditoriaQueryParams, auditoriaService } from '../../services/auditoria.service';
 import { isAbortError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
 import { Alert } from '../components/common/Alert';
@@ -46,8 +46,10 @@ export const AuditoriaPage: React.FC = () => {
   const puedeVerNomina = useAuthStore((s) => s.isAdmin());
   const puedeEditarPersonal = useAuthStore((s) => s.can('accesos:ver') && s.can('accesos:gestionar'));
   const puedeExportar = useAuthStore((s) => s.can('auditoria:exportar'));
+  const rol = useAuthStore((s) => s.usuario?.rol.codigo);
 
-  const [vista, setVista] = useState<'actividad' | 'nomina'>('actividad');
+  const [vista, setVista] = useState<'actividad' | 'economica' | 'nomina'>('actividad');
+  const ambito = vista === 'economica' || (!puedeVerNomina && rol !== 'AUDITOR_SISTEMA') ? 'economica' : 'sistema';
   const [filtros, setFiltros] = useState<AuditoriaFiltrosState>(FILTROS_INICIALES);
   const debouncedImpactoMin = useDebouncedValue(filtros.impactoMin, 350);
 
@@ -74,7 +76,7 @@ export const AuditoriaPage: React.FC = () => {
   useEffect(() => {
     const controller = new AbortController();
     void auditoriaService
-      .obtenerCatalogo(controller.signal)
+      .obtenerCatalogo(controller.signal, ambito)
       .then((cat) => {
         if (!controller.signal.aborted) setCatalogo(cat);
       })
@@ -84,10 +86,11 @@ export const AuditoriaPage: React.FC = () => {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [ambito]);
 
   const construirQuery = useCallback(
-    () => ({
+    (): AuditoriaQueryParams => ({
+      ambito,
       fechaDesde: filtros.fechaDesde || undefined,
       fechaHasta: filtros.fechaHasta || undefined,
       usuarioId: filtros.usuarioId || undefined,
@@ -98,6 +101,7 @@ export const AuditoriaPage: React.FC = () => {
       impactoMin: debouncedImpactoMin.trim() || undefined,
     }),
     [
+      ambito,
       filtros.fechaDesde,
       filtros.fechaHasta,
       filtros.usuarioId,
@@ -143,7 +147,7 @@ export const AuditoriaPage: React.FC = () => {
 
   // Al cambiar cualquier filtro vuelve automáticamente a la página 1 y cancela peticiones previas
   useEffect(() => {
-    if (vista !== 'actividad') return;
+    if (vista === 'nomina') return;
     void cargar(1, true);
     return () => {
       abortListaRef.current?.abort();
@@ -187,7 +191,7 @@ export const AuditoriaPage: React.FC = () => {
     setCargandoDetalle(true);
 
     try {
-      const data = await auditoriaService.obtenerDetalle(log.id, controller.signal);
+      const data = await auditoriaService.obtenerDetalle(log.id, controller.signal, ambito);
       if (!controller.signal.aborted) setDetalle(data);
     } catch (err) {
       if (isAbortError(err) || controller.signal.aborted) return;
@@ -249,14 +253,14 @@ export const AuditoriaPage: React.FC = () => {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">
             <ShieldCheck className="h-7 w-7 text-brand-700" aria-hidden="true" />
-            Auditoría e Investigación
+            {ambito === 'economica' ? 'Auditoría económica' : 'Auditoría de sistema'}
           </h1>
           <p className="text-sm text-slate-600">
             Supervisa eventos críticos, impactos financieros, aprobaciones de caja y patrones inusuales.
           </p>
         </div>
 
-        {vista === 'actividad' && puedeExportar && (
+        {vista !== 'nomina' && puedeExportar && (
           <button
             type="button"
             disabled={exportando}
@@ -272,22 +276,28 @@ export const AuditoriaPage: React.FC = () => {
       {/* Selector Actividad / Nómina (Nómina estrictamente solo para Administrador) */}
       {puedeVerNomina && (
         <div className="flex flex-wrap gap-2" aria-label="Vistas de Auditoría">
-          {(['actividad', 'nomina'] as const).map((opcion) => (
+          {(['actividad', 'economica', 'nomina'] as const).map((opcion) => (
             <button
               key={opcion}
               type="button"
               aria-pressed={vista === opcion}
-              onClick={() => setVista(opcion)}
+              onClick={() => { cerrarDetalle(); limpiarFiltros(); setVista(opcion); }}
               className={`min-h-[44px] rounded-xl border px-4 text-sm font-bold transition ${
                 vista === opcion
                   ? 'border-teal-700 bg-teal-700 text-white'
                   : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
-              {opcion === 'actividad' ? 'Actividad' : 'Nómina'}
+              {opcion === 'actividad' ? 'Sistema' : opcion === 'economica' ? 'Económica' : 'Nómina'}
             </button>
           ))}
         </div>
+      )}
+      {vista !== 'nomina' && (
+        <button type="button" onClick={() => setFiltros({ ...FILTROS_INICIALES, accion: 'CORTESIA_APLICADA' })}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold">
+          Ver cortesías registradas
+        </button>
       )}
 
       {puedeVerNomina && vista === 'nomina' ? (

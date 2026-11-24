@@ -34,8 +34,8 @@ export const facturasService = {
     return facturasAdapter.fromDetalleJson(res.data);
   },
 
-  async reimprimir(id: number): Promise<FacturaDetalleModel> {
-    const res = await httpClient.post<unknown>(`/facturas/${id}/reimprimir`);
+  async reimprimir(id: number, documento: 'FACTURA' | 'COMANDA' = 'FACTURA'): Promise<FacturaDetalleModel> {
+    const res = await httpClient.post<unknown>(`/facturas/${id}/reimprimir`, { documento });
     return facturasAdapter.fromDetalleJson(res.data);
   },
 

@@ -26,6 +26,9 @@ interface RawFacturaVentaDetalleJson {
   cantidad?: number | string;
   precioUnitario?: number | string;
   subtotal?: number | string;
+  cantidadCortesia?: number | string;
+  consumoPendiente?: boolean;
+  costoPendiente?: boolean;
   notas?: string | null;
 }
 
@@ -104,7 +107,7 @@ function toTipoServicio(value: unknown, fallback: TipoServicio): TipoServicio {
 
 /** Normaliza el método de pago a la unión de dominio permitida. */
 function toMetodoPago(value: unknown): MetodoPago {
-  return value === 'TARJETA' ? 'TARJETA' : 'EFECTIVO';
+  return value === 'TARJETA' || value === 'SIN_COBRO' ? value : 'EFECTIVO';
 }
 
 // Adaptador de Facturas: traduce JSON de listado, detalle y reimpresión
@@ -196,6 +199,9 @@ export const facturasAdapter = {
             cantidad: Number(d.cantidad ?? 0),
             precioUnitario: Number(d.precioUnitario ?? 0),
             subtotal: Number(d.subtotal ?? 0),
+            cantidadCortesia: Number(d.cantidadCortesia ?? 0),
+            consumoPendiente: Boolean(d.consumoPendiente),
+            costoPendiente: Boolean(d.costoPendiente),
             notas: d.notas ?? null,
           };
         }),

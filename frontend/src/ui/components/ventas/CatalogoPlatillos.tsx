@@ -283,7 +283,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
       ) : (
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           {pagina.items.map((p) => {
-            const disabled = !p.disponible || !p.stockDisponible;
+            const disabled = !p.disponible;
             const inCartQty = qtyByPlatillo.get(p.id) ?? 0;
             const visual = getCategoriaVisual(p.categoriaNombre);
             const CatIcon = visual.Icon;
