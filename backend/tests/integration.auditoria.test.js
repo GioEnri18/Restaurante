@@ -846,4 +846,18 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
     assert.equal(despues.sueldos - antes.sueldos, 4000);
     assert.equal(despues.personalConDatosPendientes, antes.personalConDatosPendientes - 1);
   });
+
+  it('reserva las consultas de Economía al administrador y al auditor económico', async () => {
+    const permiso = await Permiso.findOne({ where: { codigo: 'reportes:balance' } });
+    const rolesSinAcceso = await Rol.findAll({ where: { codigo: ['CAJERO', 'AUDITOR_SISTEMA'] } });
+    assert.equal(rolesSinAcceso.length, 2);
+    for (const rol of rolesSinAcceso) {
+      const { db, jwt } = await crearUsuarioConRol(`eco${rol.id}`, rol);
+      await UsuarioPermiso.create({ usuarioId: db.id, permisoId: permiso.id, permitido: true });
+      assert.equal((await apiGet('/reportes/balance', jwt)).status, 403);
+      assert.equal((await apiGet('/reportes/gastos', jwt)).status, 403);
+    }
+    assert.equal((await apiGet('/reportes/balance', adminJwt)).status, 200);
+    assert.equal((await apiGet('/reportes/gastos', auditorJwt)).status, 200);
+  });
 });

@@ -16,7 +16,7 @@ import {
   X,
   ChefHat,
 } from 'lucide-react';
-import { env } from '../../../config/env';
+import { env, ROLES_ECONOMIA } from '../../../config/env';
 import { useAuthStore } from '../../../store/auth.store';
 
 interface NavItem {
@@ -24,6 +24,7 @@ interface NavItem {
   label: string;
   hint: string;
   permiso: string | readonly string[];
+  rolesPermitidos?: readonly string[];
   adminOnly?: boolean;
   Icon: React.ElementType;
 }
@@ -61,7 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
         Icon: CalendarClock,
       },
       { to: '/reportes', label: 'Reportes', hint: 'Ventas, ganancias y PDF', permiso: 'reportes:ver', Icon: BarChart3 },
-      { to: '/economia', label: 'Economía', hint: 'Gastos, nómina y resultado mensual', permiso: 'reportes:balance', Icon: Calculator },
+      { to: '/economia', label: 'Economía', hint: 'Gastos, nómina y resultado mensual', permiso: 'reportes:balance', rolesPermitidos: ROLES_ECONOMIA, Icon: Calculator },
       { to: '/auditoria', label: 'Auditoría de sistema', hint: 'Historial de cambios', permiso: ['auditoria:ver', 'auditoria:sistema'], Icon: ShieldCheck },
       { to: '/accesos', label: 'Personal y accesos', hint: 'Dar de alta y asignar permisos', permiso: 'accesos:ver', adminOnly: true, Icon: Users },
     ],
@@ -88,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ...group,
     items: group.items.filter((item) => {
       if (item.adminOnly && !isAdmin()) return false;
+      if (item.rolesPermitidos && (!usuario || !item.rolesPermitidos.includes(usuario.rol.codigo))) return false;
       return typeof item.permiso === 'string' ? can(item.permiso) : item.permiso.every(can);
     }),
   })).filter((group) => group.items.length > 0);

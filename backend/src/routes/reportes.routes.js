@@ -2,7 +2,8 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { ReportesController } = require('../controllers/reportes.controller');
 const { authenticate } = require('../middlewares/authenticate');
-const { requireAdmin, requirePermission } = require('../middlewares/authorize');
+const { requireAdmin, requirePermission, requireRole } = require('../middlewares/authorize');
+const { ROL_ADMIN_CODIGO } = require('../config/constants');
 const { validate } = require('../middlewares/validate');
 const {
     rangoFechasQuery,
@@ -49,10 +50,11 @@ const topProductosSchema = z
 })
     .superRefine(refinarRangoFechas);
 const router = Router();
+const puedeConsultarEconomia = [requireRole(ROL_ADMIN_CODIGO, 'AUDITOR'), requirePermission('reportes:balance')];
 router.use(authenticate);
 router.get('/resumen', requirePermission('reportes:ver'), validate(rangoReporteSchema, 'query'), ReportesController.resumen);
-router.get('/balance', requirePermission('reportes:balance'), validate(rangoReporteSchema, 'query'), ReportesController.balance);
-router.get('/gastos', requirePermission('reportes:balance'), validate(ventasPeriodoSchema, 'query'), ReportesController.gastos);
+router.get('/balance', puedeConsultarEconomia, validate(rangoReporteSchema, 'query'), ReportesController.balance);
+router.get('/gastos', puedeConsultarEconomia, validate(ventasPeriodoSchema, 'query'), ReportesController.gastos);
 router.post('/gastos', requireAdmin, requirePermission('reportes:balance'), validate(gastoOperativoSchema), ReportesController.registrarGasto);
 router.put('/gastos/:id', requireAdmin, requirePermission('reportes:balance'), validate(idParamsSchema, 'params'), validate(editarGastoSchema), ReportesController.modificarGasto);
 router.post('/gastos/:id/anular', requireAdmin, requirePermission('reportes:balance'), validate(idParamsSchema, 'params'), validate(anularGastoSchema), ReportesController.modificarGasto);

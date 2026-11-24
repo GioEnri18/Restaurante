@@ -51,3 +51,5 @@ export const env = {
   // Solo habilita botones de credenciales demo en entornos de prueba cuando se define explícitamente
   SHOW_DEMO_LOGIN: getEnvBoolean(import.meta.env.VITE_SHOW_DEMO_LOGIN, false),
 } as const;
+
+export const ROLES_ECONOMIA = [env.ADMIN_ROLE_CODE, 'AUDITOR'] as const;

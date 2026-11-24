@@ -63,4 +63,12 @@ function requireAdmin(req, _res, next) {
   next();
 }
 
-module.exports = { requirePermission, requireAllPermissions, requireAdmin };
+function requireRole(...codigos) {
+  return (req, _res, next) => {
+    if (!req.user) return next(new UnauthorizedError());
+    if (!codigos.includes(req.user.rolCodigo)) return next(new ForbiddenError('El rol no tiene acceso a esta sección'));
+    next();
+  };
+}
+
+module.exports = { requirePermission, requireAllPermissions, requireAdmin, requireRole };

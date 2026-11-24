@@ -1,6 +1,7 @@
 import React, { lazy, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from './store/auth.store';
+import { ROLES_ECONOMIA } from './config/env';
 import { MainLayout } from './ui/components/layout/MainLayout';
 import { ProtectedRoute } from './ui/components/layout/ProtectedRoute';
 
@@ -19,6 +20,7 @@ const MenusEspecialesPage = lazy(() => import('./ui/pages/MenusEspecialesPage').
 
 export const App: React.FC = () => {
   const { hydrate, clearSession, usuario, can } = useAuthStore();
+  const puedeVerEconomia = Boolean(usuario && ROLES_ECONOMIA.includes(usuario.rol.codigo) && can('reportes:balance'));
 
   useEffect(() => {
     void hydrate();
@@ -108,7 +110,7 @@ export const App: React.FC = () => {
           <Route
             path="economia"
             element={
-              <ProtectedRoute permiso="reportes:balance">
+              <ProtectedRoute permiso="reportes:balance" rolesPermitidos={ROLES_ECONOMIA}>
                 <EconomiaPage />
               </ProtectedRoute>
             }
@@ -118,7 +120,7 @@ export const App: React.FC = () => {
           <Route
             path="auditoria"
             element={
-              !(can('auditoria:sistema') && can('auditoria:ver')) && can('reportes:balance')
+              !(can('auditoria:sistema') && can('auditoria:ver')) && puedeVerEconomia
                 ? <Navigate to="/economia" replace />
                 : <ProtectedRoute permiso={['auditoria:ver', 'auditoria:sistema']}><AuditoriaPage /></ProtectedRoute>
             }
