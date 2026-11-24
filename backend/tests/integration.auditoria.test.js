@@ -833,4 +833,17 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
     assert.equal(eventos.length, 3);
     assert.equal(eventos.find((evento) => evento.accion === 'ANULACION_GASTO_OPERATIVO').motivo, 'Duplicado QA');
   });
+
+  it('incluye en el mes actual el sueldo guardado cuando aún falta su vigencia', async () => {
+    const hoy = toIsoDateInTimezone();
+    const mes = hoy.slice(0, 7);
+    const fin = new Date(`${mes}-01T00:00:00Z`);
+    fin.setUTCMonth(fin.getUTCMonth() + 1, 0);
+    const ruta = `/reportes/balance?fechaDesde=${mes}-01&fechaHasta=${fin.toISOString().slice(0, 10)}`;
+    const antes = (await apiGet(ruta, auditorJwt)).body.data;
+    await Usuario.update({ fechaIngreso: hoy, sueldoMensual: 4000 }, { where: { id: cajeroActor.id } });
+    const despues = (await apiGet(ruta, auditorJwt)).body.data;
+    assert.equal(despues.sueldos - antes.sueldos, 4000);
+    assert.equal(despues.personalConDatosPendientes, antes.personalConDatosPendientes - 1);
+  });
 });

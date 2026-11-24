@@ -160,8 +160,8 @@ class ReportesService {
                            inicio >= CAST(:labelDesde AS date) AND fin <= CAST(:labelHasta AS date) AS completo
                     FROM meses
                 )
-                SELECT COALESCE(SUM(n.sueldo_mensual / CASE WHEN p.completo THEN 1 ELSE p.dias_mes END), 0) AS sueldos,
-                    COUNT(DISTINCT u.id) FILTER (WHERE n.sueldo_mensual IS NULL OR u.fecha_ingreso IS NULL) AS "personalConDatosPendientes"
+                SELECT COALESCE(SUM(s.sueldo / CASE WHEN p.completo THEN 1 ELSE p.dias_mes END), 0) AS sueldos,
+                    COUNT(DISTINCT u.id) FILTER (WHERE s.sueldo IS NULL OR u.fecha_ingreso IS NULL) AS "personalConDatosPendientes"
                 FROM periodos p
                 CROSS JOIN LATERAL generate_series(p.desde::timestamp, p.hasta::timestamp,
                     CASE WHEN p.completo THEN INTERVAL '1 month' ELSE INTERVAL '1 day' END) d(dia)
@@ -173,8 +173,15 @@ class ReportesService {
                     WHERE usuario_id = u.id
                       AND desde <= LEAST(CASE WHEN p.completo THEN p.hasta ELSE d.dia::date END, u.fecha_baja_nomina)
                     ORDER BY desde DESC LIMIT 1
-                ) n ON true`,
-            { sucursalId, labelDesde, labelHasta }),
+                ) n ON true
+                CROSS JOIN LATERAL (
+                    SELECT CASE WHEN p.completo AND u.activo
+                        AND u.fecha_ingreso IS NOT NULL AND u.fecha_baja_nomina IS NULL
+                        AND (CURRENT_TIMESTAMP AT TIME ZONE :zona)::date BETWEEN p.desde AND p.hasta
+                        THEN COALESCE(u.sueldo_mensual, n.sueldo_mensual)
+                        ELSE n.sueldo_mensual END AS sueldo
+                ) s`,
+            { sucursalId, labelDesde, labelHasta, zona: env.DEFAULT_TIMEZONE }),
             consultar(`SELECT
                     COALESCE(SUM(monto) FILTER (WHERE tipo = 'INGRESO_MANUAL'), 0) AS "ingresosManuales",
                     COALESCE(SUM(monto) FILTER (WHERE tipo = 'EGRESO_MANUAL'), 0) AS "egresosSinClasificar"

@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { fechaGuatemala, rangoMes } from '../../utils/periodos';
 import { Alert } from '../components/common/Alert';
 import { Field } from '../components/common/Field';
-import { CuadreEconomico } from '../components/economia/CuadreEconomico';
+import { GananciaPeriodo } from '../components/economia/CuadreEconomico';
 import { GastosPeriodo } from '../components/economia/GastosPeriodo';
 import { NominaPanel } from '../components/economia/NominaPanel';
 
@@ -21,6 +21,8 @@ export function EconomiaPage() {
   const [confirmacion, setConfirmacion] = useState<string | null>(null);
   const { desde, hasta } = rangoMes(mes);
   const rangoValido = Boolean(desde && hasta);
+  const balanceActual = !cargando && !error && balance?.periodo.fechaDesde === desde && balance.periodo.fechaHasta === hasta
+    ? balance : null;
 
   useEffect(() => {
     if (!rangoValido) return;
@@ -52,22 +54,21 @@ export function EconomiaPage() {
         </Field>
         <p className="mt-2 text-sm text-slate-600">El cuadre mensual aplica el sueldo completo del personal registrado durante el mes.</p>
       </div>
-      {!rangoValido ? (
-        <Alert type="warning" message="Selecciona un mes válido." />
-      ) : cargando ? (
-        <p role="status" className="px-2 py-3 text-sm text-slate-600">Cargando cuadre…</p>
-      ) : error ? (
-        <Alert type="error" message={error} />
-      ) : balance?.periodo.fechaDesde === desde && balance.periodo.fechaHasta === hasta ? (
-        <CuadreEconomico balance={balance} />
-      ) : null}
+      {!rangoValido && <Alert type="warning" message="Selecciona un mes válido." />}
+      {rangoValido && cargando && <p role="status" className="px-2 py-3 text-sm text-slate-600">Cargando cuadre…</p>}
+      {rangoValido && error && <Alert type="error" message={error} />}
       {confirmacion && <Alert type="success" message={confirmacion} />}
-      {rangoValido && <GastosPeriodo key={`${desde}/${hasta}/${revision}`} desde={desde} hasta={hasta}
-        puedeGestionar={esAdmin} onCambio={(fecha, mensaje) => {
-          setConfirmacion(mensaje);
-          setMes(fecha.slice(0, 7));
-          setRevision((actual) => actual + 1);
-        }} />}
+      {rangoValido && (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+          <GastosPeriodo key={`${desde}/${hasta}/${revision}`} desde={desde} hasta={hasta}
+            balance={balanceActual} puedeGestionar={esAdmin} onCambio={(fecha, mensaje) => {
+              setConfirmacion(mensaje);
+              setMes(fecha.slice(0, 7));
+              setRevision((actual) => actual + 1);
+            }} />
+          {balanceActual && <GananciaPeriodo balance={balanceActual} />}
+        </div>
+      )}
       {esAdmin && (
         <details className="rounded-2xl border border-slate-200 bg-white p-4"
           onToggle={(event) => setMostrarNomina(event.currentTarget.open)}>

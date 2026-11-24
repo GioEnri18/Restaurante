@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { isAbortError } from '../../../services/httpClient';
-import { GastoOperativo, reportesService } from '../../../services/reportes.service';
+import { BalanceEconomico, GastoOperativo, reportesService } from '../../../services/reportes.service';
 import { formatCurrency } from '../../../utils/formatters';
 import { fechaGuatemala } from '../../../utils/periodos';
 import { Alert } from '../common/Alert';
 import { Field } from '../common/Field';
 import { Modal } from '../common/Modal';
 import { Pagination } from '../common/Pagination';
+import { ResumenGastos } from './CuadreEconomico';
 import { RegistroGastoForm } from './RegistroGastoForm';
 
 type AccionGasto = { tipo: 'agregar' } | { tipo: 'editar' | 'anular'; gasto: GastoOperativo };
 
-export function GastosPeriodo({ desde, hasta, puedeGestionar, onCambio }: {
+const botonSecundario = 'inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:opacity-45';
+
+export function GastosPeriodo({ desde, hasta, balance, puedeGestionar, onCambio }: {
   desde: string;
   hasta: string;
+  balance: BalanceEconomico | null;
   puedeGestionar: boolean;
   onCambio: (fecha: string, mensaje: string) => void;
 }) {
@@ -21,11 +26,13 @@ export function GastosPeriodo({ desde, hasta, puedeGestionar, onCambio }: {
   const [resultado, setResultado] = useState<Awaited<ReturnType<typeof reportesService.listarGastos>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accion, setAccion] = useState<AccionGasto | null>(null);
+  const [seleccionId, setSeleccionId] = useState<number | null>(null);
   const [motivo, setMotivo] = useState('');
   const [anulando, setAnulando] = useState(false);
   const [errorAnulacion, setErrorAnulacion] = useState<string | null>(null);
   const hoy = fechaGuatemala.format(new Date());
   const fechaInicial = hoy >= desde && hoy <= hasta ? hoy : desde;
+  const seleccionado = resultado?.items.find((gasto) => gasto.id === seleccionId);
 
   function guardado(fecha: string, mensaje: string) {
     setAccion(null);
@@ -63,12 +70,33 @@ export function GastosPeriodo({ desde, hasta, puedeGestionar, onCambio }: {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-bold text-slate-900">Gastos registrados del mes</h2>
-        {puedeGestionar && <button type="button" onClick={() => setAccion({ tipo: 'agregar' })}
-          className="min-h-[44px] rounded-xl bg-brand-700 px-4 text-sm font-bold text-white hover:bg-brand-800">
-          Agregar gasto
-        </button>}
+      <h2 className="font-bold text-slate-900">Gastos del mes</h2>
+      {balance && <ResumenGastos balance={balance} />}
+      <div className="mb-3 mt-5 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-slate-900">Gastos manuales</h3>
+        {puedeGestionar && (
+          <div role="group" aria-label="Acciones de gastos" className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setAccion({ tipo: 'agregar' })}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-brand-700 px-3 text-sm font-bold text-white hover:bg-brand-800">
+              <Plus className="h-4 w-4" aria-hidden="true" /> Agregar gasto
+            </button>
+            <button type="button" disabled={!seleccionado}
+              onClick={() => { if (seleccionado) setAccion({ tipo: 'editar', gasto: seleccionado }); }}
+              className={botonSecundario}>
+              <Pencil className="h-4 w-4" aria-hidden="true" /> Editar gasto
+            </button>
+            <button type="button" disabled={!seleccionado}
+              onClick={() => {
+                if (!seleccionado) return;
+                setMotivo('');
+                setErrorAnulacion(null);
+                setAccion({ tipo: 'anular', gasto: seleccionado });
+              }}
+              className={`${botonSecundario} text-red-700`}>
+              <Trash2 className="h-4 w-4" aria-hidden="true" /> Anular gasto
+            </button>
+          </div>
+        )}
       </div>
       {error ? <Alert type="error" message={error} /> : !resultado ? (
         <p role="status" className="text-sm text-slate-600">Cargando gastos…</p>
@@ -76,36 +104,29 @@ export function GastosPeriodo({ desde, hasta, puedeGestionar, onCambio }: {
         <p className="text-sm text-slate-600">No hay gastos manuales registrados para este mes.</p>
       ) : (
         <>
+          {puedeGestionar && !seleccionado && (
+            <p className="mb-2 text-sm text-slate-600">Selecciona una fila para editar o anular el gasto.</p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 text-slate-600">
                 <tr>
+                  {puedeGestionar && <th scope="col" className="px-2 py-2"><span className="sr-only">Seleccionar</span></th>}
                   <th scope="col" className="px-2 py-2">Fecha</th>
                   <th scope="col" className="px-2 py-2">Concepto</th>
                   <th scope="col" className="px-2 py-2 text-right">Monto</th>
-                  {puedeGestionar && <th scope="col" className="px-2 py-2 text-right">Acciones</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {resultado.items.map((gasto) => (
-                  <tr key={gasto.id}>
+                  <tr key={gasto.id} className={gasto.id === seleccionId ? 'bg-brand-50' : undefined}>
+                    {puedeGestionar && <td className="px-2 py-2">
+                      <input type="radio" name="gasto-seleccionado" aria-label={`Seleccionar gasto ${gasto.concepto}`}
+                        checked={gasto.id === seleccionId} onChange={() => setSeleccionId(gasto.id)} />
+                    </td>}
                     <td className="whitespace-nowrap px-2 py-2">{gasto.fecha}</td>
                     <td className="px-2 py-2">{gasto.concepto}</td>
                     <td className="whitespace-nowrap px-2 py-2 text-right font-semibold">{formatCurrency(gasto.monto)}</td>
-                    {puedeGestionar && <td className="px-2 py-2">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <button type="button" aria-label={`Editar gasto ${gasto.concepto}`}
-                          onClick={() => setAccion({ tipo: 'editar', gasto })}
-                          className="min-h-[40px] rounded-lg border border-slate-300 px-3 font-semibold">Editar</button>
-                        <button type="button" aria-label={`Anular gasto ${gasto.concepto}`}
-                          onClick={() => {
-                            setMotivo('');
-                            setErrorAnulacion(null);
-                            setAccion({ tipo: 'anular', gasto });
-                          }}
-                          className="min-h-[40px] rounded-lg border border-red-200 px-3 font-semibold text-red-700">Anular</button>
-                      </div>
-                    </td>}
                   </tr>
                 ))}
               </tbody>
@@ -113,6 +134,7 @@ export function GastosPeriodo({ desde, hasta, puedeGestionar, onCambio }: {
           </div>
           <Pagination meta={resultado.meta} onPageChange={(pagina) => {
             setResultado(null);
+            setSeleccionId(null);
             setError(null);
             setPage(pagina);
           }} />

@@ -228,7 +228,11 @@ class AccesosService {
                 ...(passwordHash ? { passwordHash } : {}),
             }, { transaction: tx });
             const sueldoCambia = datosNomina(actual).sueldoMensual !== nominaAnterior.sueldoMensual;
-            if (sueldoCambia) await registrarSueldoVigente(actual, toIsoDateInTimezone(), tx);
+            if (sueldoCambia) {
+                const hoy = toIsoDateInTimezone();
+                const inicio = nominaAnterior.sueldoMensual === null && actual.fechaIngreso ? actual.fechaIngreso : hoy;
+                await registrarSueldoVigente(actual, inicio, tx);
+            }
             const nominaCambia = actual.fechaIngreso !== nominaAnterior.fechaIngreso || actual.fechaBajaNomina !== nominaAnterior.fechaBajaNomina
                 || (actual.sueldoMensual ? Number(actual.sueldoMensual) : null) !== nominaAnterior.sueldoMensual;
             const correlacionId = nominaCambia ? AuditService.crearCorrelacionId() : null;
