@@ -1,14 +1,16 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const { QueryTypes } = require('sequelize');
-const { sequelize } = require('../config/database');
+const { sequelize, withTransaction } = require('../config/database');
 const { env } = require('../config/env');
+const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { AuditService } = require('../shared/services/audit.service');
 const { EstadoVenta, Sucursal } = require('../models');
 const {
     formatDateTimeInTimezone,
     parseDateRangeInTimezone,
 } = require('../shared/utils/dates');
-const { BadRequestError } = require('../shared/errors/AppError');
+const { BadRequestError, ConflictError } = require('../shared/errors/AppError');
 const { round2 } = require('../shared/utils/tax');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { MAX_RANGO_DIAS } = require('../shared/validators/common.validators');
@@ -42,10 +44,58 @@ async function consultar(sql, replacements) {
 }
 const num = (v) => round2(Number(v ?? 0));
 class ReportesService {
+    static async listarGastos(sucursalId, fechaDesde, fechaHasta, rawPage) {
+        const { labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
+        const { page, limit, skip } = parsePagination(rawPage, 15, 15, 15);
+        const [resultado] = await consultar(`WITH filtrados AS (
+            SELECT id, categoria, fecha, concepto, monto FROM gastos_operativos
+            WHERE sucursal_id = :sucursalId AND fecha BETWEEN :labelDesde AND :labelHasta
+        ), pagina AS (
+            SELECT * FROM filtrados ORDER BY fecha DESC, id DESC LIMIT :limit OFFSET :skip
+        )
+        SELECT (SELECT COUNT(*) FROM filtrados) AS total,
+               COALESCE(json_agg(pagina ORDER BY fecha DESC, id DESC), '[]'::json) AS items
+        FROM pagina`, { sucursalId, labelDesde, labelHasta, limit, skip });
+        return { data: resultado.items, meta: buildPaginationMeta(Number(resultado.total), page, limit) };
+    }
+    static async registrarGasto(user, input, clientMeta) {
+        const { registroId, categoria, fecha } = input;
+        const concepto = AuditService.sanitizeText(input.concepto, 200);
+        if (!concepto) throw new BadRequestError('Ingresa el concepto del gasto');
+        const monto = num(input.monto);
+        const replacements = { sucursalId: user.sucursalId, usuarioId: user.id, registroId, categoria, fecha, monto, concepto };
+        return withTransaction(async (transaction) => {
+            const opciones = { replacements, transaction, type: QueryTypes.SELECT };
+            const [gasto] = await sequelize.query(`WITH nuevo AS (
+                INSERT INTO gastos_operativos (sucursal_id, usuario_id, registro_id, categoria, fecha, monto, concepto)
+                VALUES (:sucursalId, :usuarioId, :registroId, :categoria, :fecha, :monto, :concepto)
+                ON CONFLICT (sucursal_id, usuario_id, registro_id) DO NOTHING
+                RETURNING id, categoria, fecha, monto, concepto
+            ) SELECT * FROM nuevo`, opciones);
+            if (!gasto) {
+                const [existente] = await sequelize.query(
+                    `SELECT id, categoria, fecha, monto, concepto FROM gastos_operativos
+                     WHERE sucursal_id = :sucursalId AND usuario_id = :usuarioId AND registro_id = :registroId`, opciones);
+                if (!existente || existente.categoria !== categoria || existente.fecha !== fecha ||
+                    num(existente.monto) !== monto || existente.concepto !== concepto) {
+                    throw new ConflictError('Este registro de gasto ya fue usado con otros datos');
+                }
+                return { gasto: { ...existente, monto }, nuevo: false };
+            }
+            await AuditService.registrarEvento({ user, clientMeta }, {
+                accion: ACCIONES_AUDITORIA.REGISTRO_GASTO_OPERATIVO,
+                entidad: 'GastoOperativo',
+                entidadId: gasto.id,
+                valorNuevo: { categoria, fecha, monto, concepto },
+                impactoFinanciero: -monto,
+            }, transaction);
+            return { gasto: { ...gasto, monto }, nuevo: true };
+        });
+    }
     static async obtenerBalance(sucursalId, fechaDesde, fechaHasta) {
         const { desde, hasta, labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
         const fechas = { sucursalId, desde, hasta };
-        const [resumen, [lineas], [nomina], [egresos]] = await Promise.all([
+        const [resumen, [lineas], [nomina], [caja], [gastos]] = await Promise.all([
             this.obtenerResumen(sucursalId, fechaDesde, fechaHasta),
             consultar(`SELECT
                     COALESCE(SUM(ROUND(d.cantidad_cortesia * d.costo_unitario_receta, 2)), 0) AS "costoCortesias",
@@ -70,16 +120,40 @@ class ReportesService {
                 ) n ON true
                 WHERE u.sucursal_id = :sucursalId AND (u.activo OR u.fecha_ingreso IS NOT NULL)`,
             { sucursalId, labelDesde, labelHasta }),
-            consultar(`SELECT COALESCE(SUM(monto), 0) AS "egresosSinClasificar"
-                FROM caja_movimientos WHERE sucursal_id = :sucursalId AND tipo = 'EGRESO_MANUAL'
-                AND created_at BETWEEN :desde AND :hasta`, fechas),
+            consultar(`SELECT
+                    COALESCE(SUM(monto) FILTER (WHERE tipo = 'INGRESO_MANUAL'), 0) AS "ingresosManuales",
+                    COALESCE(SUM(monto) FILTER (WHERE tipo = 'EGRESO_MANUAL'), 0) AS "egresosSinClasificar"
+                FROM caja_movimientos WHERE sucursal_id = :sucursalId
+                  AND tipo IN ('INGRESO_MANUAL', 'EGRESO_MANUAL')
+                  AND created_at BETWEEN :desde AND :hasta`, fechas),
+            consultar(`SELECT
+                    COALESCE(SUM(monto) FILTER (WHERE categoria = 'ALQUILER'), 0) AS alquiler,
+                    COALESCE(SUM(monto) FILTER (WHERE categoria = 'OTRO'), 0) AS "otrosGastos"
+                FROM gastos_operativos
+                WHERE sucursal_id = :sucursalId AND fecha BETWEEN :labelDesde AND :labelHasta`,
+            { sucursalId, labelDesde, labelHasta }),
         ]);
         const k = resumen.kpis;
         const sueldos = num(nomina.sueldos);
         const costoCortesias = num(lineas.costoCortesias);
         const costoVendido = round2(k.costoRecetasTotal - costoCortesias);
+        const alquiler = num(gastos.alquiler);
+        const otrosGastos = num(gastos.otrosGastos);
+        const gastosTotales = round2(costoVendido + costoCortesias + k.costoMermasTotal + sueldos + alquiler + otrosGastos);
+        const ingresosManuales = num(caja.ingresosManuales);
         return {
             periodo: resumen.periodo,
+            cobrosEfectivo: resumen.porMetodoPago.EFECTIVO.total,
+            cobrosTarjeta: resumen.porMetodoPago.TARJETA.total,
+            totalCobrado: k.ingresosTotales,
+            ingresosManuales,
+            totalEntradasRegistradas: round2(k.ingresosTotales + ingresosManuales),
+            iva: k.ivaTotal,
+            cantidadVentas: k.cantidadVentas,
+            cantidadAnuladas: k.cantidadAnuladas,
+            totalAnulado: k.totalAnulado,
+            cantidadMermas: k.cantidadMermas,
+            ticketPromedio: k.ticketPromedio,
             ventasSinIva: k.subtotalSinIva,
             costoVendido,
             costoCortesias,
@@ -87,10 +161,13 @@ class ReportesService {
             unidadesCortesia: Number(lineas.unidadesCortesia),
             mermas: k.costoMermasTotal,
             sueldos,
+            alquiler,
+            otrosGastos,
+            gastosTotales,
             compras: k.totalCompras,
             inventarioActual: k.valorInventarioActual,
-            egresosSinClasificar: num(egresos.egresosSinClasificar),
-            resultado: round2(k.subtotalSinIva - costoVendido - costoCortesias - k.costoMermasTotal - sueldos),
+            egresosSinClasificar: num(caja.egresosSinClasificar),
+            resultado: round2(k.subtotalSinIva - gastosTotales),
             lineasCostoPendiente: Number(lineas.lineasCostoPendiente),
             lineasConsumoPendiente: Number(lineas.lineasConsumoPendiente),
             personalConDatosPendientes: Number(nomina.personalConDatosPendientes),

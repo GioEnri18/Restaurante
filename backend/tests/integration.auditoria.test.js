@@ -723,4 +723,49 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
     assert.ok(logExport, 'Exportar CSV debe registrar su propio evento EXPORTAR_AUDITORIA');
     assert.equal(logExport.severidad, SEVERIDADES_AUDITORIA.MEDIA);
   });
+
+  it('descuenta alquiler y gastos indirectos una vez y permite su consulta al auditor económico', async () => {
+    const fecha = '2025-07-19';
+    const rango = `?fechaDesde=${fecha}&fechaHasta=${fecha}`;
+    await Usuario.update({ fechaIngreso: fecha }, { where: { id: adminActor.id } });
+    await sequelize.query(
+      'INSERT INTO nomina_vigencias (usuario_id, desde, sueldo_mensual) VALUES (:id, :fecha, 3100)',
+      { replacements: { id: adminActor.id, fecha } },
+    );
+    const previo = await apiGet(`/reportes/balance${rango}`, auditorJwt);
+    assert.equal(previo.status, 200);
+    assert.equal(previo.body.data.sueldos, 100);
+    const alquiler = { registroId: crypto.randomUUID(), categoria: 'ALQUILER', monto: '300.25', fecha, concepto: 'Alquiler QA' };
+    const indirecto = { registroId: crypto.randomUUID(), categoria: 'OTRO', monto: '24.50', fecha, concepto: 'Papel y platos QA' };
+    const registrar = (gasto, token = adminJwt) => fetch(`${apiBaseUrl}/reportes/gastos`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(gasto),
+    });
+
+    assert.equal((await registrar(alquiler, auditorJwt)).status, 403);
+    assert.equal((await registrar({ ...alquiler, monto: '0.00' })).status, 400);
+    const registros = await Promise.all([registrar(alquiler), registrar(alquiler)]);
+    assert.deepEqual(registros.map((respuesta) => respuesta.status).sort(), [200, 201]);
+    const gastosAlquiler = await Promise.all(registros.map((respuesta) => respuesta.json()));
+    assert.equal(gastosAlquiler[0].data.id, gastosAlquiler[1].data.id);
+    assert.equal((await registrar({ ...alquiler, monto: '30.00' })).status, 409);
+    assert.equal((await registrar(indirecto)).status, 201);
+
+    const gastos = await apiGet(`/reportes/gastos${rango}`, auditorJwt);
+    assert.equal(gastos.status, 200);
+    assert.deepEqual(gastos.body.data.map((gasto) => gasto.monto), [24.50, 300.25]);
+    assert.equal(gastos.body.meta.limit, 15);
+    assert.equal((await apiGet(`/reportes/gastos${rango}`, cajeroJwt)).status, 403);
+    assert.equal((await apiGet('/reportes/gastos?fechaDesde=2025-07-20&fechaHasta=2025-07-20', auditorJwt)).body.meta.total, 0);
+
+    const balance = (await apiGet(`/reportes/balance${rango}`, auditorJwt)).body.data;
+    assert.equal(balance.alquiler, 300.25);
+    assert.equal(balance.otrosGastos, 24.50);
+    assert.equal(balance.sueldos, previo.body.data.sueldos);
+    assert.equal(balance.gastosTotales, previo.body.data.gastosTotales + 324.75);
+    assert.equal(balance.resultado, previo.body.data.resultado - 324.75);
+    const eventos = await apiGet('/auditoria?ambito=economica&accion=REGISTRO_GASTO_OPERATIVO', auditorJwt);
+    assert.equal(eventos.body.meta.total, 2);
+  });
 });

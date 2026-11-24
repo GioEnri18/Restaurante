@@ -4,6 +4,17 @@ import { buildQueryString, httpClient } from './httpClient';
 
 export interface BalanceEconomico {
   periodo: { fechaDesde: string; fechaHasta: string };
+  cobrosEfectivo: number;
+  cobrosTarjeta: number;
+  totalCobrado: number;
+  ingresosManuales: number;
+  totalEntradasRegistradas: number;
+  iva: number;
+  cantidadVentas: number;
+  cantidadAnuladas: number;
+  totalAnulado: number;
+  cantidadMermas: number;
+  ticketPromedio: number;
   ventasSinIva: number;
   costoVendido: number;
   costoCortesias: number;
@@ -11,6 +22,9 @@ export interface BalanceEconomico {
   unidadesCortesia: number;
   mermas: number;
   sueldos: number;
+  alquiler: number;
+  otrosGastos: number;
+  gastosTotales: number;
   compras: number;
   inventarioActual: number;
   egresosSinClasificar: number;
@@ -20,7 +34,31 @@ export interface BalanceEconomico {
   personalConDatosPendientes: number;
 }
 
+export interface RegistroGasto {
+  registroId: string;
+  categoria: 'ALQUILER' | 'OTRO';
+  fecha: string;
+  monto: string;
+  concepto: string;
+}
+
+export interface GastoOperativo extends Omit<RegistroGasto, 'registroId' | 'monto'> {
+  id: number;
+  monto: number;
+}
+
 export const reportesService = {
+  async registrarGasto(gasto: RegistroGasto): Promise<void> {
+    await httpClient.post('/reportes/gastos', gasto);
+  },
+  async listarGastos(fechaDesde: string, fechaHasta: string, page: number, signal: AbortSignal) {
+    const qs = buildQueryString({ fechaDesde, fechaHasta, page });
+    const res = await httpClient.get<GastoOperativo[]>(`/reportes/gastos${qs}`, { signal });
+    return {
+      items: res.data ?? [],
+      meta: res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
+    };
+  },
   async obtenerBalance(fechaDesde: string, fechaHasta: string, signal?: AbortSignal): Promise<BalanceEconomico> {
     const qs = buildQueryString({ fechaDesde, fechaHasta });
     const res = await httpClient.get<BalanceEconomico>(`/reportes/balance${qs}`, { signal });

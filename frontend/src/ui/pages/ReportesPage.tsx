@@ -21,16 +21,8 @@ import { Field } from '../components/common/Field';
 import { Pagination } from '../components/common/Pagination';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 
-const fechaGuatemala = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Guatemala', dateStyle: 'short' });
-
-function rangoActual(periodo: 'dia' | 'semana' | 'mes') {
-  const hasta = fechaGuatemala.format(new Date());
-  if (periodo === 'dia') return { desde: hasta, hasta };
-  if (periodo === 'mes') return { desde: `${hasta.slice(0, 7)}-01`, hasta };
-  const lunes = new Date(`${hasta}T00:00:00Z`);
-  lunes.setUTCDate(lunes.getUTCDate() - ((lunes.getUTCDay() + 6) % 7));
-  return { desde: lunes.toISOString().slice(0, 10), hasta };
-}
+import { CuadreEconomico } from '../components/auditoria/CuadreEconomico';
+import { rangoActual } from '../../utils/periodos';
 
 export const ReportesPage: React.FC = () => {
   const canExport = useAuthStore((s) => s.can('reportes:exportar'));
@@ -273,43 +265,7 @@ export const ReportesPage: React.FC = () => {
         </div>
       </div>
 
-      {balance && !loading && (
-        <section className="rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-bold text-teal-950">Balance general del período</h2>
-          <p className="text-sm text-slate-600">{balance.periodo.fechaDesde} al {balance.periodo.fechaHasta}</p>
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {([
-              ['Ventas sin IVA', balance.ventasSinIva],
-              ['Costo de lo vendido', balance.costoVendido],
-              ['Costo de cortesías', balance.costoCortesias],
-              ['Costo de mermas', balance.mermas],
-              ['Sueldos del período', balance.sueldos],
-              ['Compras del período', balance.compras],
-              ['Valor del inventario actual', balance.inventarioActual],
-              ['Egresos de caja sin clasificar', balance.egresosSinClasificar],
-            ] as const).map(([etiqueta, monto]) => (
-              <div key={etiqueta}>
-                <dt className="text-sm text-slate-600">{etiqueta}</dt>
-                <dd className="text-lg font-bold">{formatCurrency(monto)}</dd>
-              </div>
-            ))}
-          </dl>
-          <p className="mt-4 text-lg font-bold text-teal-950">
-            {balance.lineasCostoPendiente || balance.personalConDatosPendientes || balance.egresosSinClasificar
-              ? 'Resultado parcial' : balance.resultado < 0 ? 'Pérdida del período' : 'Ganancia del período'}{' '}
-            {formatCurrency(balance.resultado)}
-          </p>
-          <p className="mt-2 text-sm text-slate-600">
-            {balance.unidadesCortesia} unidades de cortesía · Valor habitual {formatCurrency(balance.valorCortesias)}
-            {' · '}{balance.lineasCostoPendiente} líneas con costo pendiente
-            {' · '}{balance.lineasConsumoPendiente} líneas con consumo pendiente
-            {' · '}{balance.personalConDatosPendientes} personas con datos de nómina pendientes.
-          </p>
-          {balance.egresosSinClasificar > 0 && <p className="mt-1 text-sm text-slate-600">
-            Los egresos de caja sin clasificar se muestran aparte hasta confirmar a qué gasto corresponden.
-          </p>}
-        </section>
-      )}
+      {balance && !loading && <CuadreEconomico balance={balance} />}
       {!puedeVerBalance && resumen && !loading && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-bold text-slate-900">Balance del período</h2>

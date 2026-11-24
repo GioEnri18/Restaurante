@@ -1,5 +1,21 @@
 const { ReportesService } = require('../services/reportes.service');
 class ReportesController {
+    static async gastos(req, res, next) {
+        try {
+            const resultado = await ReportesService.listarGastos(req.user.sucursalId, req.query.fechaDesde, req.query.fechaHasta, req.query.page);
+            res.set('Cache-Control', 'no-store').json({ ok: true, ...resultado });
+        } catch (error) {
+            next(error);
+        }
+    }
+    static async registrarGasto(req, res, next) {
+        try {
+            const { gasto, nuevo } = await ReportesService.registrarGasto(req.user, req.body, req.clientMeta);
+            res.status(nuevo ? 201 : 200).json({ ok: true, data: gasto });
+        } catch (error) {
+            next(error);
+        }
+    }
     static async balance(req, res, next) {
         try {
             const data = await ReportesService.obtenerBalance(req.user.sucursalId, req.query.fechaDesde, req.query.fechaHasta);

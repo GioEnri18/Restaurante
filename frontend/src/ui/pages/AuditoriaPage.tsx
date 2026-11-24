@@ -16,6 +16,7 @@ import { isAbortError } from '../../services/httpClient';
 import { useAuthStore } from '../../store/auth.store';
 import { Alert } from '../components/common/Alert';
 import { AuditoriaDetalleDrawer } from '../components/auditoria/AuditoriaDetalleDrawer';
+import { AuditoriaEconomica } from '../components/auditoria/AuditoriaEconomica';
 import { AuditoriaFiltros } from '../components/auditoria/AuditoriaFiltros';
 import { AuditoriaResumen } from '../components/auditoria/AuditoriaResumen';
 import { AuditoriaTabla } from '../components/auditoria/AuditoriaTabla';
@@ -46,10 +47,16 @@ export const AuditoriaPage: React.FC = () => {
   const puedeVerNomina = useAuthStore((s) => s.isAdmin());
   const puedeEditarPersonal = useAuthStore((s) => s.can('accesos:ver') && s.can('accesos:gestionar'));
   const puedeExportar = useAuthStore((s) => s.can('auditoria:exportar'));
-  const rol = useAuthStore((s) => s.usuario?.rol.codigo);
+  const puedeVerBalance = useAuthStore((s) => s.can('reportes:balance'));
+  const puedeVerGeneral = useAuthStore((s) => s.isAdmin() ||
+    (s.usuario?.rol.codigo === 'AUDITOR_SISTEMA' && s.can('auditoria:sistema')));
+  const puedeVerEconomica = useAuthStore((s) => s.isAdmin() ||
+    (s.usuario?.rol.codigo !== 'AUDITOR_SISTEMA' && s.can('auditoria:economica')));
 
-  const [vista, setVista] = useState<'actividad' | 'economica' | 'nomina'>('actividad');
-  const ambito = vista === 'economica' || (!puedeVerNomina && rol !== 'AUDITOR_SISTEMA') ? 'economica' : 'sistema';
+  const [vista, setVista] = useState<'sistema' | 'economica'>('sistema');
+  const [mostrarNomina, setMostrarNomina] = useState(false);
+  const [revisionBitacora, setRevisionBitacora] = useState(0);
+  const ambito = puedeVerGeneral && (vista === 'sistema' || !puedeVerEconomica) ? 'sistema' : 'economica';
   const [filtros, setFiltros] = useState<AuditoriaFiltrosState>(FILTROS_INICIALES);
   const debouncedImpactoMin = useDebouncedValue(filtros.impactoMin, 350);
 
@@ -147,12 +154,11 @@ export const AuditoriaPage: React.FC = () => {
 
   // Al cambiar cualquier filtro vuelve automáticamente a la página 1 y cancela peticiones previas
   useEffect(() => {
-    if (vista === 'nomina') return;
     void cargar(1, true);
     return () => {
       abortListaRef.current?.abort();
     };
-  }, [cargar, vista]);
+  }, [cargar, revisionBitacora]);
 
   useEffect(() => {
     return () => {
@@ -253,14 +259,11 @@ export const AuditoriaPage: React.FC = () => {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold text-slate-900">
             <ShieldCheck className="h-7 w-7 text-brand-700" aria-hidden="true" />
-            {ambito === 'economica' ? 'Auditoría económica' : 'Auditoría de sistema'}
+            Auditoría
           </h1>
-          <p className="text-sm text-slate-600">
-            Supervisa eventos críticos, impactos financieros, aprobaciones de caja y patrones inusuales.
-          </p>
         </div>
 
-        {vista !== 'nomina' && puedeExportar && (
+        {puedeExportar && (
           <button
             type="button"
             disabled={exportando}
@@ -268,90 +271,102 @@ export const AuditoriaPage: React.FC = () => {
             className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-brand-700 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-800 disabled:opacity-60"
           >
             <FileDown className="h-4 w-4" aria-hidden="true" />
-            {exportando ? 'Exportando CSV…' : 'Exportar CSV'}
+            {exportando ? 'Exportando CSV…' : 'Exportar bitácora CSV'}
           </button>
         )}
       </div>
 
-      {/* Selector Actividad / Nómina (Nómina estrictamente solo para Administrador) */}
-      {puedeVerNomina && (
-        <div className="flex flex-wrap gap-2" aria-label="Vistas de Auditoría">
-          {(['actividad', 'economica', 'nomina'] as const).map((opcion) => (
-            <button
-              key={opcion}
-              type="button"
-              aria-pressed={vista === opcion}
-              onClick={() => { cerrarDetalle(); limpiarFiltros(); setVista(opcion); }}
-              className={`min-h-[44px] rounded-xl border px-4 text-sm font-bold transition ${
-                vista === opcion
-                  ? 'border-teal-700 bg-teal-700 text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {opcion === 'actividad' ? 'Sistema' : opcion === 'economica' ? 'Económica' : 'Nómina'}
-            </button>
-          ))}
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Vistas de auditoría">
+        {(['sistema', 'economica'] as const).filter((opcion) =>
+          opcion === 'sistema' ? puedeVerGeneral : puedeVerEconomica,
+        ).map((opcion) => (
+          <button
+            key={opcion}
+            type="button"
+            aria-pressed={ambito === opcion}
+            onClick={() => {
+              if (ambito === opcion) return;
+              cerrarDetalle();
+              setLoading(true);
+              setCatalogo(CATALOGO_INICIAL);
+              setLogs([]);
+              setResumen(null);
+              setMostrarNomina(false);
+              limpiarFiltros();
+              setVista(opcion);
+            }}
+            className={`min-h-[44px] rounded-xl border px-4 text-sm font-bold transition ${
+              ambito === opcion
+                ? 'border-teal-700 bg-teal-700 text-white'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {opcion === 'sistema' ? 'Auditoría general' : 'Auditoría económica'}
+          </button>
+        ))}
+      </div>
+
+      {ambito === 'economica' && puedeVerBalance && (
+        <AuditoriaEconomica
+          puedeRegistrar={puedeVerNomina}
+          onGastoGuardado={() => setRevisionBitacora((actual) => actual + 1)}
+        />
+      )}
+
+      {ambito === 'economica' && puedeVerNomina && (
+        <details className="rounded-2xl border border-slate-200 bg-white p-4"
+          onToggle={(event) => setMostrarNomina(event.currentTarget.open)}>
+          <summary className="cursor-pointer font-semibold text-slate-900">Detalle de nómina</summary>
+          {mostrarNomina && <div className="mt-3"><NominaPanel puedeEditar={puedeEditarPersonal} /></div>}
+        </details>
+      )}
+      {error && <Alert type="error" message={error} />}
+
+      {/* 1. Resumen gerencial y alertas primero */}
+      <AuditoriaResumen
+        resumen={resumen}
+        loading={loading}
+        onFiltrarAlerta={handleFiltrarAlerta}
+        onFiltrarUsuario={(usuarioId) => actualizarFiltros({ usuarioId: String(usuarioId) })}
+        onFiltrarAprobador={(aprobadorId) =>
+          actualizarFiltros({ aprobadorId: String(aprobadorId) })
+        }
+        onFiltrarSeveridad={(severidad: SeveridadAuditoria) =>
+          actualizarFiltros({ severidad: filtros.severidad === severidad ? '' : severidad })
+        }
+      />
+
+      <details key={ambito} className="rounded-2xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer font-semibold text-slate-900">
+          Filtros de la bitácora{hayFiltros ? ' (activos)' : ''}
+        </summary>
+        <div className="mt-3">
+          <AuditoriaFiltros filtros={filtros} catalogo={catalogo} hayFiltros={hayFiltros}
+            onChange={actualizarFiltros} onLimpiar={limpiarFiltros} />
         </div>
-      )}
-      {vista !== 'nomina' && (
-        <button type="button" onClick={() => setFiltros({ ...FILTROS_INICIALES, accion: 'CORTESIA_APLICADA' })}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold">
-          Ver cortesías registradas
-        </button>
-      )}
+      </details>
 
-      {puedeVerNomina && vista === 'nomina' ? (
-        <NominaPanel puedeEditar={puedeEditarPersonal} />
-      ) : (
-        <>
-          {error && <Alert type="error" message={error} />}
+      {/* 3. Tabla de eventos */}
+      <AuditoriaTabla
+        logs={logs}
+        meta={meta}
+        loading={loading}
+        hayFiltros={hayFiltros}
+        onPageChange={(p) => void cargar(p, false)}
+        onSelectLog={(log) => void abrirDetalle(log)}
+        onLimpiarFiltros={limpiarFiltros}
+      />
 
-          {/* 1. Resumen gerencial y alertas primero */}
-          <AuditoriaResumen
-            resumen={resumen}
-            loading={loading}
-            onFiltrarAlerta={handleFiltrarAlerta}
-            onFiltrarUsuario={(usuarioId) => actualizarFiltros({ usuarioId: String(usuarioId) })}
-            onFiltrarAprobador={(aprobadorId) =>
-              actualizarFiltros({ aprobadorId: String(aprobadorId) })
-            }
-            onFiltrarSeveridad={(severidad: SeveridadAuditoria) =>
-              actualizarFiltros({ severidad: filtros.severidad === severidad ? '' : severidad })
-            }
-          />
-
-          {/* 2. Filtros completos */}
-          <AuditoriaFiltros
-            filtros={filtros}
-            catalogo={catalogo}
-            hayFiltros={hayFiltros}
-            onChange={actualizarFiltros}
-            onLimpiar={limpiarFiltros}
-          />
-
-          {/* 3. Tabla de eventos */}
-          <AuditoriaTabla
-            logs={logs}
-            meta={meta}
-            loading={loading}
-            hayFiltros={hayFiltros}
-            onPageChange={(p) => void cargar(p, false)}
-            onSelectLog={(log) => void abrirDetalle(log)}
-            onLimpiarFiltros={limpiarFiltros}
-          />
-
-          {/* 4. Drawer accesible de detalle */}
-          <AuditoriaDetalleDrawer
-            open={drawerOpen}
-            loading={cargandoDetalle}
-            error={errorDetalle}
-            detalle={detalle}
-            fallbackLog={fallbackLog}
-            onClose={cerrarDetalle}
-            onAbrirCorrelacionado={(rel) => void abrirDetalle(rel)}
-          />
-        </>
-      )}
+      {/* 4. Drawer accesible de detalle */}
+      <AuditoriaDetalleDrawer
+        open={drawerOpen}
+        loading={cargandoDetalle}
+        error={errorDetalle}
+        detalle={detalle}
+        fallbackLog={fallbackLog}
+        onClose={cerrarDetalle}
+        onAbrirCorrelacionado={(rel) => void abrirDetalle(rel)}
+      />
     </div>
   );
 };

@@ -2,15 +2,24 @@ const { Router } = require('express');
 const { z } = require('zod');
 const { ReportesController } = require('../controllers/reportes.controller');
 const { authenticate } = require('../middlewares/authenticate');
-const { requirePermission } = require('../middlewares/authorize');
+const { requireAdmin, requirePermission } = require('../middlewares/authorize');
 const { validate } = require('../middlewares/validate');
 const {
     rangoFechasQuery,
+    fechaStr,
+    montoStr,
     paginacionQuery,
     refinarRangoFechas,
 } = require('../shared/validators/common.validators');
 // Auditoría P1: fechas YYYY-MM-DD válidas, desde <= hasta y rango máximo acotado
 const rangoReporteSchema = z.object(rangoFechasQuery).superRefine(refinarRangoFechas);
+const gastoOperativoSchema = z.object({
+    registroId: z.uuid(),
+    categoria: z.enum(['ALQUILER', 'OTRO']),
+    fecha: fechaStr,
+    monto: montoStr.refine((v) => Number(v) > 0, 'El monto debe ser mayor a cero'),
+    concepto: z.string().trim().min(1).max(200),
+});
 const ventasPeriodoSchema = z.object({ ...rangoFechasQuery, page: paginacionQuery.page }).superRefine(refinarRangoFechas);
 const topProductosSchema = z
     .object({
@@ -27,6 +36,8 @@ const router = Router();
 router.use(authenticate);
 router.get('/resumen', requirePermission('reportes:ver'), validate(rangoReporteSchema, 'query'), ReportesController.resumen);
 router.get('/balance', requirePermission('reportes:balance'), validate(rangoReporteSchema, 'query'), ReportesController.balance);
+router.get('/gastos', requirePermission('reportes:balance'), validate(ventasPeriodoSchema, 'query'), ReportesController.gastos);
+router.post('/gastos', requireAdmin, requirePermission('reportes:balance'), validate(gastoOperativoSchema), ReportesController.registrarGasto);
 router.get('/ventas-periodo', requirePermission('reportes:ver'), validate(ventasPeriodoSchema, 'query'), ReportesController.ventasPeriodo);
 router.get('/productos-mas-vendidos', requirePermission('reportes:ver'), validate(topProductosSchema, 'query'), ReportesController.productosMasVendidos);
 router.get('/exportar/pdf', requirePermission('reportes:exportar'), validate(rangoReporteSchema, 'query'), ReportesController.exportarPdf);
