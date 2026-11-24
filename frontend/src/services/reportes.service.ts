@@ -23,6 +23,7 @@ export interface BalanceEconomico {
   mermas: number;
   sueldos: number;
   alquiler: number;
+  alquilerMensual: number;
   otrosGastos: number;
   gastosTotales: number;
   compras: number;
@@ -40,6 +41,8 @@ export interface RegistroGasto {
   fecha: string;
   monto: string;
   concepto: string;
+  recurrente?: boolean;
+  hastaMes?: string;
 }
 
 export interface GastoOperativo extends Omit<RegistroGasto, 'registroId' | 'monto'> {

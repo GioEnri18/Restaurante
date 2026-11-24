@@ -49,7 +49,7 @@ class ReportesService {
         const { page, limit, skip } = parsePagination(rawPage, 15, 15, 15);
         const [resultado] = await consultar(`WITH filtrados AS (
             SELECT id, categoria, fecha, concepto, monto FROM gastos_operativos
-            WHERE sucursal_id = :sucursalId AND fecha BETWEEN :labelDesde AND :labelHasta
+            WHERE sucursal_id = :sucursalId AND NOT recurrente AND fecha BETWEEN :labelDesde AND :labelHasta
         ), pagina AS (
             SELECT * FROM filtrados ORDER BY fecha DESC, id DESC LIMIT :limit OFFSET :skip
         )
@@ -59,25 +59,26 @@ class ReportesService {
         return { data: resultado.items, meta: buildPaginationMeta(Number(resultado.total), page, limit) };
     }
     static async registrarGasto(user, input, clientMeta) {
-        const { registroId, categoria, fecha } = input;
+        const { registroId, categoria, fecha, recurrente, hastaMes = null } = input;
         const concepto = AuditService.sanitizeText(input.concepto, 200);
         if (!concepto) throw new BadRequestError('Ingresa el concepto del gasto');
         const monto = num(input.monto);
-        const replacements = { sucursalId: user.sucursalId, usuarioId: user.id, registroId, categoria, fecha, monto, concepto };
+        const replacements = { sucursalId: user.sucursalId, usuarioId: user.id, registroId, categoria, fecha, monto, concepto, recurrente, hastaMes };
         return withTransaction(async (transaction) => {
             const opciones = { replacements, transaction, type: QueryTypes.SELECT };
             const [gasto] = await sequelize.query(`WITH nuevo AS (
-                INSERT INTO gastos_operativos (sucursal_id, usuario_id, registro_id, categoria, fecha, monto, concepto)
-                VALUES (:sucursalId, :usuarioId, :registroId, :categoria, :fecha, :monto, :concepto)
+                INSERT INTO gastos_operativos (sucursal_id, usuario_id, registro_id, categoria, fecha, monto, concepto, recurrente, hasta_mes)
+                VALUES (:sucursalId, :usuarioId, :registroId, :categoria, :fecha, :monto, :concepto, :recurrente, :hastaMes)
                 ON CONFLICT (sucursal_id, usuario_id, registro_id) DO NOTHING
-                RETURNING id, categoria, fecha, monto, concepto
+                RETURNING id, categoria, fecha, monto, concepto, recurrente, hasta_mes AS "hastaMes"
             ) SELECT * FROM nuevo`, opciones);
             if (!gasto) {
                 const [existente] = await sequelize.query(
-                    `SELECT id, categoria, fecha, monto, concepto FROM gastos_operativos
+                    `SELECT id, categoria, fecha, monto, concepto, recurrente, hasta_mes AS "hastaMes" FROM gastos_operativos
                      WHERE sucursal_id = :sucursalId AND usuario_id = :usuarioId AND registro_id = :registroId`, opciones);
                 if (!existente || existente.categoria !== categoria || existente.fecha !== fecha ||
-                    num(existente.monto) !== monto || existente.concepto !== concepto) {
+                    num(existente.monto) !== monto || existente.concepto !== concepto ||
+                    existente.recurrente !== recurrente || existente.hastaMes !== hastaMes) {
                     throw new ConflictError('Este registro de gasto ya fue usado con otros datos');
                 }
                 return { gasto: { ...existente, monto }, nuevo: false };
@@ -86,8 +87,8 @@ class ReportesService {
                 accion: ACCIONES_AUDITORIA.REGISTRO_GASTO_OPERATIVO,
                 entidad: 'GastoOperativo',
                 entidadId: gasto.id,
-                valorNuevo: { categoria, fecha, monto, concepto },
-                impactoFinanciero: -monto,
+                valorNuevo: { categoria, fecha, monto, concepto, recurrente, hastaMes },
+                impactoFinanciero: recurrente ? null : -monto,
             }, transaction);
             return { gasto: { ...gasto, monto }, nuevo: true };
         });
@@ -95,7 +96,7 @@ class ReportesService {
     static async obtenerBalance(sucursalId, fechaDesde, fechaHasta) {
         const { desde, hasta, labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
         const fechas = { sucursalId, desde, hasta };
-        const [resumen, [lineas], [nomina], [caja], [gastos]] = await Promise.all([
+        const [resumen, [lineas], [nomina], [caja], [gastos], [alquilerProgramado]] = await Promise.all([
             this.obtenerResumen(sucursalId, fechaDesde, fechaHasta),
             consultar(`SELECT
                     COALESCE(SUM(ROUND(d.cantidad_cortesia * d.costo_unitario_receta, 2)), 0) AS "costoCortesias",
@@ -130,14 +131,39 @@ class ReportesService {
                     COALESCE(SUM(monto) FILTER (WHERE categoria = 'ALQUILER'), 0) AS alquiler,
                     COALESCE(SUM(monto) FILTER (WHERE categoria = 'OTRO'), 0) AS "otrosGastos"
                 FROM gastos_operativos
-                WHERE sucursal_id = :sucursalId AND fecha BETWEEN :labelDesde AND :labelHasta`,
+                WHERE sucursal_id = :sucursalId AND NOT recurrente AND fecha BETWEEN :labelDesde AND :labelHasta`,
+            { sucursalId, labelDesde, labelHasta }),
+            // Un alquiler puntual determina el importe contabilizado de ese mes. La previsión
+            // mensual se prorratea para los reportes con rangos menores a un mes.
+            consultar(`WITH meses AS (
+                    SELECT mes::date AS inicio, (mes + interval '1 month')::date AS siguiente
+                    FROM generate_series(
+                        date_trunc('month', CAST(:labelDesde AS date)::timestamp),
+                        date_trunc('month', CAST(:labelHasta AS date)::timestamp), interval '1 month'
+                    ) AS serie(mes)
+                )
+                SELECT COALESCE(SUM(a.monto *
+                    (LEAST(m.siguiente, CAST(:labelHasta AS date) + 1) -
+                     GREATEST(m.inicio, CAST(:labelDesde AS date))) / (m.siguiente - m.inicio)), 0) AS monto
+                FROM meses m
+                JOIN LATERAL (
+                    SELECT g.monto, g.hasta_mes FROM gastos_operativos g
+                    WHERE g.sucursal_id = :sucursalId AND g.recurrente AND g.fecha <= m.inicio
+                    ORDER BY g.fecha DESC, g.id DESC LIMIT 1
+                ) a ON a.hasta_mes IS NULL OR a.hasta_mes >= m.inicio
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM gastos_operativos g
+                    WHERE g.sucursal_id = :sucursalId AND NOT g.recurrente AND g.categoria = 'ALQUILER'
+                      AND g.fecha >= m.inicio AND g.fecha < m.siguiente
+                )`,
             { sucursalId, labelDesde, labelHasta }),
         ]);
         const k = resumen.kpis;
         const sueldos = num(nomina.sueldos);
         const costoCortesias = num(lineas.costoCortesias);
         const costoVendido = round2(k.costoRecetasTotal - costoCortesias);
-        const alquiler = num(gastos.alquiler);
+        const alquilerMensual = num(alquilerProgramado.monto);
+        const alquiler = round2(num(gastos.alquiler) + alquilerMensual);
         const otrosGastos = num(gastos.otrosGastos);
         const gastosTotales = round2(costoVendido + costoCortesias + k.costoMermasTotal + sueldos + alquiler + otrosGastos);
         const ingresosManuales = num(caja.ingresosManuales);
@@ -162,6 +188,7 @@ class ReportesService {
             mermas: k.costoMermasTotal,
             sueldos,
             alquiler,
+            alquilerMensual,
             otrosGastos,
             gastosTotales,
             compras: k.totalCompras,

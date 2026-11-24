@@ -12,7 +12,7 @@ import {
 import { BarChart3, FileDown, FileSpreadsheet, Filter, UtensilsCrossed } from 'lucide-react';
 import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../../models';
 import { isAbortError } from '../../services/httpClient';
-import { BalanceEconomico, reportesService } from '../../services/reportes.service';
+import { reportesService } from '../../services/reportes.service';
 import { useAuthStore } from '../../store/auth.store';
 import { formatCurrency } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
@@ -21,16 +21,16 @@ import { Field } from '../components/common/Field';
 import { Pagination } from '../components/common/Pagination';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 
-import { CuadreEconomico } from '../components/auditoria/CuadreEconomico';
+import { AuditoriaEconomica } from '../components/auditoria/AuditoriaEconomica';
 import { rangoActual } from '../../utils/periodos';
 
 export const ReportesPage: React.FC = () => {
   const canExport = useAuthStore((s) => s.can('reportes:exportar'));
   const puedeVerBalance = useAuthStore((s) => s.can('reportes:balance'));
+  const puedeRegistrarGastos = useAuthStore((s) => s.isAdmin());
   const [fechaDesde, setFechaDesde] = useState(() => rangoActual('mes').desde);
   const [fechaHasta, setFechaHasta] = useState(() => rangoActual('mes').hasta);
   const [resumen, setResumen] = useState<ReporteResumenModel | null>(null);
-  const [balance, setBalance] = useState<BalanceEconomico | null>(null);
   const [serie, setSerie] = useState<SerieVentasDiaModel[]>([]);
   const [topProductos, setTopProductos] = useState<TopProductoModel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,15 +51,13 @@ export const ReportesPage: React.FC = () => {
     setCargandoDetalle(false);
     setError(null);
     try {
-      const [res, ser, top, balancePeriodo] = await Promise.all([
+      const [res, ser, top] = await Promise.all([
         reportesService.obtenerResumen(fechaDesde, fechaHasta, controller.signal),
         reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta, 1, controller.signal),
         reportesService.obtenerTopProductos(fechaDesde, fechaHasta, 1, controller.signal),
-        puedeVerBalance ? reportesService.obtenerBalance(fechaDesde, fechaHasta, controller.signal) : null,
       ]);
       if (solicitud !== solicitudActual.current || controller.signal.aborted) return;
       setResumen(res);
-      setBalance(balancePeriodo);
       setSerie(ser.items);
       setMetaDetalle(ser.meta);
       setTopProductos(top.items);
@@ -68,13 +66,12 @@ export const ReportesPage: React.FC = () => {
       if (isAbortError(err) || solicitud !== solicitudActual.current) return;
       setError(err instanceof Error ? err.message : 'Error cargando reportes');
       setResumen(null);
-      setBalance(null);
       setSerie([]);
       setTopProductos([]);
     } finally {
       if (solicitud === solicitudActual.current) setLoading(false);
     }
-  }, [fechaDesde, fechaHasta, puedeVerBalance]);
+  }, [fechaDesde, fechaHasta]);
 
   useEffect(() => {
     void cargar();
@@ -172,7 +169,14 @@ export const ReportesPage: React.FC = () => {
         )}
       </div>
 
-      {/* Filtros de fecha */}
+      {puedeVerBalance && (
+        <section className="space-y-3" aria-label="Reporte económico mensual">
+          <h2 className="text-lg font-bold text-slate-900">Reporte económico mensual</h2>
+          <AuditoriaEconomica mensual puedeRegistrar={puedeRegistrarGastos} />
+        </section>
+      )}
+
+      <h2 className="text-lg font-bold text-slate-900">Estadísticas de ventas</h2>
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <Field label="Fecha inicial" labelClassName="mb-1 block text-sm font-bold text-slate-700">
           <input
@@ -246,7 +250,7 @@ export const ReportesPage: React.FC = () => {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase text-slate-500">Ganancia del período</p>
+          <p className="text-xs font-semibold uppercase text-slate-500">Utilidad antes de nómina y otros gastos</p>
           <p className={`mt-1 text-2xl font-black ${(k?.utilidadBruta ?? 0) < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
             {formatCurrency(k?.utilidadBruta ?? 0)}
           </p>
@@ -265,7 +269,6 @@ export const ReportesPage: React.FC = () => {
         </div>
       </div>
 
-      {balance && !loading && <CuadreEconomico balance={balance} />}
       {!puedeVerBalance && resumen && !loading && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-bold text-slate-900">Balance del período</h2>

@@ -19,6 +19,15 @@ const gastoOperativoSchema = z.object({
     fecha: fechaStr,
     monto: montoStr.refine((v) => Number(v) > 0, 'El monto debe ser mayor a cero'),
     concepto: z.string().trim().min(1).max(200),
+    recurrente: z.boolean().default(false),
+    hastaMes: fechaStr.optional(),
+}).superRefine((gasto, ctx) => {
+    if (gasto.recurrente && (gasto.categoria !== 'ALQUILER' || !gasto.fecha.endsWith('-01'))) {
+        ctx.addIssue({ code: 'custom', path: ['fecha'], message: 'Indica el primer día del mes de inicio del alquiler' });
+    }
+    if (gasto.hastaMes && (!gasto.recurrente || !gasto.hastaMes.endsWith('-01') || gasto.hastaMes < gasto.fecha)) {
+        ctx.addIssue({ code: 'custom', path: ['hastaMes'], message: 'El último mes debe ser igual o posterior al mes inicial' });
+    }
 });
 const ventasPeriodoSchema = z.object({ ...rangoFechasQuery, page: paginacionQuery.page }).superRefine(refinarRangoFechas);
 const topProductosSchema = z

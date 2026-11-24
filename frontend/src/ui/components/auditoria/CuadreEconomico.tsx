@@ -1,83 +1,75 @@
 import { BalanceEconomico } from '../../../services/reportes.service';
 import { formatCurrency } from '../../../utils/formatters';
 
-function Montos({ filas }: { filas: ReadonlyArray<readonly [string, number]> }) {
+function Fila({ concepto, ingreso, egreso, total = false }: {
+  concepto: string;
+  ingreso?: number;
+  egreso?: number;
+  total?: boolean;
+}) {
   return (
-    <dl className="space-y-2 text-sm">
-      {filas.map(([etiqueta, monto]) => (
-        <div key={etiqueta} className="flex justify-between gap-3">
-          <dt className="text-slate-600">{etiqueta}</dt>
-          <dd className="shrink-0 font-semibold text-slate-900">{formatCurrency(monto)}</dd>
-        </div>
-      ))}
-    </dl>
+    <tr className={total ? 'bg-slate-100 font-bold' : 'border-b border-slate-100'}>
+      <th scope="row" className={`px-3 py-2 text-left ${total ? 'font-bold' : 'font-normal'}`}>{concepto}</th>
+      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{ingreso === undefined ? '—' : formatCurrency(ingreso)}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{egreso === undefined ? '—' : formatCurrency(egreso)}</td>
+    </tr>
   );
 }
 
-export function CuadreEconomico({ balance }: { balance: BalanceEconomico }) {
+export function CuadreEconomico({ balance, mensual = false }: { balance: BalanceEconomico; mensual?: boolean }) {
   const parcial = balance.lineasCostoPendiente > 0 || balance.personalConDatosPendientes > 0 ||
     balance.egresosSinClasificar > 0;
+  const resultado = parcial ? 'Resultado parcial' : balance.resultado < 0 ? 'Pérdida del período' : 'Ganancia del período';
+
   return (
     <section className="rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
-      <h2 className="font-bold text-slate-900">Cuadre general</h2>
+      <h2 className="font-bold text-slate-900">{mensual ? 'Cuadre general del mes' : 'Cuadre general'}</h2>
       <p className="text-sm text-slate-600">{balance.periodo.fechaDesde} al {balance.periodo.fechaHasta}</p>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <h3 className="mb-3 text-sm font-bold text-slate-900">Entradas del restaurante</h3>
-          <Montos filas={[
-            ['Cobros en efectivo', balance.cobrosEfectivo],
-            ['Cobros con tarjeta', balance.cobrosTarjeta],
-            ['Total cobrado (IVA incluido)', balance.totalCobrado],
-            ['Entradas manuales de caja', balance.ingresosManuales],
-            ['Total de entradas registradas', balance.totalEntradasRegistradas],
-            ['IVA incluido en los cobros', balance.iva],
-            ['Ingresos por ventas sin IVA', balance.ventasSinIva],
-          ]} />
-        </section>
-        <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <h3 className="mb-3 text-sm font-bold text-slate-900">Costos y gastos del período</h3>
-          <Montos filas={[
-            ['Costo de lo vendido', balance.costoVendido],
-            ['Costo de cortesías', balance.costoCortesias],
-            ['Mermas', balance.mermas],
-            ['Nómina del período', balance.sueldos],
-            ['Alquiler', balance.alquiler],
-            ['Otros gastos indirectos', balance.otrosGastos],
-            ['Total de costos y gastos', balance.gastosTotales],
-          ]} />
-        </section>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[430px] text-sm text-slate-900" aria-label="Ingresos, egresos y resultado">
+          <thead className="bg-slate-100 text-slate-700">
+            <tr>
+              <th scope="col" className="px-3 py-2 text-left">Concepto</th>
+              <th scope="col" className="px-3 py-2 text-right">Ingresos</th>
+              <th scope="col" className="px-3 py-2 text-right">Egresos</th>
+            </tr>
+          </thead>
+          <tbody>
+            <Fila concepto="Ventas sin IVA" ingreso={balance.ventasSinIva} />
+            <Fila concepto="Costo de lo vendido" egreso={balance.costoVendido} />
+            <Fila concepto="Costo de cortesías" egreso={balance.costoCortesias} />
+            <Fila concepto="Mermas" egreso={balance.mermas} />
+            <Fila concepto={mensual ? 'Nómina mensual' : 'Nómina del período'} egreso={balance.sueldos} />
+            <Fila concepto={balance.alquilerMensual > 0 ? 'Alquiler mensual configurado' : 'Alquiler'} egreso={balance.alquiler} />
+            <Fila concepto="Otros gastos indirectos" egreso={balance.otrosGastos} />
+            <Fila concepto="Totales del resultado" ingreso={balance.ventasSinIva} egreso={balance.gastosTotales} total />
+            <tr className="bg-teal-50 font-bold text-teal-950">
+              <th scope="row" className="px-3 py-3 text-left">{resultado}</th>
+              <td colSpan={2} className="px-3 py-3 text-right text-lg tabular-nums">{formatCurrency(balance.resultado)}</td>
+            </tr>
+          </tbody>
+          <tbody>
+            <tr>
+              <th scope="rowgroup" colSpan={3} className="px-3 pb-2 pt-5 text-left text-slate-600">Cobros y movimientos registrados</th>
+            </tr>
+            <Fila concepto="Ventas cobradas en efectivo" ingreso={balance.cobrosEfectivo} />
+            <Fila concepto="Ventas cobradas con tarjeta" ingreso={balance.cobrosTarjeta} />
+            <Fila concepto="Total vendido con IVA" ingreso={balance.totalCobrado} total />
+            <Fila concepto="IVA incluido en las ventas" ingreso={balance.iva} />
+            <Fila concepto="Entradas manuales de caja" ingreso={balance.ingresosManuales} />
+            <Fila concepto="Total de entradas registradas" ingreso={balance.totalEntradasRegistradas} total />
+            <Fila concepto="Compras de inventario" egreso={balance.compras} />
+            <Fila concepto="Salidas manuales de caja sin clasificar" egreso={balance.egresosSinClasificar} />
+          </tbody>
+        </table>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-baseline justify-between gap-2 rounded-xl bg-teal-50 p-4 text-teal-950">
-        <div>
-          <p className="text-sm font-bold">
-            {parcial ? 'Resultado parcial' : balance.resultado < 0 ? 'Pérdida del período' : 'Ganancia del período'}
-          </p>
-          <p className="text-xs">Ingresos por ventas sin IVA menos costos y gastos</p>
-        </div>
-        <strong className="text-xl">{formatCurrency(balance.resultado)}</strong>
-      </div>
-
-      <div className="mt-4">
-        <Montos filas={[
-          ['Ticket promedio', balance.ticketPromedio],
-          ['Importe de ventas anuladas', balance.totalAnulado],
-          ['Compras de inventario', balance.compras],
-          ['Valor del inventario actual', balance.inventarioActual],
-          ['Salidas manuales de caja sin clasificar', balance.egresosSinClasificar],
-        ]} />
-        <p className="mt-2 text-xs text-slate-600">
-          {balance.cantidadVentas} ventas completadas · {balance.cantidadAnuladas} anuladas · {balance.cantidadMermas} mermas registradas.
-        </p>
-        <p className="mt-2 text-xs text-slate-600">
-          Las compras se reflejan en el resultado a medida que se consume el inventario. Las entradas y salidas manuales de caja se muestran para conciliación.
-        </p>
-        <p className="mt-2 text-xs text-slate-600">
-          {balance.unidadesCortesia} unidades de cortesía por un valor habitual de {formatCurrency(balance.valorCortesias)}.
-          {' '}{balance.lineasCostoPendiente} líneas con costo pendiente y {balance.lineasConsumoPendiente} con consumo pendiente.
-          {' '}{balance.personalConDatosPendientes} personas con datos de nómina pendientes.
-        </p>
+      <div className="mt-4 space-y-2 text-xs text-slate-600">
+        <p>El resultado usa ventas sin IVA y resta el costo del inventario consumido. Los movimientos manuales de caja se muestran para conciliación.</p>
+        <p>{balance.cantidadVentas} ventas completadas · {balance.cantidadAnuladas} anuladas por {formatCurrency(balance.totalAnulado)} · {balance.cantidadMermas} mermas.</p>
+        <p>Ticket promedio {formatCurrency(balance.ticketPromedio)} · Inventario actual {formatCurrency(balance.inventarioActual)} · {balance.unidadesCortesia} unidades de cortesía por {formatCurrency(balance.valorCortesias)}.</p>
+        <p>{balance.lineasCostoPendiente} líneas con costo pendiente · {balance.lineasConsumoPendiente} con consumo pendiente · {balance.personalConDatosPendientes} personas con datos de nómina pendientes.</p>
       </div>
     </section>
   );

@@ -767,5 +767,32 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
     assert.equal(balance.resultado, previo.body.data.resultado - 324.75);
     const eventos = await apiGet('/auditoria?ambito=economica&accion=REGISTRO_GASTO_OPERATIVO', auditorJwt);
     assert.equal(eventos.body.meta.total, 2);
+
+    const contrato = {
+      registroId: crypto.randomUUID(), categoria: 'ALQUILER', recurrente: true,
+      monto: '2800.00', fecha: '2025-07-01', concepto: 'Alquiler mensual QA',
+    };
+    assert.equal((await registrar({ ...contrato, hastaMes: '2025-06-01' })).status, 400);
+    assert.equal((await registrar(contrato)).status, 201);
+    assert.equal((await registrar(contrato)).status, 200);
+    assert.equal((await registrar({
+      ...contrato, registroId: crypto.randomUUID(), fecha: '2025-08-01',
+      hastaMes: '2025-08-01', monto: '3100.00',
+    })).status, 201);
+
+    const balanceRango = async (desde, hasta) =>
+      (await apiGet(`/reportes/balance?fechaDesde=${desde}&fechaHasta=${hasta}`, auditorJwt)).body.data;
+    const julio = await balanceRango('2025-07-01', '2025-07-31');
+    assert.equal(julio.alquiler, 300.25);
+    assert.equal(julio.sueldos, 1300);
+    const agosto = await balanceRango('2025-08-01', '2025-08-31');
+    assert.equal(agosto.alquilerMensual, 3100);
+    assert.equal(agosto.sueldos, 3100);
+    assert.equal(agosto.otrosGastos, 0);
+    assert.equal(agosto.resultado, -6200);
+    assert.equal((await balanceRango('2025-08-02', '2025-08-02')).alquiler, 100);
+    assert.equal((await balanceRango('2025-09-01', '2025-09-30')).alquiler, 0);
+    const gastosAgosto = await apiGet('/reportes/gastos?fechaDesde=2025-08-01&fechaHasta=2025-08-31', auditorJwt);
+    assert.equal(gastosAgosto.body.meta.total, 0);
   });
 });
