@@ -8,17 +8,24 @@ const {
     rangoFechasQuery,
     fechaStr,
     montoStr,
+    idParamsSchema,
     paginacionQuery,
     refinarRangoFechas,
 } = require('../shared/validators/common.validators');
 // Auditoría P1: fechas YYYY-MM-DD válidas, desde <= hasta y rango máximo acotado
 const rangoReporteSchema = z.object(rangoFechasQuery).superRefine(refinarRangoFechas);
-const gastoOperativoSchema = z.object({
-    registroId: z.uuid(),
-    categoria: z.enum(['ALQUILER', 'OTRO']),
+const datosGasto = {
     fecha: fechaStr,
     monto: montoStr.refine((v) => Number(v) > 0, 'El monto debe ser mayor a cero'),
     concepto: z.string().trim().min(1).max(200),
+};
+const version = z.number().int().positive().max(2147483647);
+const editarGastoSchema = z.object({ ...datosGasto, version });
+const anularGastoSchema = z.object({ version, motivo: z.string().trim().min(3).max(250) });
+const gastoOperativoSchema = z.object({
+    ...datosGasto,
+    registroId: z.uuid(),
+    categoria: z.enum(['ALQUILER', 'OTRO']).default('OTRO'),
     recurrente: z.boolean().default(false),
     hastaMes: fechaStr.optional(),
 }).superRefine((gasto, ctx) => {
@@ -47,6 +54,8 @@ router.get('/resumen', requirePermission('reportes:ver'), validate(rangoReporteS
 router.get('/balance', requirePermission('reportes:balance'), validate(rangoReporteSchema, 'query'), ReportesController.balance);
 router.get('/gastos', requirePermission('reportes:balance'), validate(ventasPeriodoSchema, 'query'), ReportesController.gastos);
 router.post('/gastos', requireAdmin, requirePermission('reportes:balance'), validate(gastoOperativoSchema), ReportesController.registrarGasto);
+router.put('/gastos/:id', requireAdmin, requirePermission('reportes:balance'), validate(idParamsSchema, 'params'), validate(editarGastoSchema), ReportesController.modificarGasto);
+router.post('/gastos/:id/anular', requireAdmin, requirePermission('reportes:balance'), validate(idParamsSchema, 'params'), validate(anularGastoSchema), ReportesController.modificarGasto);
 router.get('/ventas-periodo', requirePermission('reportes:ver'), validate(ventasPeriodoSchema, 'query'), ReportesController.ventasPeriodo);
 router.get('/productos-mas-vendidos', requirePermission('reportes:ver'), validate(topProductosSchema, 'query'), ReportesController.productosMasVendidos);
 router.get('/exportar/pdf', requirePermission('reportes:exportar'), validate(rangoReporteSchema, 'query'), ReportesController.exportarPdf);

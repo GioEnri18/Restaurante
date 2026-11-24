@@ -35,24 +35,27 @@ export interface BalanceEconomico {
   personalConDatosPendientes: number;
 }
 
-export interface RegistroGasto {
-  registroId: string;
-  categoria: 'ALQUILER' | 'OTRO';
+export interface DatosGasto {
   fecha: string;
   monto: string;
   concepto: string;
-  recurrente?: boolean;
-  hastaMes?: string;
 }
 
-export interface GastoOperativo extends Omit<RegistroGasto, 'registroId' | 'monto'> {
+export interface GastoOperativo extends Omit<DatosGasto, 'monto'> {
   id: number;
   monto: number;
+  version: number;
 }
 
 export const reportesService = {
-  async registrarGasto(gasto: RegistroGasto): Promise<void> {
+  async registrarGasto(gasto: DatosGasto & { registroId: string }): Promise<void> {
     await httpClient.post('/reportes/gastos', gasto);
+  },
+  async editarGasto(id: number, gasto: DatosGasto & { version: number }): Promise<void> {
+    await httpClient.put(`/reportes/gastos/${id}`, gasto);
+  },
+  async anularGasto(id: number, version: number, motivo: string): Promise<void> {
+    await httpClient.post(`/reportes/gastos/${id}/anular`, { version, motivo });
   },
   async listarGastos(fechaDesde: string, fechaHasta: string, page: number, signal: AbortSignal) {
     const qs = buildQueryString({ fechaDesde, fechaHasta, page });

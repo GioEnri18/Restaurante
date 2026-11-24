@@ -123,6 +123,8 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   APERTURA_CAJA: 'Apertura de caja',
   MOVIMIENTO_CAJA: 'Movimiento manual de caja',
   REGISTRO_GASTO_OPERATIVO: 'Gasto operativo registrado',
+  EDICION_GASTO_OPERATIVO: 'Gasto operativo editado',
+  ANULACION_GASTO_OPERATIVO: 'Gasto operativo anulado',
   CIERRE_CAJA: 'Cierre de caja',
   AUTORIZACION_CAJA_RECHAZADA: 'Autorización de caja rechazada',
   CAMBIO_PERMISOS: 'Cambio de permisos',

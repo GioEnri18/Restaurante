@@ -8,7 +8,6 @@ import { Field } from '../components/common/Field';
 import { CuadreEconomico } from '../components/economia/CuadreEconomico';
 import { GastosPeriodo } from '../components/economia/GastosPeriodo';
 import { NominaPanel } from '../components/economia/NominaPanel';
-import { RegistroGastoForm } from '../components/economia/RegistroGastoForm';
 
 export function EconomiaPage() {
   const esAdmin = useAuthStore((s) => s.isAdmin());
@@ -19,6 +18,7 @@ export function EconomiaPage() {
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const [revision, setRevision] = useState(0);
+  const [confirmacion, setConfirmacion] = useState<string | null>(null);
   const { desde, hasta } = rangoMes(mes);
   const rangoValido = Boolean(desde && hasta);
 
@@ -47,17 +47,11 @@ export function EconomiaPage() {
       <h1 className="text-2xl font-extrabold text-slate-900">Economía</h1>
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <Field label="Mes del cuadre">
-          <input type="month" placeholder="AAAA-MM" value={mes} onChange={(event) => setMes(event.target.value)}
+          <input type="month" placeholder="AAAA-MM" value={mes} onChange={(event) => { setConfirmacion(null); setMes(event.target.value); }}
             className="min-h-[44px] rounded-xl border border-slate-300 px-3 text-sm" />
         </Field>
-        {mes === fechaGuatemala.format(new Date()).slice(0, 7) && (
-          <p className="mt-2 text-sm text-slate-600">Mes en curso. El resultado incluye la nómina correspondiente al mes completo.</p>
-        )}
+        <p className="mt-2 text-sm text-slate-600">El cuadre mensual aplica el sueldo completo del personal registrado durante el mes.</p>
       </div>
-      {esAdmin && <RegistroGastoForm onGuardado={(fecha) => {
-        setMes(fecha.slice(0, 7));
-        setRevision((actual) => actual + 1);
-      }} />}
       {!rangoValido ? (
         <Alert type="warning" message="Selecciona un mes válido." />
       ) : cargando ? (
@@ -67,7 +61,13 @@ export function EconomiaPage() {
       ) : balance?.periodo.fechaDesde === desde && balance.periodo.fechaHasta === hasta ? (
         <CuadreEconomico balance={balance} />
       ) : null}
-      {rangoValido && <GastosPeriodo key={`${desde}/${hasta}/${revision}`} desde={desde} hasta={hasta} />}
+      {confirmacion && <Alert type="success" message={confirmacion} />}
+      {rangoValido && <GastosPeriodo key={`${desde}/${hasta}/${revision}`} desde={desde} hasta={hasta}
+        puedeGestionar={esAdmin} onCambio={(fecha, mensaje) => {
+          setConfirmacion(mensaje);
+          setMes(fecha.slice(0, 7));
+          setRevision((actual) => actual + 1);
+        }} />}
       {esAdmin && (
         <details className="rounded-2xl border border-slate-200 bg-white p-4"
           onToggle={(event) => setMostrarNomina(event.currentTarget.open)}>

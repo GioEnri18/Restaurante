@@ -29,11 +29,10 @@ export function CuadreEconomico({ balance }: { balance: BalanceEconomico }) {
           </thead>
           <tbody>
             <Fila concepto="Costo de inventario usado en ventas" monto={balance.costoVendido} />
-            <Fila concepto="Costo de cortesías" monto={balance.costoCortesias} />
+            <Fila concepto="Cortesías (costo de los productos)" monto={balance.costoCortesias} />
             <Fila concepto="Mermas" monto={balance.mermas} />
             <Fila concepto="Nómina mensual" monto={balance.sueldos} />
-            <Fila concepto="Alquiler" monto={balance.alquiler} />
-            <Fila concepto="Otros gastos registrados" monto={balance.otrosGastos} />
+            <Fila concepto="Gastos registrados" monto={balance.alquiler + balance.otrosGastos} />
           </tbody>
           <tfoot><Fila concepto="Total de costos y gastos" monto={balance.gastosTotales} total /></tfoot>
         </table>
@@ -52,32 +51,6 @@ export function CuadreEconomico({ balance }: { balance: BalanceEconomico }) {
             <Fila concepto={resultado} monto={balance.resultado} total />
           </tfoot>
         </table>
-        {parcial && <p className="mt-3 text-sm text-amber-800">
-          Pendientes del mes · {balance.lineasCostoPendiente} líneas sin costo completo · {balance.personalConDatosPendientes} personas con datos de nómina pendientes · {formatCurrency(balance.egresosSinClasificar)} en salidas de caja sin clasificar.
-        </p>}
-        <details className="mt-4 text-sm">
-          <summary className="cursor-pointer font-semibold text-slate-700">Cobros, caja e inventario</summary>
-          <table className="mt-2 w-full" aria-label="Cobros y movimientos registrados">
-            <tbody>
-              <Fila concepto="Ventas cobradas en efectivo" monto={balance.cobrosEfectivo} />
-              <Fila concepto="Ventas cobradas con tarjeta" monto={balance.cobrosTarjeta} />
-              <Fila concepto="Total vendido con IVA" monto={balance.totalCobrado} total />
-              <Fila concepto="IVA de las ventas" monto={balance.iva} />
-              <Fila concepto="Entradas manuales de caja" monto={balance.ingresosManuales} />
-              <Fila concepto="Total de entradas registradas" monto={balance.totalEntradasRegistradas} total />
-              <Fila concepto="Compras de inventario" monto={balance.compras} />
-              <Fila concepto="Valor del inventario actual" monto={balance.inventarioActual} />
-              <Fila concepto="Salidas manuales de caja sin clasificar" monto={balance.egresosSinClasificar} />
-              <Fila concepto="Importe de ventas anuladas" monto={balance.totalAnulado} />
-              <Fila concepto="Ticket promedio" monto={balance.ticketPromedio} />
-              <Fila concepto="Valor de venta de las cortesías" monto={balance.valorCortesias} />
-            </tbody>
-          </table>
-          <p className="mt-2 text-xs text-slate-600">Las compras se llevan al gasto a medida que se consume el inventario. Usa los movimientos de caja para conciliación.</p>
-          <p className="mt-2 text-xs text-slate-600">
-            {balance.cantidadVentas} ventas completadas · {balance.cantidadAnuladas} anuladas · {balance.cantidadMermas} mermas · {balance.unidadesCortesia} unidades de cortesía · {balance.lineasConsumoPendiente} líneas con consumo pendiente.
-          </p>
-        </details>
       </section>
     </div>
   );

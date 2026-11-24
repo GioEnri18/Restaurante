@@ -16,6 +16,14 @@ class ReportesController {
             next(error);
         }
     }
+    static async modificarGasto(req, res, next) {
+        try {
+            await ReportesService.modificarGasto(req.user, req.params.id, req.body, req.clientMeta);
+            res.json({ ok: true });
+        } catch (error) {
+            next(error);
+        }
+    }
     static async balance(req, res, next) {
         try {
             const data = await ReportesService.obtenerBalance(req.user.sucursalId, req.query.fechaDesde, req.query.fechaHasta);

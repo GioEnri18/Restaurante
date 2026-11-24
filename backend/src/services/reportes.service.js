@@ -10,7 +10,7 @@ const {
     formatDateTimeInTimezone,
     parseDateRangeInTimezone,
 } = require('../shared/utils/dates');
-const { BadRequestError, ConflictError } = require('../shared/errors/AppError');
+const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { round2 } = require('../shared/utils/tax');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { MAX_RANGO_DIAS } = require('../shared/validators/common.validators');
@@ -48,8 +48,9 @@ class ReportesService {
         const { labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
         const { page, limit, skip } = parsePagination(rawPage, 15, 15, 15);
         const [resultado] = await consultar(`WITH filtrados AS (
-            SELECT id, categoria, fecha, concepto, monto FROM gastos_operativos
-            WHERE sucursal_id = :sucursalId AND NOT recurrente AND fecha BETWEEN :labelDesde AND :labelHasta
+            SELECT id, fecha, concepto, monto, version, categoria FROM gastos_operativos
+            WHERE sucursal_id = :sucursalId AND NOT recurrente AND anulado_at IS NULL
+              AND fecha BETWEEN :labelDesde AND :labelHasta
         ), pagina AS (
             SELECT * FROM filtrados ORDER BY fecha DESC, id DESC LIMIT :limit OFFSET :skip
         )
@@ -57,6 +58,45 @@ class ReportesService {
                COALESCE(json_agg(pagina ORDER BY fecha DESC, id DESC), '[]'::json) AS items
         FROM pagina`, { sucursalId, labelDesde, labelHasta, limit, skip });
         return { data: resultado.items, meta: buildPaginationMeta(Number(resultado.total), page, limit) };
+    }
+    static async modificarGasto(user, id, input, clientMeta) {
+        const esAnulacion = input.motivo !== undefined;
+        const alcance = { id, sucursalId: user.sucursalId };
+        return withTransaction(async (transaction) => {
+            const [fila] = await sequelize.query(`SELECT fecha, concepto, monto, version, anulado_at AS "anuladoAt"
+                FROM gastos_operativos WHERE id = :id AND sucursal_id = :sucursalId AND NOT recurrente
+                FOR UPDATE`, { replacements: alcance, transaction, type: QueryTypes.SELECT });
+            if (!fila) throw new NotFoundError('Gasto manual no encontrado');
+            if (fila.anuladoAt) {
+                if (esAnulacion) return;
+                throw new ConflictError('El gasto ya fue anulado');
+            }
+            const antes = { fecha: fila.fecha, monto: num(fila.monto), concepto: fila.concepto };
+            const despues = esAnulacion ? antes : {
+                fecha: input.fecha,
+                monto: num(input.monto),
+                concepto: AuditService.sanitizeText(input.concepto, 200),
+            };
+            if (!despues.concepto) throw new BadRequestError('Ingresa el concepto del gasto');
+            if (!esAnulacion && Object.keys(antes).every((campo) => antes[campo] === despues[campo])) return;
+            if (fila.version !== input.version) {
+                throw new ConflictError('El gasto cambió en otra sesión. Vuelve a cargar la lista antes de continuar.');
+            }
+            await sequelize.query(`UPDATE gastos_operativos SET
+                fecha = :fecha, monto = :monto, concepto = :concepto, version = version + 1,
+                anulado_at = CASE WHEN :esAnulacion THEN CURRENT_TIMESTAMP ELSE NULL END
+                WHERE id = :id AND sucursal_id = :sucursalId`,
+            { replacements: { ...alcance, ...despues, esAnulacion }, transaction });
+            await AuditService.registrarEvento({ user, clientMeta }, {
+                accion: esAnulacion ? ACCIONES_AUDITORIA.ANULACION_GASTO_OPERATIVO : ACCIONES_AUDITORIA.EDICION_GASTO_OPERATIVO,
+                entidad: 'GastoOperativo',
+                entidadId: id,
+                valorAnterior: antes,
+                valorNuevo: esAnulacion ? { ...antes, anulado: true } : despues,
+                motivo: input.motivo,
+                impactoFinanciero: esAnulacion ? antes.monto : round2(antes.monto - despues.monto),
+            }, transaction);
+        });
     }
     static async registrarGasto(user, input, clientMeta) {
         const { registroId, categoria, fecha, recurrente, hastaMes = null } = input;
@@ -107,19 +147,33 @@ class ReportesService {
                 FROM venta_detalles d JOIN ventas v ON v.id = d.venta_id
                 WHERE v.sucursal_id = :sucursalId AND v.estado = 'COMPLETADA'
                   AND v.created_at BETWEEN :desde AND :hasta`, fechas),
-            consultar(`SELECT
-                    COALESCE(SUM(n.sueldo_mensual / EXTRACT(DAY FROM
-                        (date_trunc('month', d.dia) + INTERVAL '1 month - 1 day'))), 0) AS sueldos,
+            consultar(`WITH meses AS (
+                    SELECT mes::date AS inicio, (mes + INTERVAL '1 month - 1 day')::date AS fin
+                    FROM generate_series(
+                        date_trunc('month', CAST(:labelDesde AS date)::timestamp),
+                        date_trunc('month', CAST(:labelHasta AS date)::timestamp), INTERVAL '1 month'
+                    ) AS serie(mes)
+                ), periodos AS (
+                    SELECT GREATEST(inicio, CAST(:labelDesde AS date)) AS desde,
+                           LEAST(fin, CAST(:labelHasta AS date)) AS hasta,
+                           fin - inicio + 1 AS dias_mes,
+                           inicio >= CAST(:labelDesde AS date) AND fin <= CAST(:labelHasta AS date) AS completo
+                    FROM meses
+                )
+                SELECT COALESCE(SUM(n.sueldo_mensual / CASE WHEN p.completo THEN 1 ELSE p.dias_mes END), 0) AS sueldos,
                     COUNT(DISTINCT u.id) FILTER (WHERE n.sueldo_mensual IS NULL OR u.fecha_ingreso IS NULL) AS "personalConDatosPendientes"
-                FROM usuarios u
-                JOIN generate_series(CAST(:labelDesde AS date), CAST(:labelHasta AS date), INTERVAL '1 day') d(dia)
-                  ON (u.fecha_ingreso IS NULL OR u.fecha_ingreso <= d.dia::date)
-                 AND (u.fecha_baja_nomina IS NULL OR u.fecha_baja_nomina >= d.dia::date)
+                FROM periodos p
+                CROSS JOIN LATERAL generate_series(p.desde::timestamp, p.hasta::timestamp,
+                    CASE WHEN p.completo THEN INTERVAL '1 month' ELSE INTERVAL '1 day' END) d(dia)
+                JOIN usuarios u ON u.sucursal_id = :sucursalId AND (u.activo OR u.fecha_ingreso IS NOT NULL)
+                   AND (u.fecha_ingreso IS NULL OR u.fecha_ingreso <= CASE WHEN p.completo THEN p.hasta ELSE d.dia::date END)
+                   AND (u.fecha_baja_nomina IS NULL OR u.fecha_baja_nomina >= d.dia::date)
                 LEFT JOIN LATERAL (
                     SELECT sueldo_mensual FROM nomina_vigencias
-                    WHERE usuario_id = u.id AND desde <= d.dia::date ORDER BY desde DESC LIMIT 1
-                ) n ON true
-                WHERE u.sucursal_id = :sucursalId AND (u.activo OR u.fecha_ingreso IS NOT NULL)`,
+                    WHERE usuario_id = u.id
+                      AND desde <= LEAST(CASE WHEN p.completo THEN p.hasta ELSE d.dia::date END, u.fecha_baja_nomina)
+                    ORDER BY desde DESC LIMIT 1
+                ) n ON true`,
             { sucursalId, labelDesde, labelHasta }),
             consultar(`SELECT
                     COALESCE(SUM(monto) FILTER (WHERE tipo = 'INGRESO_MANUAL'), 0) AS "ingresosManuales",
@@ -131,7 +185,8 @@ class ReportesService {
                     COALESCE(SUM(monto) FILTER (WHERE categoria = 'ALQUILER'), 0) AS alquiler,
                     COALESCE(SUM(monto) FILTER (WHERE categoria = 'OTRO'), 0) AS "otrosGastos"
                 FROM gastos_operativos
-                WHERE sucursal_id = :sucursalId AND NOT recurrente AND fecha BETWEEN :labelDesde AND :labelHasta`,
+                WHERE sucursal_id = :sucursalId AND NOT recurrente AND anulado_at IS NULL
+                  AND fecha BETWEEN :labelDesde AND :labelHasta`,
             { sucursalId, labelDesde, labelHasta }),
             // Un alquiler puntual determina el importe contabilizado de ese mes. La previsión
             // mensual se prorratea para los reportes con rangos menores a un mes.
@@ -154,6 +209,7 @@ class ReportesService {
                 WHERE NOT EXISTS (
                     SELECT 1 FROM gastos_operativos g
                     WHERE g.sucursal_id = :sucursalId AND NOT g.recurrente AND g.categoria = 'ALQUILER'
+                      AND g.anulado_at IS NULL
                       AND g.fecha >= m.inicio AND g.fecha < m.siguiente
                 )`,
             { sucursalId, labelDesde, labelHasta }),

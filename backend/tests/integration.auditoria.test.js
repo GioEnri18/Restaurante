@@ -784,7 +784,7 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
       (await apiGet(`/reportes/balance?fechaDesde=${desde}&fechaHasta=${hasta}`, auditorJwt)).body.data;
     const julio = await balanceRango('2025-07-01', '2025-07-31');
     assert.equal(julio.alquiler, 300.25);
-    assert.equal(julio.sueldos, 1300);
+    assert.equal(julio.sueldos, 3100, 'El cuadre mensual aplica el sueldo completo aunque el ingreso sea a mitad de mes');
     const agosto = await balanceRango('2025-08-01', '2025-08-31');
     assert.equal(agosto.alquilerMensual, 3100);
     assert.equal(agosto.sueldos, 3100);
@@ -794,5 +794,43 @@ describe('Módulo de Auditoría de investigación (PostgreSQL + API HTTP)', () =
     assert.equal((await balanceRango('2025-09-01', '2025-09-30')).alquiler, 0);
     const gastosAgosto = await apiGet('/reportes/gastos?fechaDesde=2025-08-01&fechaHasta=2025-08-31', auditorJwt);
     assert.equal(gastosAgosto.body.meta.total, 0);
+  });
+
+  it('permite corregir y anular un gasto manual y recalcula el resultado con trazabilidad', async () => {
+    const fecha = '2025-09-18';
+    const rango = `?fechaDesde=${fecha}&fechaHasta=${fecha}`;
+    const operacion = (ruta, method, body, token = adminJwt) => fetch(`${apiBaseUrl}${ruta}`, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const antes = await apiGet(`/reportes/balance${rango}`, auditorJwt);
+    const creado = await operacion('/reportes/gastos', 'POST', {
+      registroId: crypto.randomUUID(), fecha, monto: '50.00', concepto: 'Papel QA',
+    });
+    assert.equal(creado.status, 201);
+    const { id } = (await creado.json()).data;
+    const ruta = `/reportes/gastos/${id}`;
+    const corregido = { fecha, monto: '75.00', concepto: 'Papel y platos QA', version: 1 };
+    assert.equal((await operacion(ruta, 'PUT', corregido, auditorJwt)).status, 403);
+    assert.equal((await operacion(ruta, 'PUT', corregido)).status, 200);
+    assert.equal((await operacion(ruta, 'PUT', { ...corregido, monto: '80.00' })).status, 409);
+    assert.equal((await operacion(ruta, 'PUT', corregido)).status, 200);
+    const editados = (await apiGet(`/reportes/gastos${rango}`, auditorJwt)).body.data;
+    assert.equal(editados[0].monto, 75);
+    assert.equal(editados[0].version, 2);
+    assert.equal(
+      Math.round((await apiGet(`/reportes/balance${rango}`, auditorJwt)).body.data.resultado * 100),
+      Math.round(antes.body.data.resultado * 100) - 7500,
+    );
+    assert.equal((await operacion(`${ruta}/anular`, 'POST', { version: 1, motivo: 'Duplicado QA' })).status, 409);
+    const anulacion = { version: 2, motivo: 'Duplicado QA' };
+    assert.equal((await operacion(`${ruta}/anular`, 'POST', anulacion)).status, 200);
+    assert.equal((await operacion(`${ruta}/anular`, 'POST', anulacion)).status, 200);
+    assert.equal((await apiGet(`/reportes/gastos${rango}`, auditorJwt)).body.meta.total, 0);
+    assert.equal((await apiGet(`/reportes/balance${rango}`, auditorJwt)).body.data.resultado, antes.body.data.resultado);
+    const eventos = await AuditoriaLog.findAll({ where: { sucursalId: sucursal.id, entidad: 'GastoOperativo', entidadId: String(id) } });
+    assert.equal(eventos.length, 3);
+    assert.equal(eventos.find((evento) => evento.accion === 'ANULACION_GASTO_OPERATIVO').motivo, 'Duplicado QA');
   });
 });

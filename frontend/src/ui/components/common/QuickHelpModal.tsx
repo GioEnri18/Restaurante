@@ -85,7 +85,7 @@ const GUIAS_POR_RUTA: Record<string, GuiaSeccion> = {
     resumen: 'Revisa el total vendido, los gastos y el resultado del restaurante.',
     pasos: [
       'Selecciona el mes que quieres consultar.',
-      'Usa «Agregar gasto o configurar alquiler mensual» para registrar los gastos del restaurante.',
+      'Usa «Agregar gasto» junto a la tabla. Desde cada fila puedes editar o anular un gasto.',
       'Revisa la nómina y las mermas en el cuadre del mes.',
     ],
   },
