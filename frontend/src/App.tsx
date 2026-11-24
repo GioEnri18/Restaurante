@@ -13,11 +13,12 @@ const MermasPage = lazy(() => import('./ui/pages/MermasPage').then((m) => ({ def
 const CajaPage = lazy(() => import('./ui/pages/CajaPage').then((m) => ({ default: m.CajaPage })));
 const ReportesPage = lazy(() => import('./ui/pages/ReportesPage').then((m) => ({ default: m.ReportesPage })));
 const AuditoriaPage = lazy(() => import('./ui/pages/AuditoriaPage').then((m) => ({ default: m.AuditoriaPage })));
+const EconomiaPage = lazy(() => import('./ui/pages/EconomiaPage').then((m) => ({ default: m.EconomiaPage })));
 const AccesosPage = lazy(() => import('./ui/pages/AccesosPage').then((m) => ({ default: m.AccesosPage })));
 const MenusEspecialesPage = lazy(() => import('./ui/pages/MenusEspecialesPage').then((m) => ({ default: m.MenusEspecialesPage })));
 
 export const App: React.FC = () => {
-  const { hydrate, clearSession, usuario } = useAuthStore();
+  const { hydrate, clearSession, usuario, can } = useAuthStore();
 
   useEffect(() => {
     void hydrate();
@@ -104,13 +105,22 @@ export const App: React.FC = () => {
             }
           />
 
-          {/* 8. Auditoría */}
+          <Route
+            path="economia"
+            element={
+              <ProtectedRoute permiso="reportes:balance">
+                <EconomiaPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 8. Auditoría de sistema */}
           <Route
             path="auditoria"
             element={
-              <ProtectedRoute permiso="auditoria:ver">
-                <AuditoriaPage />
-              </ProtectedRoute>
+              !(can('auditoria:sistema') && can('auditoria:ver')) && can('reportes:balance')
+                ? <Navigate to="/economia" replace />
+                : <ProtectedRoute permiso={['auditoria:ver', 'auditoria:sistema']}><AuditoriaPage /></ProtectedRoute>
             }
           />
 

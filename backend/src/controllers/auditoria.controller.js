@@ -4,7 +4,7 @@ const { ForbiddenError } = require('../shared/errors/AppError');
 
 function alcanceAuditoria(user, query) {
   if (user.rolCodigo === ROL_ADMIN_CODIGO) return query?.ambito === 'economica' ? 'economica' : true;
-  if (user.rolCodigo === 'AUDITOR_SISTEMA' && user.permisos.includes('auditoria:sistema')) return 'sistema';
+  if (user.permisos.includes('auditoria:sistema')) return 'sistema';
   if (user.permisos.includes('auditoria:economica')) return 'economica';
   throw new ForbiddenError('No tienes acceso al ámbito de auditoría');
 }

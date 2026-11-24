@@ -26,7 +26,7 @@ export function GastosPeriodo({ desde, hasta }: { desde: string; hasta: string }
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-3 font-bold text-slate-900">Gastos indirectos y alquiler</h2>
+      <h2 className="mb-3 font-bold text-slate-900">Gastos registrados del mes</h2>
       {error ? <Alert type="error" message={error} /> : !resultado ? (
         <p role="status" className="text-sm text-slate-600">Cargando gastos…</p>
       ) : resultado.items.length === 0 ? (

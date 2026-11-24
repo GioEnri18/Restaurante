@@ -21,6 +21,7 @@ const VISTAS_RUTAS = [
   '/mermas',
   '/caja',
   '/reportes',
+  '/economia',
   '/auditoria',
   '/accesos',
 ];

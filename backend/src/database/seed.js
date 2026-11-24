@@ -90,7 +90,7 @@ async function main() {
             codigo: 'AUDITOR',
             nombre: 'Auditor económico',
             descripcion: 'Supervisión de caja y consulta de solo lectura sobre reportes, auditoría, facturas, inventario y mermas',
-            vistaInicial: '/auditoria',
+            vistaInicial: '/economia',
             esSistema: false,
             permisos: [
                 'reportes:ver',

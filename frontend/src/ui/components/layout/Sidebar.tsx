@@ -6,6 +6,7 @@ import {
   Package,
   Trash2,
   Wallet,
+  Calculator,
   BarChart3,
   ShieldCheck,
   Users,
@@ -22,7 +23,7 @@ interface NavItem {
   to: string;
   label: string;
   hint: string;
-  permiso: string;
+  permiso: string | readonly string[];
   adminOnly?: boolean;
   Icon: React.ElementType;
 }
@@ -60,7 +61,8 @@ const NAV_GROUPS: NavGroup[] = [
         Icon: CalendarClock,
       },
       { to: '/reportes', label: 'Reportes', hint: 'Ventas, ganancias y PDF', permiso: 'reportes:ver', Icon: BarChart3 },
-      { to: '/auditoria', label: 'Auditoría', hint: 'Historial de cambios', permiso: 'auditoria:ver', Icon: ShieldCheck },
+      { to: '/economia', label: 'Economía', hint: 'Gastos, nómina y resultado mensual', permiso: 'reportes:balance', Icon: Calculator },
+      { to: '/auditoria', label: 'Auditoría de sistema', hint: 'Historial de cambios', permiso: ['auditoria:ver', 'auditoria:sistema'], Icon: ShieldCheck },
       { to: '/accesos', label: 'Personal y accesos', hint: 'Dar de alta y asignar permisos', permiso: 'accesos:ver', adminOnly: true, Icon: Users },
     ],
   },
@@ -86,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ...group,
     items: group.items.filter((item) => {
       if (item.adminOnly && !isAdmin()) return false;
-      return can(item.permiso);
+      return typeof item.permiso === 'string' ? can(item.permiso) : item.permiso.every(can);
     }),
   })).filter((group) => group.items.length > 0);
 

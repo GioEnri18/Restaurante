@@ -21,13 +21,11 @@ import { Field } from '../components/common/Field';
 import { Pagination } from '../components/common/Pagination';
 import { TableSkeleton } from '../components/common/TableSkeleton';
 
-import { AuditoriaEconomica } from '../components/auditoria/AuditoriaEconomica';
 import { rangoActual } from '../../utils/periodos';
 
 export const ReportesPage: React.FC = () => {
   const canExport = useAuthStore((s) => s.can('reportes:exportar'));
   const puedeVerBalance = useAuthStore((s) => s.can('reportes:balance'));
-  const puedeRegistrarGastos = useAuthStore((s) => s.isAdmin());
   const [fechaDesde, setFechaDesde] = useState(() => rangoActual('mes').desde);
   const [fechaHasta, setFechaHasta] = useState(() => rangoActual('mes').hasta);
   const [resumen, setResumen] = useState<ReporteResumenModel | null>(null);
@@ -168,13 +166,6 @@ export const ReportesPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {puedeVerBalance && (
-        <section className="space-y-3" aria-label="Reporte económico mensual">
-          <h2 className="text-lg font-bold text-slate-900">Reporte económico mensual</h2>
-          <AuditoriaEconomica mensual puedeRegistrar={puedeRegistrarGastos} />
-        </section>
-      )}
 
       <h2 className="text-lg font-bold text-slate-900">Estadísticas de ventas</h2>
       <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

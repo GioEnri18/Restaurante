@@ -80,6 +80,15 @@ const GUIAS_POR_RUTA: Record<string, GuiaSeccion> = {
       'Usa los botones de PDF o Excel para descargar el reporte y compartirlo o archivarlo.',
     ],
   },
+  '/economia': {
+    titulo: 'Cuadre económico mensual',
+    resumen: 'Revisa el total vendido, los gastos y el resultado del restaurante.',
+    pasos: [
+      'Selecciona el mes que quieres consultar.',
+      'Usa «Agregar gasto o configurar alquiler mensual» para registrar los gastos del restaurante.',
+      'Revisa la nómina y las mermas en el cuadre del mes.',
+    ],
+  },
   '/auditoria': {
     titulo: 'Bitácora de auditoría (solo lectura)',
     resumen: 'Registro permanente e inalterable de todas las acciones importantes del restaurante.',
