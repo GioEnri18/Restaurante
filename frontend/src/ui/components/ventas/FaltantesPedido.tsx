@@ -14,7 +14,7 @@ export function FaltantesPedido({ faltantes }: { faltantes: FaltanteStock[] }) {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs">Si tienes el producto físicamente, confirma el pedido. El sistema descontará el saldo registrado y guardará el restante como pendiente.</p>
+      <p className="mt-2 text-xs">Puedes cobrar ahora. El sistema descontará lo que esté registrado y dejará el resto pendiente.</p>
     </div>
   );
 }

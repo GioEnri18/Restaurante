@@ -53,7 +53,6 @@ export interface CarritoOrdenPanelProps {
   mode?: 'sidebar' | 'sheet';
   titleId?: string;
   onCloseSheet?: () => void;
-  onActualizarExistencias: () => void;
   onSetTipoServicio: (tipo: TipoServicio) => void;
   onSetMesaId: (mesaId: number | null) => void;
   onSetNombreTurno: (nombre: string) => void;
@@ -81,7 +80,6 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
   mode = 'sidebar',
   titleId,
   onCloseSheet,
-  onActualizarExistencias,
   onSetTipoServicio,
   onSetMesaId,
   onSetNombreTurno,
@@ -425,15 +423,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
             </div>
           )}
 
-          {faltantes.length > 0 && (
-            <>
-              <FaltantesPedido faltantes={faltantes} />
-              <button type="button" onClick={onActualizarExistencias}
-                className="min-h-9 text-sm font-semibold text-brand-700 underline underline-offset-2">
-                Actualizar existencias
-              </button>
-            </>
-          )}
+          {faltantes.length > 0 && <FaltantesPedido faltantes={faltantes} />}
           {items.some((item) => item.platillo.receta.length === 0) && (
             <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-950">
               Los platillos sin receta se pueden vender. Su consumo y costo quedarán pendientes.

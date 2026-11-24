@@ -285,7 +285,6 @@ export const VentasPage: React.FC = () => {
           canOpenCaja={canOpenCaja}
           cajaAbierta={Boolean(menu?.cajaAbierta)}
           faltantes={faltantesPedido}
-          onActualizarExistencias={() => void cargarMenu()}
           onSetTipoServicio={setTipoServicio}
           onSetMesaId={setMesaId}
           onSetNombreTurno={setNombreTurno}
@@ -318,7 +317,6 @@ export const VentasPage: React.FC = () => {
         canOpenCaja={canOpenCaja}
         cajaAbierta={Boolean(menu?.cajaAbierta)}
         faltantes={faltantesPedido}
-        onActualizarExistencias={() => void cargarMenu()}
         onSetTipoServicio={setTipoServicio}
         onSetMesaId={setMesaId}
         onSetNombreTurno={setNombreTurno}
