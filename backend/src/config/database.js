@@ -23,6 +23,7 @@ const sslOptions = buildPgSslOptions(activeDatabaseUrl);
 
 const sequelize = new Sequelize(activeDatabaseUrl, {
     dialect: 'postgres',
+    timezone: '+00:00',
     logging: false,
     pool: {
         max: env.DB_POOL_MAX,
@@ -34,6 +35,13 @@ const sequelize = new Sequelize(activeDatabaseUrl, {
         statement_timeout: env.DB_STATEMENT_TIMEOUT_MS,
         lock_timeout: env.DB_LOCK_TIMEOUT_MS,
         ...(sslOptions ? { ssl: sslOptions } : {}),
+    },
+    hooks: {
+        // Garantiza que DEFAULT CURRENT_TIMESTAMP de PostgreSQL escriba siempre en UTC
+        // en columnas TIMESTAMP(3) sin zona, igual que Sequelize y el parser de lectura.
+        afterConnect(connection) {
+            return connection.query("SET TIME ZONE 'UTC'");
+        },
     },
     define: {
         underscored: true,

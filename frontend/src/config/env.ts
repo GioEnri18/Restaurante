@@ -33,6 +33,7 @@ export const env = {
   CURRENCY_SYMBOL: import.meta.env.VITE_CURRENCY_SYMBOL || 'Q',
   CURRENCY_CODE: import.meta.env.VITE_CURRENCY_CODE || 'GTQ',
   LOCALE: import.meta.env.VITE_LOCALE || 'es-GT',
+  TIMEZONE: import.meta.env.VITE_TIMEZONE || 'America/Guatemala',
   IVA_RATE: getEnvNumber(import.meta.env.VITE_IVA_RATE, 0.12),
   OZ_PER_LB: getEnvNumber(import.meta.env.VITE_OZ_PER_LB, 16),
   FACTURAS_PAGE_SIZE: getEnvNumber(import.meta.env.VITE_FACTURAS_PAGE_SIZE, 10),
