@@ -9,8 +9,6 @@ interface PrintTicketsModalProps {
   ticket: TicketImprimibleModel | null;
   includeFactura?: boolean;
   includeComanda?: boolean;
-  /** Copia de comanda para control interno en caja (por defecto se incluye junto con factura + comanda). */
-  includeComandaCaja?: boolean;
   includeEntrega?: boolean;
   autoPrint?: boolean;
   onClose: () => void;
@@ -29,10 +27,13 @@ interface BloqueImpresion {
   titulo: string;
   subtitulo: string;
   textoBoton: string;
-  hojas: TicketHoja[];
+  /** Tarjeta única que se muestra en la vista previa del modal */
+  vistaPrevia: TicketHoja;
+  /** Hojas reales que se envían a la impresora térmica (cada una con corte) */
+  hojasImpresion: TicketHoja[];
 }
 
-function renderFacturaContenido(ticket: TicketImprimibleModel) {
+function renderFacturaContenido(ticket: TicketImprimibleModel, etiquetaCopia?: string) {
   return (
     <>
       <div className="border-b border-dashed border-slate-500 pb-2 text-center">
@@ -44,6 +45,7 @@ function renderFacturaContenido(ticket: TicketImprimibleModel) {
           FACTURA {ticket.factura.numeroCompleto}
           {ticket.factura.reimpresionesCount > 0 && ` (COPIA #${ticket.factura.reimpresionesCount})`}
         </p>
+        {etiquetaCopia && <p className="text-xs font-bold uppercase">{etiquetaCopia}</p>}
         {ticket.factura.estado === 'ANULADA' && (
           <p className="mt-1 font-bold text-red-600">*** ANULADA ***</p>
         )}
@@ -134,18 +136,14 @@ function renderFacturaContenido(ticket: TicketImprimibleModel) {
 
 function renderComandaContenido(
   ticket: TicketImprimibleModel,
-  destino: 'CAJA' | 'COCINA',
   esReimpresion: boolean,
 ) {
   if (!ticket.comanda) return null;
-  const esCaja = destino === 'CAJA';
 
   return (
     <>
       <div className="border-b-2 border-dashed border-slate-900 pb-2 text-center">
-        <p className="text-base font-black tracking-wide">
-          {esCaja ? 'COMANDA CAJA' : 'COMANDA COCINA'}
-        </p>
+        <p className="text-base font-black tracking-wide">COMANDA COCINA</p>
         <p className="mt-0.5 text-sm font-bold">{ticket.comanda.numeroComanda}</p>
         {esReimpresion && <p className="text-xs font-bold">REIMPRESIÓN</p>}
         <p className="mt-1 text-sm font-bold uppercase">
@@ -269,15 +267,14 @@ function renderEntregaContenido(ticket: TicketImprimibleModel) {
 
 /**
  * Modal de vista previa e impresión térmica 80mm con bloques independientes por impresora:
- * - Bloque Caja: 1. Factura del cliente (corte) + 2. Comanda de caja (corte)
- * - Bloque Cocina: Comanda de cocina (corte)
+ * - Bloque Caja: imprime 2 copias de la Factura (1. Cliente + corte -> 2. Copia Caja + corte)
+ * - Bloque Cocina (bloqueado hasta imprimir Caja): Comanda de cocina individual (corte)
  * - Bloque Entrega (solo domicilio): Ticket de entrega para repartidor
  */
 export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   ticket,
   includeFactura = true,
   includeComanda = true,
-  includeComandaCaja,
   includeEntrega = true,
   autoPrint = false,
   onClose,
@@ -301,71 +298,71 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
     setBloquesImpresos({});
   }, [ticket]);
 
-  const mostrarComandaCaja = Boolean(
-    ticket?.comanda && (includeComandaCaja ?? (includeFactura && includeComanda)),
-  );
   const mostrarComandaCocina = Boolean(ticket?.comanda && includeComanda);
   const mostrarEntrega = Boolean(ticket?.entrega && includeEntrega);
 
   const bloques: BloqueImpresion[] = [];
   if (ticket) {
-    const hojasCaja: TicketHoja[] = [];
     if (includeFactura) {
-      hojasCaja.push({
+      // En una venta normal (con comanda), el botón de Caja imprime 2 copias de la factura; en reimpresión solo 1
+      const imprimirDosCopiasFactura = Boolean(includeComanda);
+      const hojaCliente: TicketHoja = {
         key: 'factura-cliente',
-        etiqueta: '1 · Factura del cliente',
+        etiqueta: imprimirDosCopiasFactura ? 'Se imprime 2 veces (Cliente + Copia Caja)' : 'Factura del cliente',
         contenido: renderFacturaContenido(ticket),
-      });
-    }
-    if (mostrarComandaCaja) {
-      hojasCaja.push({
-        key: 'comanda-caja',
-        etiqueta: '2 · Comanda de caja',
-        contenido: renderComandaContenido(ticket, 'CAJA', false),
-      });
-    }
-    if (hojasCaja.length > 0) {
+      };
+      const hojasImpresion: TicketHoja[] = imprimirDosCopiasFactura
+        ? [
+            hojaCliente,
+            {
+              key: 'factura-caja',
+              etiqueta: 'Copia Caja',
+              contenido: renderFacturaContenido(ticket, 'COPIA CAJA'),
+            },
+          ]
+        : [hojaCliente];
+
       bloques.push({
         id: 'CAJA',
-        titulo: hojasCaja.length === 2 ? 'Caja (2 tickets)' : 'Factura del cliente',
-        subtitulo:
-          hojasCaja.length === 2
-            ? '1. Factura cliente (corte) → 2. Comanda caja (corte)'
-            : 'Comprobante para el cliente',
-        textoBoton: hojasCaja.length === 2 ? 'Imprimir Caja (2 tickets)' : 'Imprimir Factura',
-        hojas: hojasCaja,
+        titulo: imprimirDosCopiasFactura ? 'Factura (2 copias · Caja)' : 'Factura del cliente',
+        subtitulo: imprimirDosCopiasFactura
+          ? '1. Factura cliente (corte) → 2. Copia caja (corte)'
+          : 'Comprobante para el cliente',
+        textoBoton: imprimirDosCopiasFactura ? 'Imprimir Factura (2 copias)' : 'Imprimir Factura',
+        vistaPrevia: hojaCliente,
+        hojasImpresion,
       });
     }
 
     if (mostrarComandaCocina) {
+      const hojaCocina: TicketHoja = {
+        key: 'comanda-cocina',
+        etiqueta: 'Comanda de cocina',
+        contenido: renderComandaContenido(ticket, !includeFactura),
+      };
       bloques.push({
         id: 'COCINA',
-        titulo: 'Cocina (1 ticket)',
-        subtitulo: 'Solo comanda de preparación para cocina',
+        titulo: 'Comanda de cocina',
+        subtitulo: 'Impresión individual para cocina',
         textoBoton: 'Imprimir Cocina',
-        hojas: [
-          {
-            key: 'comanda-cocina',
-            etiqueta: 'Comanda de cocina',
-            contenido: renderComandaContenido(ticket, 'COCINA', !includeFactura),
-          },
-        ],
+        vistaPrevia: hojaCocina,
+        hojasImpresion: [hojaCocina],
       });
     }
 
     if (mostrarEntrega) {
+      const hojaEntrega: TicketHoja = {
+        key: 'ticket-entrega',
+        etiqueta: 'Ticket de entrega',
+        contenido: renderEntregaContenido(ticket),
+      };
       bloques.push({
         id: 'ENTREGA',
         titulo: 'Entrega (1 ticket)',
         subtitulo: 'Ticket de entrega para repartidor',
         textoBoton: 'Imprimir Entrega',
-        hojas: [
-          {
-            key: 'ticket-entrega',
-            etiqueta: 'Ticket de entrega',
-            contenido: renderEntregaContenido(ticket),
-          },
-        ],
+        vistaPrevia: hojaEntrega,
+        hojasImpresion: [hojaEntrega],
       });
     }
   }
@@ -457,8 +454,8 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   const bloqueParaPortal =
     bloques.find((b) => b.id === bloqueActivoImpresion) ?? bloques[0] ?? null;
 
-  const modalWidthClass = totalBloques >= 2 ? 'max-w-5xl' : 'max-w-xl';
-  const gridBloquesClass = totalBloques >= 2 ? 'lg:grid-cols-2' : 'grid-cols-1';
+  const modalWidthClass = totalBloques >= 2 ? 'max-w-4xl' : 'max-w-xl';
+  const gridBloquesClass = totalBloques >= 2 ? 'md:grid-cols-2' : 'grid-cols-1';
 
   return (
     <>
@@ -513,7 +510,6 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
               {bloques.map((bloque, idx) => {
                 const yaImpreso = Boolean(bloquesImpresos[bloque.id]);
                 const bloqueBloqueado = bloque.id === 'COCINA' && tieneBloqueCaja && !bloquesImpresos.CAJA;
-                const esCajaConDosHojas = bloque.hojas.length >= 2;
                 return (
                   <div
                     key={bloque.id}
@@ -534,7 +530,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                           {bloqueBloqueado && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
                               <Lock className="h-3 w-3" aria-hidden="true" />
-                              Imprime Caja primero
+                              Imprime Factura primero
                             </span>
                           )}
                         </div>
@@ -569,19 +565,13 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                       </button>
                     </div>
 
-                    <div
-                      className={`grid grid-cols-1 gap-4 ${esCajaConDosHojas ? 'sm:grid-cols-2' : ''}`}
-                    >
-                      {bloque.hojas.map((hoja) => (
-                        <div key={hoja.key} className="flex flex-col items-center gap-1.5">
-                          <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
-                            {hoja.etiqueta}
-                          </span>
-                          <div className="mx-auto w-full max-w-[290px] rounded-xl border border-slate-300 bg-white p-3.5 font-mono text-xs text-slate-900 shadow-sm">
-                            {hoja.contenido}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="flex flex-col items-center gap-1.5">
+                      <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-700">
+                        {bloque.vistaPrevia.etiqueta}
+                      </span>
+                      <div className="mx-auto w-full max-w-[300px] rounded-xl border border-slate-300 bg-white p-3.5 font-mono text-xs text-slate-900 shadow-sm">
+                        {bloque.vistaPrevia.contenido}
+                      </div>
                     </div>
                   </div>
                 );
@@ -596,7 +586,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
         bloqueParaPortal &&
         createPortal(
           <div className="print-only-root" aria-hidden="true">
-            {bloqueParaPortal.hojas.map((hoja) => (
+            {bloqueParaPortal.hojasImpresion.map((hoja) => (
               <section key={hoja.key} className="print-ticket-page" data-ticket-tipo={hoja.key}>
                 {hoja.contenido}
               </section>

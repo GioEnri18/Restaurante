@@ -60,7 +60,7 @@ describe('PrintTicketsModal (botones individuales por bloque Caja y Cocina)', ()
     vi.restoreAllMocks();
   });
 
-  it('muestra botones separados para Caja (2 tickets) y Cocina (1 ticket) sin botón general e imprime cada bloque por separado', async () => {
+  it('muestra Factura (2 copias) sin comanda de caja, bloquea Cocina hasta imprimir Factura y luego permite imprimir Cocina individual', async () => {
     const user = userEvent.setup();
     const capturasEnPrint: string[][] = [];
 
@@ -81,17 +81,19 @@ describe('PrintTicketsModal (botones individuales por bloque Caja y Cocina)', ()
     );
 
     expect(screen.getByRole('heading', { name: 'Factura y comanda de cocina' })).toBeInTheDocument();
-    // Sin botón general en la barra superior
+    // Sin botón general y sin COMANDA CAJA en la vista
     expect(screen.queryByRole('button', { name: /Imprimir todo|Imprimir ahora/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('COMANDA CAJA')).not.toBeInTheDocument();
 
-    // Cocina arranca bloqueado hasta que se imprima Caja
+    // Cocina arranca bloqueado hasta que se imprima Factura (2 copias)
     const btnCocina = screen.getByRole('button', { name: 'Imprimir Cocina' });
     expect(btnCocina).toBeDisabled();
-    expect(screen.getByText('Imprime Caja primero')).toBeInTheDocument();
+    expect(screen.getByText('Imprime Factura primero')).toBeInTheDocument();
 
-    // 1. Imprimir bloque Caja -> exactamente Factura cliente + Comanda caja (2 hojas) y desbloquea Cocina
-    await user.click(screen.getByRole('button', { name: 'Imprimir Caja (2 tickets)' }));
-    expect(capturasEnPrint[0]).toEqual(['factura-cliente', 'comanda-caja']);
+    // 1. Imprimir Factura (2 copias) -> imprime 2 hojas de Factura (cliente + copia caja) y desbloquea Cocina
+    await user.click(screen.getByRole('button', { name: 'Imprimir Factura (2 copias)' }));
+    expect(capturasEnPrint[0]).toEqual(['factura-cliente', 'factura-caja']);
+    expect(document.body.querySelector('.print-only-root')?.textContent).toContain('COPIA CAJA');
     expect(screen.getByText('Impreso')).toBeInTheDocument();
     expect(btnCocina).toBeEnabled();
 
