@@ -159,10 +159,10 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
                     <p className="text-xs text-slate-600">{ing.codigo}</p>
                   </td>
                   <td className="px-2 py-3 text-slate-600">{ing.proveedorNombre ?? '—'}</td>
-                  <td className="px-2 py-3 text-right font-bold text-slate-900">
+                  <td className={`px-2 py-3 text-right font-bold ${ing.stockActualOz < 0 ? 'text-rose-700' : 'text-slate-900'}`}>
                     {ing.stockActualOz.toFixed(2)} oz
                   </td>
-                  <td className="px-2 py-3 text-right text-slate-600">
+                  <td className={`px-2 py-3 text-right ${ing.stockActualOz < 0 ? 'font-semibold text-rose-600' : 'text-slate-600'}`}>
                     {ing.stockActualLb.toFixed(2)} lb
                   </td>
                   <td className="px-2 py-3 text-right text-slate-500">
@@ -175,7 +175,9 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
                     </> : <p className="font-semibold text-amber-800">Costo pendiente</p>}
                   </td>
                   <td className="px-2 py-3">
-                    {ing.stockActualOz <= 0 ? (
+                    {ing.stockActualOz < 0 ? (
+                      <Badge variant="danger">Saldo negativo</Badge>
+                    ) : ing.stockActualOz === 0 ? (
                       <Badge variant="danger">Sin existencia</Badge>
                     ) : ing.bajoStock ? (
                       <Badge variant="warning">Stock bajo</Badge>

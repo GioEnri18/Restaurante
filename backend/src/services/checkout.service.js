@@ -29,6 +29,7 @@ const {
 } = require('../models');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
+const { UnitConversionService } = require('../shared/services/unitConversion.service');
 const { calcularDesgloseIvaIncluido, round2, round4 } = require('../shared/utils/tax');
 const { verificarAutorizacionCortesia } = require('./autorizacion-supervisor.service');
 const { alcanceTurnoCajero } = require('./facturas.service');
@@ -284,7 +285,7 @@ class CheckoutService {
 
       let costoUnitarioReceta = 0;
       let costoPendiente = !platillo.receta?.length;
-      let consumoPendiente = !platillo.receta?.length;
+      const consumoPendiente = !platillo.receta?.length;
       const consumoReceta = [];
       for (const r of platillo.receta ?? []) {
         const ingBloqueado = ingredientesBloqueadosMap.get(r.ingredienteId);
@@ -295,11 +296,12 @@ class CheckoutService {
         costoUnitarioReceta = round4(costoUnitarioReceta + ozPorUnidad * costoOz);
         const requeridoOz = round4(ozPorUnidad * item.cantidad);
         const prev = consumoIngredientes.get(r.ingredienteId);
-        const stockBloqueadoOz = Math.max(0, ingBloqueado?.stockActualOz ?? 0);
+        // Las ventas nunca se bloquean por falta de stock: se descuenta el 100% de la receta
+        // permitiendo saldo negativo que luego se empareja al ingresar compras en inventario.
+        const stockBloqueadoOz = ingBloqueado?.stockActualOz ?? 0;
         const descontadoTotal = prev?.cantidadDescontadaOz ?? 0;
-        const descontadoOz = round4(Math.min(requeridoOz, round4(stockBloqueadoOz - descontadoTotal)));
-        const pendienteOz = round4(requeridoOz - descontadoOz);
-        consumoPendiente ||= pendienteOz > 0;
+        const descontadoOz = requeridoOz;
+        const pendienteOz = 0;
         consumoReceta.push({ ingredienteId: r.ingredienteId, requeridoOz, descontadoOz, pendienteOz, costoOz });
         consumoIngredientes.set(r.ingredienteId, {
           nombre: ingBloqueado?.nombre ?? String(r.ingredienteId),
@@ -485,13 +487,14 @@ class CheckoutService {
       await cajaAbierta.increment('totalVentasTarjeta', { by: total, transaction: tx });
     }
 
-    // 14. Descuento atómico condicionado en orden ascendente + Kardex desde saldo bloqueado
+    // 14. Descuento atómico en orden ascendente + Kardex desde saldo bloqueado (permite saldo negativo)
     for (const ingredienteId of sortedIngredienteIds) {
       const consumo = consumoIngredientes.get(ingredienteId);
       if (!consumo?.cantidadDescontadaOz) continue;
 
       const stockAnteriorOz = consumo.stockBloqueadoOz;
       const stockNuevoOz = round4(stockAnteriorOz - consumo.cantidadDescontadaOz);
+      UnitConversionService.validarSaldoOz(stockNuevoOz, true);
 
       const updatedRows = await sequelize.query(
         `UPDATE ingredientes
@@ -499,7 +502,6 @@ class CheckoutService {
              updated_at = NOW()
          WHERE id = :id
            AND sucursal_id = :sucursalId
-           AND stock_actual_oz >= :qty
          RETURNING id`,
         {
           replacements: {
@@ -514,7 +516,7 @@ class CheckoutService {
 
       if (updatedRows.length !== 1) {
         throw new ConflictError(
-          `Stock insuficiente para "${consumo.nombre}" por operación concurrente`,
+          `No se pudo actualizar el inventario de "${consumo.nombre}" por operación concurrente`,
         );
       }
 

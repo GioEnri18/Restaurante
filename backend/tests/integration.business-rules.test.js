@@ -344,7 +344,7 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     assert.equal(Number(movimiento.cantidadOz), -6);
   });
 
-  it('descuenta lo disponible y registra el consumo pendiente sin saldo negativo', async () => {
+  it('permite vender sin stock dejando saldo negativo y lo empareja al ingresar una compra', async () => {
     const ing = await crearIngredienteTemporal('STK', 10);
     const platillo = await crearPlatilloTemporal('STK', ing.id, 6, 56);
 
@@ -363,27 +363,43 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     assert.ok(primeraVenta.factura.id > 0);
     assert.equal(await leerStockOz(ing.id), 4);
 
+    // Segunda venta: consume 6 oz sobre 4 oz -> saldo negativo de -2 oz
     const segundaVenta = await VentasService.confirmarVenta(
-          adminUser,
-          {
-            tipoServicio: TipoServicio.MOSTRADOR,
-            metodoPago: MetodoPago.EFECTIVO,
-            montoRecibido: 60,
-            items: [{ platilloId: platillo.id, cantidad: 1 }],
-          },
-          CLIENT_META,
+      adminUser,
+      {
+        tipoServicio: TipoServicio.MOSTRADOR,
+        metodoPago: MetodoPago.EFECTIVO,
+        montoRecibido: 60,
+        items: [{ platilloId: platillo.id, cantidad: 1 }],
+      },
+      CLIENT_META,
     );
     const detalle = segundaVenta.venta.detalles[0];
-    assert.equal(detalle.consumoPendiente, true);
-    assert.equal(detalle.consumoReceta[0].descontadoOz, 4);
-    assert.equal(detalle.consumoReceta[0].pendienteOz, 2);
-    assert.equal(await leerStockOz(ing.id), 0);
+    assert.equal(detalle.consumoPendiente, false);
+    assert.equal(detalle.consumoReceta[0].descontadoOz, 6);
+    assert.equal(detalle.consumoReceta[0].pendienteOz, 0);
+    assert.equal(await leerStockOz(ing.id), -2);
+
+    // Al comprar 1 lb (16 oz) a Q 48/lb (Q 3/oz), se empareja: -2 + 16 = +14 oz y costo promedio = Q 3/oz
+    const proveedor = await Proveedor.findOne({ where: { sucursalId: adminUser.sucursalId, activo: true } });
+    assert.ok(proveedor);
+    await InventarioService.registrarCompra(
+      adminUser,
+      {
+        proveedorId: proveedor.id,
+        items: [{ ingredienteId: ing.id, cantidadLb: 1, precioPorLb: 48 }],
+      },
+      CLIENT_META,
+    );
+    const trasCompra = await Ingrediente.findByPk(ing.id);
+    assert.equal(Number(trasCompra.stockActualOz), 14);
+    assert.equal(Number(trasCompra.costoPromedioOz), 3);
   });
 
   // =========================================================================
-  // 2. Concurrencia sin sobreventa (Race Condition - Fase 1.1)
+  // 2. Concurrencia en ventas con descuento atómico completo (Fase 1.1)
   // =========================================================================
-  it('descuenta una vez el saldo disponible y registra el pendiente en ventas concurrentes', async () => {
+  it('descuenta atómicamente todas las ventas concurrentes dejando saldo negativo exacto sin pérdidas', async () => {
     const ing = await crearIngredienteTemporal('CONC', 6);
     const platillo = await crearPlatilloTemporal('CONC', ing.id, 6, 45);
 
@@ -405,11 +421,11 @@ describe('Pruebas de integración de reglas de negocio reales (PostgreSQL + API 
     const exitosas = resultados.filter((r) => r.status === 'fulfilled');
     assert.equal(exitosas.length, 5, JSON.stringify(resultados.filter((r) => r.status === 'rejected')));
     const consumos = exitosas.map((r) => r.value.venta.detalles[0].consumoReceta[0]);
-    assert.equal(consumos.reduce((suma, c) => suma + c.descontadoOz, 0), 6);
-    assert.equal(consumos.reduce((suma, c) => suma + c.pendienteOz, 0), 24);
+    assert.equal(consumos.reduce((suma, c) => suma + c.descontadoOz, 0), 30);
+    assert.equal(consumos.reduce((suma, c) => suma + c.pendienteOz, 0), 0);
 
     const stockFinal = await leerStockOz(ing.id);
-    assert.equal(stockFinal, 0, `El stock final debe ser exactamente 0 oz, obtenido ${stockFinal}`);
+    assert.equal(stockFinal, -24, `El stock final debe ser exactamente -24 oz, obtenido ${stockFinal}`);
   });
 
   // =========================================================================

@@ -191,10 +191,10 @@ class InventarioService {
             }
             const stockAnteriorOz = Number(ingrediente.stockActualOz);
             const stockNuevoOz = round4(stockAnteriorOz + deltaOz);
-            if (stockNuevoOz < 0) {
-                throw new BadRequestError(`El ajuste dejaría el stock negativo (disponible: ${stockAnteriorOz} oz)`);
+            if (deltaOz < 0 && stockNuevoOz < 0) {
+                throw new BadRequestError(`El ajuste de salida dejaría el stock negativo (disponible: ${stockAnteriorOz} oz)`);
             }
-            UnitConversionService.validarSaldoOz(stockNuevoOz);
+            UnitConversionService.validarSaldoOz(stockNuevoOz, true);
             await ingrediente.update({ stockActualOz: stockNuevoOz }, { transaction: tx });
             const movimiento = await InventarioMovimiento.create({
                 sucursalId: user.sucursalId,
@@ -397,10 +397,12 @@ class InventarioService {
                 const stockAnteriorOz = estado.stockOz;
                 const costoAnteriorOz = estado.costoOz;
                 const stockNuevoOz = round4(stockAnteriorOz + det.cantidadOz);
-                UnitConversionService.validarSaldoOz(stockNuevoOz);
-                const valorAnterior = stockAnteriorOz * costoAnteriorOz;
-                const valorEntrada = det.cantidadOz * det.costoPorOz;
-                const nuevoCostoPromedioOz = stockNuevoOz > 0 ? round4((valorAnterior + valorEntrada) / stockNuevoOz) : det.costoPorOz;
+                UnitConversionService.validarSaldoOz(stockNuevoOz, true);
+                // Si el stock anterior era <= 0 (en negativo por ventas previas sin stock), no se ponderan
+                // unidades negativas: el costo promedio adopta directamente el costo de la compra nueva.
+                const nuevoCostoPromedioOz = stockAnteriorOz > 0 && stockNuevoOz > 0
+                    ? round4((stockAnteriorOz * costoAnteriorOz + det.cantidadOz * det.costoPorOz) / stockNuevoOz)
+                    : det.costoPorOz;
                 estado.stockOz = stockNuevoOz;
                 estado.costoOz = nuevoCostoPromedioOz;
                 det.stockAnteriorOz = stockAnteriorOz;

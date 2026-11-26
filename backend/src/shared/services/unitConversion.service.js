@@ -42,8 +42,9 @@ class UnitConversionService {
         }
         return onzas;
     }
-    static validarSaldoOz(saldo) {
-        if (!Number.isFinite(saldo) || saldo < 0 || saldo > MAX_STOCK_OZ) {
+    static validarSaldoOz(saldo, permitirNegativo = false) {
+        const minimo = permitirNegativo ? -MAX_STOCK_OZ : 0;
+        if (!Number.isFinite(saldo) || saldo < minimo || saldo > MAX_STOCK_OZ) {
             throw new BadRequestError('El saldo en onzas está fuera del rango permitido para inventario');
         }
     }
