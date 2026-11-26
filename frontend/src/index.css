@@ -14,33 +14,72 @@
   }
 }
 
-/* Estilos dedicados para impresión térmica 80mm de Factura y Comanda */
+/* Contenedor portal exclusivo para impresión térmica (oculto en pantalla) */
+.print-only-root {
+  display: none;
+}
+
+/* Estilos dedicados para impresión térmica 80mm (área útil 70mm centrada + corte por página) */
 @media print {
-  body * {
-    visibility: hidden;
+  @page {
+    size: 80mm auto;
+    margin: 0mm;
   }
 
-  .print-area,
-  .print-area * {
-    visibility: visible;
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 80mm !important;
+    min-width: 80mm !important;
+    max-width: 80mm !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  .print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 80mm;
-    padding: 4mm;
-    background: #ffffff;
-    color: #000000;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 11px;
-    line-height: 1.3;
+  /* Ocultar toda la app React y dejar únicamente el portal de tickets en body */
+  #root {
+    display: none !important;
   }
 
-  .print-page-break {
-    page-break-before: always;
-    break-before: page;
+  .print-only-root {
+    display: block !important;
+    width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Cada ticket ocupa una hoja independiente centrada (70mm dentro de 80mm) para activar el corte automático */
+  .print-ticket-page {
+    display: block !important;
+    width: 70mm !important;
+    max-width: 70mm !important;
+    margin: 0 auto !important;
+    padding: 2mm 1mm 6mm 1mm !important;
+    box-sizing: border-box !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.3 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .print-ticket-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 
   .no-print {
