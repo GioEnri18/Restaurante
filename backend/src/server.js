@@ -1,5 +1,9 @@
 const { createApp } = require('./app');
-const { connectDatabase, disconnectDatabase } = require('./config/database');
+const {
+    connectDatabase,
+    disconnectDatabase,
+    verificarPrivilegiosRolRuntime,
+} = require('./config/database');
 const { env } = require('./config/env');
 const { logger } = require('./shared/logger');
 // Importar modelos asegura que todas las asociaciones Sequelize queden registradas al arrancar
@@ -18,6 +22,9 @@ async function bootstrap() {
     }
 
     await connectDatabase();
+    await verificarPrivilegiosRolRuntime({ log: logger }).catch((error) => {
+        logger.warn({ err: error?.message }, 'No se pudo inspeccionar privilegios del rol de BD al arrancar');
+    });
     const app = createApp();
     const server = app.listen(env.PORT, () => {
         logger.info({

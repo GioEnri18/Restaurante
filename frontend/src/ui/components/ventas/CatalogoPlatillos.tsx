@@ -108,7 +108,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
           <div className="flex items-center gap-2.5 text-xs sm:text-sm">
             <Settings2 className="h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
             <p>
-              Tienes <strong>{pendientesConfigCount} platillo(s)</strong> pendientes de activar (falta precio, receta o stock).
+              Tienes <strong>{pendientesConfigCount} platillo(s)</strong> pendientes de activar (falta precio o disponibilidad).
             </p>
           </div>
           <Link
@@ -355,11 +355,7 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
 
                     {disabled ? (
                       <span className="rounded-xl bg-amber-100 px-2.5 py-1.5 text-xs font-bold text-amber-900">
-                        {p.precioVenta <= 0
-                          ? 'Falta precio'
-                          : !p.disponible
-                            ? 'Pendiente activar'
-                            : 'Sin stock'}
+                        {p.precioVenta <= 0 ? 'Falta precio' : 'Pendiente activar'}
                       </span>
                     ) : inCartQty > 0 ? (
                       <div

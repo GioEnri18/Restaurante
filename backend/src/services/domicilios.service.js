@@ -5,6 +5,7 @@ const { getPgErrorCode, sequelize, withTransaction } = require('../config/databa
 const {
   CajaMovimiento,
   CajaSesion,
+  Cliente,
   Comanda,
   EstadoCaja,
   EstadoComanda,
@@ -61,6 +62,7 @@ const { ORDEN_PRECEDENCIA_MENU_ESPECIAL } = require('./menu.service');
 const { MermasService } = require('./mermas.service');
 
 const INCLUDE_PEDIDO_LISTA = [
+  { model: Cliente, as: 'cliente', attributes: ['id', 'bloqueadoPedidosWeb'] },
   { model: Usuario, as: 'creadoPor', attributes: ['id', 'nombreCompleto', 'username'] },
   { model: Usuario, as: 'repartidor', attributes: ['id', 'nombreCompleto', 'username'] },
   { model: Usuario, as: 'liquidadoPor', attributes: ['id', 'nombreCompleto', 'username'] },
@@ -122,6 +124,7 @@ function formatearPedido(pedido, user, incluirHistorial = false) {
     tiempoEstimadoMin: Number(plain.tiempoEstimadoMin),
     clienteNombre: plain.clienteNombreSnapshot,
     clienteNit: plain.clienteNitSnapshot || 'CF',
+    clienteBloqueadoWeb: Boolean(plain.cliente?.bloqueadoPedidosWeb),
     clienteTelefono: mostrarContacto
       ? plain.clienteTelefonoSnapshot
       : enmascararTelefono(plain.clienteTelefonoSnapshot),
@@ -1476,8 +1479,5 @@ class DomiciliosService {
 
 module.exports = {
   DomiciliosService,
-  INCLUDE_PEDIDO_LISTA,
-  formatearPedido,
-  calcularHuellaCreacion,
   cotizarPlatillosYValidarStockLectura,
 };

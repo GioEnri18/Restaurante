@@ -41,6 +41,29 @@ class DomiciliosController {
   }
 
   // --- Clientes y direcciones de entrega ---
+  static async listarClientes(req, res, next) {
+    try {
+      const { items, meta } = await ClientesDomicilioService.listar(req.user.sucursalId, req.query);
+      res.status(200).json({ ok: true, data: items, meta });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async actualizarBloqueoWebCliente(req, res, next) {
+    try {
+      const data = await ClientesDomicilioService.actualizarBloqueoWeb(
+        req.user,
+        Number(req.params.id),
+        req.body,
+        req.clientMeta,
+      );
+      res.status(200).json({ ok: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async buscarClientesPorTelefono(req, res, next) {
     try {
       const data = await ClientesDomicilioService.buscarPorTelefono(

@@ -31,6 +31,17 @@ export interface MermaPorIngredienteResumen {
   costoTotalMermas: number;
 }
 
+export interface IngredienteEnNegativoItem extends IngredienteModel {
+  deficitOz: number;
+  deficitLb: number;
+}
+
+export interface ResumenEnNegativo {
+  cantidadIngredientes: number;
+  totalDeficitOz: number;
+  totalDeficitLb: number;
+}
+
 export const inventarioService = {
   async listarIngredientes(search?: string, signal?: AbortSignal): Promise<IngredienteModel[]> {
     const qs = buildQueryString({ search });
@@ -43,15 +54,48 @@ export const inventarioService = {
     search: string,
     porReponer: boolean,
     signal?: AbortSignal,
+    soloNegativos = false,
   ): Promise<{
     items: IngredienteModel[];
     meta: PaginationMeta;
   }> {
-    const qs = buildQueryString({ page, search: search.trim() || undefined, porReponer: String(porReponer) });
+    const qs = buildQueryString({
+      page,
+      search: search.trim() || undefined,
+      porReponer: String(porReponer),
+      soloNegativos: soloNegativos ? 'true' : undefined,
+    });
     const res = await httpClient.get<unknown[]>(`/inventario/ingredientes${qs}`, { signal });
     return {
       items: (res.data ?? []).map(inventarioAdapter.fromIngredienteJson),
       meta: res.meta ?? { page: 1, limit: 15, total: res.data?.length ?? 0, totalPages: 1 },
+    };
+  },
+
+  async listarEnNegativo(signal?: AbortSignal): Promise<{
+    items: IngredienteEnNegativoItem[];
+    resumen: ResumenEnNegativo;
+  }> {
+    const res = (await httpClient.get<unknown[]>('/inventario/en-negativo', {
+      signal,
+    })) as unknown as {
+      data?: unknown[];
+      resumen?: Partial<ResumenEnNegativo>;
+    };
+    const items = (res.data ?? []).map((raw) => {
+      const base = inventarioAdapter.fromIngredienteJson(raw);
+      const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+      const deficitOz = Number(r.deficitOz ?? Math.abs(Math.min(0, base.stockActualOz)));
+      const deficitLb = Number(r.deficitLb ?? Math.abs(Math.min(0, base.stockActualLb)));
+      return { ...base, deficitOz, deficitLb };
+    });
+    return {
+      items,
+      resumen: {
+        cantidadIngredientes: Number(res.resumen?.cantidadIngredientes ?? items.length),
+        totalDeficitOz: Number(res.resumen?.totalDeficitOz ?? 0),
+        totalDeficitLb: Number(res.resumen?.totalDeficitLb ?? 0),
+      },
     };
   },
 

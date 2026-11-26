@@ -34,6 +34,10 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Auditoría de vulnerabilidades (producción)
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Verificar sintaxis JS y ESLint
         working-directory: backend
         run: |
@@ -100,7 +104,7 @@ jobs:
           exit $TEST_EXIT
 
   frontend:
-    name: Frontend (React + TypeScript + Vite)
+    name: Frontend (React + TypeScript + Vite + Vitest)
     runs-on: ubuntu-latest
 
     steps:
@@ -118,9 +122,140 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Typecheck, ESLint y Build de producción
+      - name: Auditoría de vulnerabilidades (producción)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Typecheck, ESLint, pruebas unitarias y Build de producción
         working-directory: frontend
         run: |
           npm run typecheck
           npm run lint
+          npm test
           npm run build
+
+  e2e:
+    name: Smoke E2E (Playwright Chromium)
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_ENV: test
+      PORT: 4000
+      API_PREFIX: /api/v1
+      CORS_ORIGIN: http://127.0.0.1:4173
+      APP_DB_USER: pos_app_e2e
+      DEFAULT_TIMEZONE: America/Guatemala
+      ENABLE_DELIVERY: 'true'
+      ENABLE_PUBLIC_ORDERS: 'true'
+      PUBLIC_ORDERS_MIN_FORM_SECONDS: '0'
+      PUBLIC_ORDERS_CAPTCHA_PROVIDER: none
+      RATE_LIMIT_STORE: postgres
+      MEDIA_STORAGE: db
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependencias backend y frontend
+        run: |
+          npm --prefix backend ci
+          npm --prefix frontend ci
+
+      - name: Instalar navegador Chromium para Playwright
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Preparar PostgreSQL aislado para E2E
+        run: |
+          owner_password=$(openssl rand -hex 24)
+          app_password=$(openssl rand -hex 24)
+          jwt_secret=$(openssl rand -hex 32)
+          for value in "$owner_password" "$app_password" "$jwt_secret"; do
+            echo "::add-mask::$value"
+          done
+          docker run -d --name pos-e2e-postgres \
+            -p 127.0.0.1:5432:5432 \
+            -e POSTGRES_USER=pos_e2e_user -e POSTGRES_PASSWORD="$owner_password" \
+            -e POSTGRES_DB=pos_restaurante_test postgres:16-alpine
+          for i in $(seq 1 30); do
+            if docker exec pos-e2e-postgres pg_isready -h 127.0.0.1 -U pos_e2e_user -d pos_restaurante_test; then
+              {
+                printf 'DATABASE_URL=%s\n' 'postgresql://unused@localhost:5432/pos_restaurante_ci_no_usar'
+                printf 'DATABASE_URL_TEST=postgresql://pos_e2e_user:%s@localhost:5432/pos_restaurante_test\n' "$owner_password"
+                printf 'APP_DB_PASSWORD=%s\n' "$app_password"
+                printf 'JWT_SECRET=%s\n' "$jwt_secret"
+              } >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'PostgreSQL E2E no respondió a tiempo'
+          exit 1
+
+      - name: Migrar, poblar datos iniciales y crear rol de mínimo privilegio
+        working-directory: backend
+        run: |
+          npm run db:migrate
+          npm run db:seed
+          npm run db:crear-rol-app
+
+      - name: Compilar frontend para Smoke E2E
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:4000/api/v1
+          VITE_ENABLE_DELIVERY: 'true'
+          VITE_ENABLE_PUBLIC_ORDERS: 'true'
+          VITE_AUTO_PRINT_ENABLED: 'false'
+        run: npm run build
+
+      - name: Levantar API + Frontend preview y ejecutar Smoke E2E
+        run: |
+          export DATABASE_URL_TEST="postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@localhost:5432/pos_restaurante_test"
+          (cd backend && node src/server.js) &
+          API_PID=$!
+          (cd frontend && npx vite preview --host 127.0.0.1 --port 4173 --strictPort) &
+          WEB_PID=$!
+
+          API_OK=0
+          for i in $(seq 1 25); do
+            if curl -sf http://127.0.0.1:4000/api/v1/health/ready > /dev/null; then
+              API_OK=1
+              break
+            fi
+            sleep 1
+          done
+
+          WEB_OK=0
+          for i in $(seq 1 25); do
+            if curl -sf http://127.0.0.1:4173/login > /dev/null; then
+              WEB_OK=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$API_OK" != "1" ] || [ "$WEB_OK" != "1" ]; then
+            echo "Servicios E2E no arrancaron a tiempo (API_OK=$API_OK WEB_OK=$WEB_OK)"
+            kill $API_PID $WEB_PID || true
+            exit 1
+          fi
+
+          E2E_BASE_URL=http://127.0.0.1:4173 npm --prefix frontend run test:e2e
+          TEST_EXIT=$?
+          kill $API_PID $WEB_PID || true
+          exit $TEST_EXIT
+
+      - name: Subir reportes y trazas de Playwright en caso de fallo
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 7

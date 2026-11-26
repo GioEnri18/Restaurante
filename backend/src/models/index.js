@@ -1,6 +1,6 @@
 // Registro central de los 31 modelos Sequelize y TODAS sus asociaciones relacionales (Capa Modelo MVC)
 const { Permiso, Rol, RolPermiso, Sucursal, Usuario, UsuarioPermiso } = require('./seguridad.models');
-const { Categoria, MenuEspecial, MenuEspecialPlatillo, Mesa, Platillo, RecetaIngrediente } = require('./menu.models');
+const { Categoria, MenuEspecial, MenuEspecialPlatillo, Mesa, Platillo, PlatilloFoto, RecetaIngrediente } = require('./menu.models');
 const { Compra, CompraDetalle, Ingrediente, InventarioMovimiento, Merma, Proveedor } = require('./inventario.models');
 const { AuditoriaLog, CajaMovimiento, CajaSesion, Comanda, Factura, Venta, VentaDetalle } = require('./operaciones.models');
 const {
@@ -113,6 +113,7 @@ module.exports = {
   UsuarioPermiso,
   Categoria,
   Platillo,
+  PlatilloFoto,
   RecetaIngrediente,
   Mesa,
   MenuEspecial,

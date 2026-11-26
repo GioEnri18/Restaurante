@@ -1,3 +1,4 @@
+const { obtenerIpCliente } = require('../middlewares/rateLimiter');
 const { PublicPedidosService } = require('../services/public-pedidos.service');
 
 class PublicPedidosController {
@@ -24,7 +25,11 @@ class PublicPedidosController {
 
   static async crearPedido(req, res, next) {
     try {
-      const data = await PublicPedidosService.crearPedidoPublico(req.body, req.clientMeta);
+      const clientMeta = req.clientMeta ?? {
+        ipAddress: obtenerIpCliente(req),
+        userAgent: req.get('user-agent') || null,
+      };
+      const data = await PublicPedidosService.crearPedidoPublico(req.body, clientMeta);
       res.status(201).json({ ok: true, data });
     } catch (error) {
       next(error);

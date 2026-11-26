@@ -41,13 +41,19 @@ class InventarioService {
                     ],
                 }
                 : {}),
-            ...(opciones.porReponer ? {
-                [Op.and]: comparar(col('Ingrediente.stock_actual_oz'), Op.lte, col('Ingrediente.stock_minimo_oz')),
-            } : {}),
+            ...(opciones.soloNegativos
+                ? { stockActualOz: { [Op.lt]: 0 } }
+                : opciones.porReponer
+                    ? {
+                        [Op.and]: comparar(col('Ingrediente.stock_actual_oz'), Op.lte, col('Ingrediente.stock_minimo_oz')),
+                    }
+                    : {}),
         };
         const consulta = {
             where,
-            order: [['nombre', 'ASC'], ['id', 'ASC']],
+            order: opciones.soloNegativos
+                ? [['stockActualOz', 'ASC'], ['nombre', 'ASC'], ['id', 'ASC']]
+                : [['nombre', 'ASC'], ['id', 'ASC']],
             include: [{ model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre', 'telefono'] }],
         };
         if (paginacion) {
@@ -64,6 +70,40 @@ class InventarioService {
     }
     static async obtenerAlertas(sucursalId) {
         return this.listarIngredientes(sucursalId, undefined, { porReponer: true });
+    }
+    /**
+     * Lista todos los ingredientes activos con saldo negativo (`stock_actual_oz < 0`) ordenados
+     * por mayor déficit primero, junto con el resumen agregado en onzas y libras.
+     */
+    static async obtenerEnNegativo(sucursalId) {
+        const ingredientes = await Ingrediente.findAll({
+            where: {
+                sucursalId,
+                activo: true,
+                stockActualOz: { [Op.lt]: 0 },
+            },
+            order: [['stockActualOz', 'ASC'], ['nombre', 'ASC'], ['id', 'ASC']],
+            include: [{ model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre', 'telefono'] }],
+        });
+        let totalDeficitOz = 0;
+        const items = ingredientes.map((ing) => {
+            const base = this.enrichIngrediente(ing);
+            const deficitOz = round4(Math.abs(base.stockActualOz));
+            totalDeficitOz = round4(totalDeficitOz + deficitOz);
+            return {
+                ...base,
+                deficitOz,
+                deficitLb: UnitConversionService.ozToLb(deficitOz),
+            };
+        });
+        return {
+            items,
+            resumen: {
+                cantidadIngredientes: items.length,
+                totalDeficitOz,
+                totalDeficitLb: UnitConversionService.ozToLb(totalDeficitOz),
+            },
+        };
     }
     static async crearIngrediente(user, input, clientMeta) {
         return withTransaction(async (tx) => {

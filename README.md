@@ -79,10 +79,12 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
    - `REQUEST_TIMEOUT_MS`, `DB_POOL_MAX`, `DB_LOCK_TIMEOUT_MS`, `DB_STATEMENT_TIMEOUT_MS`.
    - `DEFAULT_TIMEZONE=America/Guatemala`, `IVA_RATE=0.12`, `UNIT_OZ_PER_LB=16`.
    - `ALLOW_SEED_IN_PRODUCTION=false`, `SEED_ADMIN_PASSWORD`, `SEED_CAJERO_PASSWORD`, `SEED_MESERO_PASSWORD`.
-   - **Servicio a Domicilio:**
-     - `ENABLE_DELIVERY` (default `false`): habilita las rutas `/api/v1/domicilios` y `/api/v1/reportes/domicilios`.
+   - **Servicio a Domicilio y Portal Público:**
+     - `ENABLE_DELIVERY` (default `false`): habilita el módulo interno (`/api/v1/domicilios` y `/api/v1/reportes/domicilios`).
+     - `ENABLE_PUBLIC_ORDERS` (default `false`): habilita el portal público sin login (`/api/v1/public/*`). Requiere **ambos** (`ENABLE_DELIVERY=true` y `ENABLE_PUBLIC_ORDERS=true`); activar solo `ENABLE_DELIVERY` no expone ningún endpoint anónimo.
      - `DELIVERY_BLOQUEAR_CIERRE_CON_PENDIENTES` (default `true`): impide cerrar la caja mientras existan pedidos `CONTRA_ENTREGA` entregados sin liquidar.
      - `DELIVERY_CLIENTE_BUSQUEDA_WINDOW_MS` (`60000`), `DELIVERY_CLIENTE_BUSQUEDA_MAX` (`30`), `DELIVERY_CLIENTE_BUSQUEDA_LIMIT` (`5`): rate limit y tope de resultados en búsqueda de clientes por teléfono.
+     - `DELIVERY_TRACKING_TTL_HORAS` (default `24`): horas de vigencia del enlace público de seguimiento después de finalizar la orden.
    - **Auditoría de investigación:**
      - `AUDIT_IMPACTO_ALTO_Q` (default `500`): monto en Quetzales a partir del cual egresos, mermas, ajustes o compras escalan a severidad `ALTA`.
      - `AUDIT_DIFERENCIA_CAJA_ALTA_Q` (default `50`): diferencia de arqueo de caja (`|contado - esperado|`) en Quetzales que escala a `ALTA`.
@@ -90,7 +92,7 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
      - `AUDIT_EXPORT_MAX_ROWS` (default `10000`): límite máximo de filas permitidas por exportación CSV.
 
 3. **Frontend (`frontend/.env`):**
-   Crea `frontend/.env` si necesitas sobrescribir la URL local de la API. Define `VITE_API_BASE_URL` y guarda las credenciales en el backend. Vite expone las variables `VITE_*` al navegador. Para activar la interfaz de domicilios define `VITE_ENABLE_DELIVERY=true` junto con `ENABLE_DELIVERY=true` en el backend.
+   Crea `frontend/.env` si necesitas sobrescribir la URL local de la API. Define `VITE_API_BASE_URL` y guarda las credenciales en el backend. Vite expone las variables `VITE_*` al navegador. Para activar la interfaz interna de domicilios define `VITE_ENABLE_DELIVERY=true` junto con `ENABLE_DELIVERY=true` en el backend; para exponer además el portal público `/pedir`, define `VITE_ENABLE_PUBLIC_ORDERS=true` y `ENABLE_PUBLIC_ORDERS=true`.
 
 ---
 
@@ -136,7 +138,47 @@ docker compose --profile full up -d --build
 
 El administrador puede agregar o cambiar fotos en Inventario → Recetas y Precios. La API admite un JPG, PNG o WebP sin animación de hasta 5.000.000 bytes y 20 megapíxeles. Solo conserva una miniatura WebP de hasta 480 px por lado y 10.000 bytes. PostgreSQL guarda la ruta relativa de la foto.
 
-Docker guarda las miniaturas en el volumen `platillos_media`. El backend escribe en el volumen y Nginx lo monta en modo de solo lectura para servir las fotos bajo `/media/platillos/`. Si hay un proxy HTTPS delante de Nginx, configúralo para aceptar solicitudes de al menos 6 MB. Fuera de Docker, la API sirve las fotos desde `backend/media/platillos` por defecto.
+Docker guarda las miniaturas en el volumen `platillos_media`. El backend escribe en el volumen y Nginx lo monta en modo de solo lectura para servir las fotos bajo `/media/platillos/`. Si hay un proxy HTTPS delante de Nginx, configúralo para aceptar solicitudes de al menos 6 MB. Fuera de Docker, la API sirve las fotos desde `backend/media/platillos` por defecto (`MEDIA_STORAGE=local`).
+
+Para despliegues con disco efímero (como Render), configura `MEDIA_STORAGE=db`: las miniaturas WebP (<= 10 KB) se guardan en la tabla `platillo_fotos` en PostgreSQL, se sirven en `/media/platillos/:nombre` con `ETag` (SHA-256), respuesta `304 Not Modified`, caché inmutable y respaldo automático hacia las fotos base incluidas en el repositorio. Para migrar fotos existentes en disco hacia PostgreSQL (idempotente):
+
+```bash
+npm --prefix backend run db:migrar-fotos
+```
+
+---
+
+## Despliegue en Producción (Vercel + Render + Cloudflare)
+
+> **Advertencia importante sobre el plan gratuito (Free) de Render:**
+> El plan Free de Render hiberna la API tras inactividad (arranques en frío de 30–50 s que interrumpen la operación en caja), utiliza disco local efímero (requiere `MEDIA_STORAGE=db`) y las bases de datos PostgreSQL Free tienen vigencia limitada (expiran y se eliminan tras 30 días). Para operación real de un restaurante, utiliza al menos un plan **Starter/Paid** tanto en la API como en PostgreSQL y habilita respaldos periódicos.
+
+### Respaldo y restauración en Render / PostgreSQL gestionado
+
+Usa siempre la URL de dueño (`DATABASE_MIGRATION_URL`) para respaldos y restauraciones:
+
+```bash
+# Respaldo lógico comprimido (incluye tabla platillo_fotos si MEDIA_STORAGE=db)
+pg_dump "$DATABASE_MIGRATION_URL" -Fc -f "backup_pos_$(date +%Y%m%d_%H%M).dump"
+
+# Restauración y verificación en base temporal (recomendado mensualmente)
+pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL_RESTORE_TEST" backup_pos_YYYYMMDD_HHMM.dump
+```
+
+### Checklist manual de puesta en marcha (Vercel, Render y Cloudflare)
+
+1. **Vercel (`frontend/vercel.json` y variables):**
+   - `frontend/vercel.json` ya apunta los rewrites `/api/:path*` y `/media/:path*` a `https://pos-restaurante-api.onrender.com` (actualízalo si cambias el nombre del servicio en Render).
+   - Configura `VITE_API_BASE_URL=/api/v1` (mismo origen vía proxy Vercel), `VITE_SHOW_DEMO_LOGIN=false`, y `VITE_ENABLE_DELIVERY` / `VITE_ENABLE_PUBLIC_ORDERS` según necesidad.
+   - Si activas Cloudflare Turnstile, crea el sitio en Cloudflare Dashboard y configura `VITE_TURNSTILE_SITE_KEY`.
+2. **Render (variables y mínimo privilegio):**
+   - Mantén `DATABASE_MIGRATION_URL` apuntando al dueño de la BD (para `MIGRATE_ON_START=true` y `npm run db:crear-rol-app`).
+   - Ejecuta una vez en el Shell de Render: `APP_DB_USER=pos_app APP_DB_PASSWORD=<clave>=16+ npm run db:crear-rol-app` (si el plan de Render permite `CREATEROLE`) y apunta `DATABASE_URL` a ese usuario miembro de `pos_app_rol`. Si la API arranca conectada como dueño en producción, registrará el evento `DB_ROL_SOBREPRIVILEGIADO` como advertencia visible.
+   - Configura `AUTH_COOKIE_SAMESITE=lax`, `AUTH_COOKIE_SECURE=true`, `CORS_ORIGIN=https://<tu-dominio-vercel>`, `TRUST_PROXY=2` (para `Cliente → Vercel → Render`), `RATE_LIMIT_STORE=postgres`, `RATE_LIMIT_FAIL_OPEN=true`, `MEDIA_STORAGE=db`, `INVENTARIO_PERMITIR_STOCK_NEGATIVO=true`.
+   - Si activas Cloudflare Turnstile: configura `PUBLIC_ORDERS_CAPTCHA_PROVIDER=turnstile` y `TURNSTILE_SECRET_KEY`.
+3. **Verificación post-despliegue:**
+   - Confirma login con cookie `SameSite=Lax` + `HttpOnly` + `Secure` y carga de fotos bajo `/media/platillos/*.webp` con `ETag`/`304`.
+   - Verifica `TRUST_PROXY` enviando `curl -i -H "X-Forwarded-For: 198.51.100.77" https://<tu-dominio-vercel>/api/v1/health` y comprobando en los logs JSON de Render que `req.ip` refleje tu IP pública real.
 
 ### Menú base de Restaurante Exprés BX
 
@@ -185,12 +227,13 @@ La bitácora `auditoria_logs` es estrictamente **APPEND-ONLY** (trigger `trg_aud
   - `GET /auditoria/:id`: detalle con diff antes/después, enlace a la entidad origen y eventos correlacionados.
   - `GET /auditoria/exportar`: descarga CSV por streaming (lotes de 500 filas, protección anti formula-injection, requiere permisos `auditoria:ver` + `auditoria:exportar` y audita su propia ejecución con `EXPORTAR_AUDITORIA`).
   - `GET /auditoria/nomina`: exclusivo `ADMIN`; `GESTION_NOMINA` permanece totalmente excluida de listados, resúmenes, detalles y exportaciones para el resto de roles.
+- **Control de saldo negativo de inventario:** `INVENTARIO_PERMITIR_STOCK_NEGATIVO` (default `true`) permite vender sin existencias para compensar luego con compras; si se configura en `false`, el checkout rechaza la venta listando los insumos faltantes. Al cruzar de `>= 0` a `< 0` se emite una sola vez `STOCK_NEGATIVO_GENERADO` en la misma transacción con el `correlacion_id` de la venta (severidad `MEDIA`, escala a `ALTA` si el déficit alcanza `AUDIT_STOCK_NEGATIVO_ALTO_OZ`, default `16` oz). Los insumos con déficit se consultan en `GET /api/v1/inventario/en-negativo`, en el filtro **En negativo** de Inventario y en el indicador de Reportes.
 
 ---
 
 ## Módulo de Servicio a Domicilio
 
-Activado mediante `ENABLE_DELIVERY=true` (backend) y `VITE_ENABLE_DELIVERY=true` (frontend), sin alterar los flujos existentes de `MOSTRADOR`, `LLEVAR`, `MESA` ni la columna legada `ventas.datos_delivery_json`.
+Activado mediante `ENABLE_DELIVERY=true` (backend) y `VITE_ENABLE_DELIVERY=true` (frontend), sin alterar los flujos existentes de `MOSTRADOR`, `LLEVAR`, `MESA` ni la columna legada `ventas.datos_delivery_json`. El portal público `/pedir` y `/api/v1/public/*` permanece oculto y bloqueado (404) hasta activar adicionalmente `ENABLE_PUBLIC_ORDERS=true` y `VITE_ENABLE_PUBLIC_ORDERS=true`.
 
 - **Entidades y catálogo:** `zonas_entrega` (tarifa de envío IVA 12% incluido, tiempo estimado y pedido mínimo), `clientes` (teléfono único normalizado por sucursal), `direcciones_entrega`, `pedidos_domicilio` (con snapshots inmutables de tarifa/cliente/dirección e idempotencia), `pedido_domicilio_detalles` y `pedido_domicilio_historial` (append-only).
 - **Ciclo de estados (bloqueo optimista):** `NUEVO → EN_PREPARACION → LISTO → EN_RUTA → ENTREGADO`, con salidas `CANCELADO` (antes de despachar) y `FALLIDO` (desde `EN_RUTA`). Sincroniza automáticamente `comandas.estado_cocina` (`LISTO ↔ LISTA`).
@@ -199,7 +242,15 @@ Activado mediante `ENABLE_DELIVERY=true` (backend) y `VITE_ENABLE_DELIVERY=true`
   - `CONTRA_ENTREGA`: nace sin venta ni descuento (validando stock solo lectura con advertencias) y crea comanda de cocina; al marcar `ENTREGADO`, el cajero liquida en `POST /api/v1/domicilios/pedidos/:id/liquidar` reutilizando la comanda original, conciliando cualquier diferencia de efectivo del repartidor en caja y auditando con severidad según `AUDIT_DIFERENCIA_CAJA_ALTA_Q`.
 - **Mermas y anulaciones automáticas:** `CANCELADO` en `NUEVO` no genera merma; `CANCELADO` tras iniciar preparación o `FALLIDO` generan merma automática por receta (`PEDIDO_NO_ENTREGADO`). Si era `PREPAGADO`, exige autorización de supervisor (`facturas:anular`), anula la factura reintegrando inventario y registra la merma en la misma transacción (efecto neto = `-1` receta).
 - **RBAC y privacidad:** nuevo rol `REPARTIDOR` (`domicilios:ver_propios`, `domicilios:actualizar_estado` solo en sus pedidos activos) y 8 permisos `domicilios:*`. Teléfono y dirección se redactan automáticamente en Pino (incluyendo query `?telefono=[OCULTO]`) y en `auditoria_logs`, nunca se guardan en `sessionStorage`, y la búsqueda por teléfono está limitada y protegida con rate limit.
+- **Protección anti-abuso del portal público (`/api/v1/public/pedidos`):**
+  - Límites indexados en PostgreSQL sobre `pedidos_domicilio` (`PUBLIC_ORDERS_MAX_PENDIENTES_POR_TELEFONO`, `PUBLIC_ORDERS_VENTANA_PENDIENTES_MIN`, `PUBLIC_ORDERS_MAX_POR_TELEFONO_DIA`, `PUBLIC_ORDERS_MAX_POR_DIRECCION_DIA` y tope global `PUBLIC_ORDERS_MAX_PENDIENTES_SUCURSAL`).
+  - Honeypot accesible oculto (`empresaWeb`), tiempo mínimo de llenado (`PUBLIC_ORDERS_MIN_FORM_SECONDS`) y verificación anti-bot opcional con Cloudflare Turnstile (`PUBLIC_ORDERS_CAPTCHA_PROVIDER=none|turnstile`, `TURNSTILE_SECRET_KEY`, `PUBLIC_ORDERS_CAPTCHA_TIMEOUT_MS` y `VITE_TURNSTILE_SITE_KEY` en frontend; falla cerrado ante error o timeout).
+  - Bloqueo manual por cliente (`clientes.bloqueado_pedidos_web`) administrable por `domicilios:configurar` desde la pestaña **Clientes web** en Domicilios (solo el cambio manual se audita con `CLIENTE_BLOQUEO_WEB`). Los rechazos anti-abuso devuelven una respuesta genérica `429` sin revelar si el teléfono existe, se registran únicamente en Pino (`warn`, sin PII) y en contador de métricas en memoria, y nunca escriben filas en `auditoria_logs`.
 - **Tiempo real y reportes:** polling incremental con `?desde=<ISO>` + `serverTime` y `AbortController`, y métricas en `GET /api/v1/reportes/domicilios` (por estado, zona, tiempo promedio, tasa de fallos/cancelaciones, ingresos por envío y desempeño por repartidor).
+- **Rate limiting compartido e IP real (`TRUST_PROXY`):**
+  - Todos los limitadores (login por IP, login por IP+usuario, búsqueda de clientes, creación y seguimiento público) usan la fábrica central `crearRateLimiter` con prefijos únicos. Con `RATE_LIMIT_STORE=postgres` comparten la tabla `UNLOGGED rate_limit_entries` mediante un único `UPSERT` atómico por petición y limpieza periódica no bloqueante. `RATE_LIMIT_FAIL_OPEN=true` (default) evita tumbar el login si la BD falla temporalmente.
+  - **Configuración de saltos de proxy (`TRUST_PROXY`):** nunca uses `TRUST_PROXY=true` en producción (permite falsificar `X-Forwarded-For`). Usa `TRUST_PROXY=1` si el navegador llama directo a Render (`Cliente → Render → Express`) o `TRUST_PROXY=2` cuando el frontend en Vercel actúa como proxy same-origin (`/api/*` → Render: `Cliente → Vercel → Render → Express`).
+  - **Procedimiento manual de verificación de IP real en producción:** ejecuta `curl -i -H "X-Forwarded-For: 198.51.100.77" https://<tu-dominio>/api/v1/public/sucursales` (o un intento de login de prueba) y revisa `req.ip` en los logs JSON de Render. Debe registrar **tu IP pública real**, nunca `198.51.100.77` ni una IP privada (`10.x.x.x` / `172.16.x.x`) ni la IP del edge de Vercel. Si aparece `198.51.100.77`, el número de saltos es demasiado alto (reduce en 1); si aparece la IP del proxy de Vercel/Render, aumenta en 1.
 - **Puntos de extensión documentados (fuera de alcance actual):** tracking GPS/mapas por `pedido.id`/`repartidorId`, notificaciones WhatsApp/SMS vía callback `onAfterCommit` de `withTransaction`, cálculo dinámico por distancia e integraciones con apps de terceros sobre `DomiciliosService.crearPedido`.
 
 ---
@@ -216,10 +267,20 @@ npm --prefix backend run test:unit
 npm --prefix backend test
 npm --prefix backend run test:watch
 
-# Frontend: verificación de tipos, ESLint y build de producción
+# Frontend: verificación de tipos, ESLint, pruebas unitarias (Vitest) y build de producción
 npm --prefix frontend run typecheck
 npm --prefix frontend run lint
+npm --prefix frontend test
+npm --prefix frontend run test:watch
 npm --prefix frontend run build
+
+# Frontend: pruebas Smoke E2E con Playwright Chromium (requiere API + frontend arriba)
+npm --prefix frontend exec -- playwright install chromium
+npm --prefix frontend run test:e2e
+
+# Auditoría de dependencias de producción (también obligatoria en CI)
+npm --prefix backend audit --omit=dev --audit-level=high
+npm --prefix frontend audit --omit=dev --audit-level=high
 ```
 
 - **Base de datos de pruebas separada:** al ejecutar con `NODE_ENV=test`, Sequelize utiliza automáticamente `DATABASE_URL_TEST` (si está definida en `backend/.env`), evitando afectar los datos de desarrollo.

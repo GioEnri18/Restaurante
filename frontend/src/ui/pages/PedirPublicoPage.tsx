@@ -34,6 +34,7 @@ import { formatCurrency, formatDateTime } from '../../utils/formatters';
 import { Alert } from '../components/common/Alert';
 import { Badge } from '../components/common/Badge';
 import { FotoPlatillo } from '../components/common/FotoPlatillo';
+import { TurnstileWidget } from '../components/common/TurnstileWidget';
 
 interface CartItemPublico {
   platillo: PlatilloPublicoModel;
@@ -366,6 +367,11 @@ const MenuPublicoOrdenView: React.FC<{
 
   const [enviando, setEnviando] = useState(false);
   const [errorForm, setErrorForm] = useState<string | null>(null);
+  // Controles anti-abuso: honeypot oculto, instante de carga del formulario y token Turnstile opcional
+  const [honeypot, setHoneypot] = useState('');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const formIniciadoEnRef = useRef<number>(Date.now());
   const idempotencyRef = useRef<string>(generarUuid());
   const checkoutSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -501,6 +507,11 @@ const MenuPublicoOrdenView: React.FC<{
       }
     }
 
+    if (env.TURNSTILE_SITE_KEY && !captchaToken) {
+      setErrorForm('Completa la verificación de seguridad antes de enviar tu pedido.');
+      return;
+    }
+
     setEnviando(true);
     try {
       const creado = await publicPedidosService.crearPedido({
@@ -516,6 +527,9 @@ const MenuPublicoOrdenView: React.FC<{
             ? Number(montoConQuePaga)
             : null,
         observaciones: observaciones.trim() || null,
+        empresaWeb: honeypot,
+        formIniciadoEn: formIniciadoEnRef.current,
+        captchaToken: env.TURNSTILE_SITE_KEY ? captchaToken : undefined,
         cliente: {
           nombre: nombre.trim(),
           telefono: telefono.trim(),
@@ -529,9 +543,14 @@ const MenuPublicoOrdenView: React.FC<{
       });
       setCarrito([]);
       idempotencyRef.current = generarUuid();
+      formIniciadoEnRef.current = Date.now();
+      setCaptchaResetKey((k) => k + 1);
       onPedidoCreado(creado);
     } catch (err) {
       setErrorForm(err instanceof Error ? err.message : 'No se pudo enviar tu pedido');
+      if (env.TURNSTILE_SITE_KEY) {
+        setCaptchaResetKey((k) => k + 1);
+      }
     } finally {
       setEnviando(false);
     }
@@ -992,7 +1011,33 @@ const MenuPublicoOrdenView: React.FC<{
                     className="min-h-[42px] w-full rounded-xl border border-slate-300 px-3 text-sm"
                   />
                 </div>
+
+                {/* Honeypot anti-bot: invisible visualmente, oculto a lectores de pantalla y sin autocompletado */}
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none fixed -left-[9999px] top-0 h-0 w-0 overflow-hidden opacity-0"
+                >
+                  <label htmlFor="empresa-web-campo">Sitio web de empresa</label>
+                  <input
+                    id="empresa-web-campo"
+                    name="empresaWeb"
+                    type="text"
+                    tabIndex={-1}
+                    autoComplete="off"
+                    value={honeypot}
+                    onChange={(e) => setHoneypot(e.target.value)}
+                  />
+                </div>
               </div>
+
+              {/* Verificación Cloudflare Turnstile (solo se monta cuando VITE_TURNSTILE_SITE_KEY existe) */}
+              {env.TURNSTILE_SITE_KEY && (
+                <TurnstileWidget
+                  siteKey={env.TURNSTILE_SITE_KEY}
+                  resetKey={captchaResetKey}
+                  onTokenChange={setCaptchaToken}
+                />
+              )}
 
               {/* Totales */}
               <div className="space-y-1.5 rounded-2xl bg-slate-50 p-3.5 text-xs">

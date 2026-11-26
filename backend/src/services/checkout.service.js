@@ -1,7 +1,8 @@
 const crypto = require('node:crypto');
 const { Op, QueryTypes, UniqueConstraintError } = require('sequelize');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { getPgErrorCode, sequelize, withTransaction } = require('../config/database');
+const { env } = require('../config/env');
 const {
   CajaMovimiento,
   CajaSesion,
@@ -145,7 +146,7 @@ class CheckoutService {
     const costoEnvio = round2(Number(opciones.costoEnvio ?? 0));
     const pedidoDomicilioId = opciones.pedidoDomicilioId ?? null;
     const comandaExistente = opciones.comandaExistente ?? null;
-    const correlacionId = opciones.correlacionId ?? null;
+    const correlacionId = opciones.correlacionId ?? AuditService.crearCorrelacionId();
     const zonaEntregaNombre = opciones.zonaEntregaNombre ?? null;
     const direccionEntrega = opciones.direccionEntrega ?? null;
     const referenciaEntrega = opciones.referenciaEntrega ?? null;
@@ -326,6 +327,39 @@ class CheckoutService {
       });
     }
 
+    // 6. Control configurable de saldo negativo (INVENTARIO_PERMITIR_STOCK_NEGATIVO)
+    // Con el flag en false, se rechaza la venta bajo FOR UPDATE listando exactamente qué insumos faltan.
+    const permitirStockNegativo = Boolean(env.INVENTARIO_PERMITIR_STOCK_NEGATIVO);
+    if (!permitirStockNegativo) {
+      const ingredientesInsuficientes = [];
+      for (const ingredienteId of sortedIngredienteIds) {
+        const consumo = consumoIngredientes.get(ingredienteId);
+        if (!consumo?.cantidadDescontadaOz) continue;
+        const saldoResultanteOz = round4(consumo.stockBloqueadoOz - consumo.cantidadDescontadaOz);
+        if (saldoResultanteOz < 0) {
+          ingredientesInsuficientes.push({
+            ingredienteId,
+            nombre: consumo.nombre,
+            requeridoOz: consumo.cantidadDescontadaOz,
+            disponibleOz: consumo.stockBloqueadoOz,
+            faltanteOz: round4(Math.abs(saldoResultanteOz)),
+          });
+        }
+      }
+      if (ingredientesInsuficientes.length > 0) {
+        const detalleTexto = ingredientesInsuficientes
+          .map(
+            (i) =>
+              `${i.nombre} (requerido ${i.requeridoOz.toFixed(2)} oz, disponible ${i.disponibleOz.toFixed(2)} oz)`,
+          )
+          .join('; ');
+        throw new ConflictError(
+          `Stock insuficiente para completar la venta: ${detalleTexto}.`,
+          { ingredientesInsuficientes },
+        );
+      }
+    }
+
     // 7. Desglose fiscal Guatemala (IVA 12% incluido, sumando costo de envío si aplica)
     const totalConIva = round2(totalPlatillosConIva + costoEnvio);
     const { subtotalSinIva, ivaMonto, total } = calcularDesgloseIvaIncluido(totalConIva);
@@ -487,21 +521,24 @@ class CheckoutService {
       await cajaAbierta.increment('totalVentasTarjeta', { by: total, transaction: tx });
     }
 
-    // 14. Descuento atómico en orden ascendente + Kardex desde saldo bloqueado (permite saldo negativo)
+    // 14. Descuento atómico en orden ascendente + Kardex desde saldo bloqueado
+    const crucesNegativo = [];
     for (const ingredienteId of sortedIngredienteIds) {
       const consumo = consumoIngredientes.get(ingredienteId);
       if (!consumo?.cantidadDescontadaOz) continue;
 
       const stockAnteriorOz = consumo.stockBloqueadoOz;
       const stockNuevoOz = round4(stockAnteriorOz - consumo.cantidadDescontadaOz);
-      UnitConversionService.validarSaldoOz(stockNuevoOz, true);
+      UnitConversionService.validarSaldoOz(stockNuevoOz, permitirStockNegativo);
 
+      const condicionStock = permitirStockNegativo ? '' : 'AND stock_actual_oz >= :qty';
       const updatedRows = await sequelize.query(
         `UPDATE ingredientes
          SET stock_actual_oz = stock_actual_oz - :qty,
              updated_at = NOW()
          WHERE id = :id
            AND sucursal_id = :sucursalId
+           ${condicionStock}
          RETURNING id`,
         {
           replacements: {
@@ -518,6 +555,21 @@ class CheckoutService {
         throw new ConflictError(
           `No se pudo actualizar el inventario de "${consumo.nombre}" por operación concurrente`,
         );
+      }
+
+      // Solo auditar el cruce exacto desde saldo >= 0 hacia < 0 (no repetir en ventas subsecuentes ya negativas)
+      if (stockAnteriorOz >= 0 && stockNuevoOz < 0) {
+        const deficitOz = round4(Math.abs(stockNuevoOz));
+        crucesNegativo.push({
+          ingredienteId,
+          nombre: consumo.nombre,
+          stockAnteriorOz,
+          stockNuevoOz,
+          deficitOz,
+          deficitLb: UnitConversionService.ozToLb(deficitOz),
+          cantidadDescontadaOz: consumo.cantidadDescontadaOz,
+          costoUnitarioOz: consumo.costoUnitarioOz,
+        });
       }
 
       await InventarioMovimiento.create(
@@ -538,7 +590,7 @@ class CheckoutService {
       );
     }
 
-    // 15. Auditoría
+    // 15. Auditoría (VENTA_CONFIRMADA + STOCK_NEGATIVO_GENERADO si cruzó >= 0 -> < 0, misma correlacionId)
     await AuditService.registrarEvento(
       {
         user,
@@ -569,6 +621,37 @@ class CheckoutService {
       },
       tx,
     );
+
+    for (const cruce of crucesNegativo) {
+      await AuditService.registrarEvento(
+        {
+          user,
+          clientMeta,
+          cajaSesionId: cajaAbierta.id,
+          correlacionId,
+        },
+        {
+          accion: ACCIONES_AUDITORIA.STOCK_NEGATIVO_GENERADO,
+          entidad: 'Ingrediente',
+          entidadId: cruce.ingredienteId,
+          valorAnterior: { stockActualOz: cruce.stockAnteriorOz },
+          valorNuevo: {
+            ingrediente: cruce.nombre,
+            factura: numeroCompleto,
+            ventaId: venta.id,
+            stockAnteriorOz: cruce.stockAnteriorOz,
+            stockNuevoOz: cruce.stockNuevoOz,
+            deficitOz: cruce.deficitOz,
+            deficitLb: cruce.deficitLb,
+            cantidadDescontadaOz: cruce.cantidadDescontadaOz,
+          },
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.OTRO,
+          motivo: `Venta ${numeroCompleto} dejó "${cruce.nombre}" en saldo negativo (-${cruce.deficitOz.toFixed(2)} oz)`,
+          impactoFinanciero: -round2(cruce.deficitOz * cruce.costoUnitarioOz),
+        },
+        tx,
+      );
+    }
 
     if (aprobador) {
       const lineas = detallesData.filter((d) => d.cantidadCortesia > 0).map((d) => ({

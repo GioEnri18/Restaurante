@@ -18,6 +18,9 @@ interface RawReporteKpisJson {
   totalCompras?: number | string;
   valorInventarioActual?: number | string;
   insumosConStockSinCosto?: number | string;
+  ingredientesEnNegativoCount?: number | string;
+  deficitTotalInventarioOz?: number | string;
+  deficitTotalInventarioLb?: number | string;
   utilidadBruta?: number | string;
   margenBrutoPct?: number | string;
   ticketPromedio?: number | string;
@@ -107,6 +110,9 @@ export const reportesAdapter = {
         totalCompras: Number(k.totalCompras ?? 0),
         valorInventarioActual: k.valorInventarioActual == null ? null : Number(k.valorInventarioActual),
         insumosConStockSinCosto: Number(k.insumosConStockSinCosto ?? 0),
+        ingredientesEnNegativoCount: Number(k.ingredientesEnNegativoCount ?? 0),
+        deficitTotalInventarioOz: Number(k.deficitTotalInventarioOz ?? 0),
+        deficitTotalInventarioLb: Number(k.deficitTotalInventarioLb ?? 0),
         utilidadBruta: Number(k.utilidadBruta ?? 0),
         margenBrutoPct: Number(k.margenBrutoPct ?? 0),
         ticketPromedio: Number(k.ticketPromedio ?? 0),

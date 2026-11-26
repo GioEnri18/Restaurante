@@ -55,6 +55,9 @@ export interface CrearPedidoPublicoPayload {
   metodoPagoEsperado: 'EFECTIVO' | 'TARJETA';
   montoConQuePaga?: number | null;
   observaciones?: string | null;
+  empresaWeb?: string | null;
+  formIniciadoEn?: number | null;
+  captchaToken?: string | null;
   cliente: {
     nombre: string;
     telefono: string;

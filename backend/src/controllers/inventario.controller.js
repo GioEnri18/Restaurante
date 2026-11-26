@@ -8,8 +8,18 @@ class InventarioController {
             const resultado = await InventarioService.listarIngredientes(req.user.sucursalId, search, {
                 page: req.query.page,
                 porReponer: req.query.porReponer === 'true',
+                soloNegativos: req.query.soloNegativos === 'true',
             });
             res.status(200).json({ ok: true, ...(Array.isArray(resultado) ? { data: resultado } : resultado) });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async listarEnNegativo(req, res, next) {
+        try {
+            const { items, resumen } = await InventarioService.obtenerEnNegativo(req.user.sucursalId);
+            res.status(200).json({ ok: true, data: items, resumen });
         }
         catch (error) {
             next(error);

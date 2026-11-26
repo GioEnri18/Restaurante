@@ -209,5 +209,4 @@ class AuditService {
 module.exports = {
   AuditService,
   REDACTADO,
-  sanitizarTextoSensible,
 };

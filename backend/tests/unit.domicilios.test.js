@@ -2,6 +2,8 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { ACCIONES_AUDITORIA, SEVERIDADES_AUDITORIA } = require('../src/config/constants');
+const { env } = require('../src/config/env');
+const { requireFeature } = require('../src/middlewares/featureFlag');
 const { EstadoComanda, EstadoPedidoDomicilio, ModalidadPagoDomicilio } = require('../src/models/enums');
 const {
   calcularVencimientoTracking,
@@ -14,6 +16,14 @@ const {
 const { ForbiddenError } = require('../src/shared/errors/AppError');
 const { sanitizarUrlParaLog } = require('../src/shared/logger');
 const { AuditService, REDACTADO } = require('../src/shared/services/audit.service');
+const { verificarCaptcha } = require('../src/shared/services/captcha.service');
+const {
+  MENSAJE_RECHAZO_ANTI_ABUSO,
+  normalizarDireccion,
+  obtenerMetricasRechazosPublicos,
+  reiniciarMetricasRechazosPublicos,
+  validarProteccionesPreviasPublicas,
+} = require('../src/shared/services/public-orders-guard.service');
 const { calcularSeveridad } = require('../src/shared/utils/auditoriaSeveridad');
 const {
   enmascararDireccion,
@@ -227,6 +237,167 @@ describe('Pruebas unitarias del módulo Servicio a Domicilio (sin base de datos)
       // Pedido LLEVAR puede pasar directo de LISTO a ENTREGADO sin EN_RUTA
       assert.equal(esTransicionValida(LISTO, ENTREGADO, 'LLEVAR'), true);
       assert.equal(esTransicionValida(LISTO, EN_RUTA, 'LLEVAR'), false);
+    });
+
+    it('requireFeature exige todas las banderas cuando recibe un arreglo (ENABLE_DELIVERY + ENABLE_PUBLIC_ORDERS)', () => {
+      const origDelivery = env.ENABLE_DELIVERY;
+      const origPublic = env.ENABLE_PUBLIC_ORDERS;
+      const mw = requireFeature(['ENABLE_DELIVERY', 'ENABLE_PUBLIC_ORDERS'], 'Portal apagado');
+      const ejecutar = () => {
+        let capturado = null;
+        mw({}, {}, (err) => {
+          capturado = err ?? null;
+        });
+        return capturado;
+      };
+      try {
+        env.ENABLE_DELIVERY = false;
+        env.ENABLE_PUBLIC_ORDERS = true;
+        assert.equal(ejecutar()?.statusCode, 404);
+
+        env.ENABLE_DELIVERY = true;
+        env.ENABLE_PUBLIC_ORDERS = false;
+        assert.equal(ejecutar()?.statusCode, 404);
+
+        env.ENABLE_DELIVERY = true;
+        env.ENABLE_PUBLIC_ORDERS = true;
+        assert.equal(ejecutar(), null);
+      } finally {
+        env.ENABLE_DELIVERY = origDelivery;
+        env.ENABLE_PUBLIC_ORDERS = origPublic;
+      }
+    });
+  });
+
+  describe('Anti-abuso del portal público (Turnstile, honeypot, tiempo mínimo y métricas)', () => {
+    it('normaliza direcciones eliminando espacios extra y mayúsculas de forma consistente con PostgreSQL', () => {
+      assert.equal(
+        normalizarDireccion('  4a   Avenida 12-45,   Zona 10  '),
+        '4a avenida 12-45, zona 10',
+      );
+      assert.equal(normalizarDireccion(''), '');
+    });
+
+    it('verificarCaptcha permite siempre en modo none y falla cerrado en turnstile ante error, timeout o ausencia', async () => {
+      const resNone = await verificarCaptcha({ provider: 'none', token: '' });
+      assert.equal(resNone.ok, true);
+
+      // Falta secreto -> falla cerrado
+      const sinSecreto = await verificarCaptcha({
+        provider: 'turnstile',
+        secretKey: '',
+        token: 'tok-123',
+      });
+      assert.equal(sinSecreto.ok, false);
+      assert.equal(sinSecreto.reason, 'CAPTCHA_NOT_CONFIGURED');
+
+      // Falta token -> falla cerrado
+      const sinToken = await verificarCaptcha({
+        provider: 'turnstile',
+        secretKey: 'sec-test',
+        token: '   ',
+      });
+      assert.equal(sinToken.ok, false);
+      assert.equal(sinToken.reason, 'CAPTCHA_TOKEN_MISSING');
+
+      // Respuesta inválida de Cloudflare -> falla cerrado
+      const invalido = await verificarCaptcha({
+        provider: 'turnstile',
+        secretKey: 'sec-test',
+        token: 'tok-bad',
+        fetchImpl: async () => ({
+          ok: true,
+          json: async () => ({ success: false, 'error-codes': ['invalid-input-response'] }),
+        }),
+      });
+      assert.equal(invalido.ok, false);
+      assert.equal(invalido.reason, 'CAPTCHA_INVALID');
+
+      // Proveedor caído (excepción de red) -> falla cerrado
+      const caido = await verificarCaptcha({
+        provider: 'turnstile',
+        secretKey: 'sec-test',
+        token: 'tok-123',
+        fetchImpl: async () => {
+          throw new Error('ECONNREFUSED');
+        },
+      });
+      assert.equal(caido.ok, false);
+      assert.equal(caido.reason, 'CAPTCHA_PROVIDER_ERROR');
+
+      // Timeout -> falla cerrado
+      const timeout = await verificarCaptcha({
+        provider: 'turnstile',
+        secretKey: 'sec-test',
+        token: 'tok-123',
+        timeoutMs: 30,
+        fetchImpl: async (_url, opts) =>
+          new Promise((_resolve, reject) => {
+            opts.signal.addEventListener('abort', () => {
+              const err = new Error('aborted');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          }),
+      });
+      assert.equal(timeout.ok, false);
+      assert.equal(timeout.reason, 'CAPTCHA_PROVIDER_TIMEOUT');
+
+      // Respuesta exitosa -> ok
+      const valido = await verificarCaptcha({
+        provider: 'turnstile',
+        secretKey: 'sec-test',
+        token: 'tok-ok',
+        ip: '203.0.113.10',
+        fetchImpl: async () => ({
+          ok: true,
+          json: async () => ({ success: true }),
+        }),
+      });
+      assert.equal(valido.ok, true);
+    });
+
+    it('rechaza honeypot lleno y tiempo mínimo no cumplido con respuesta genérica e incrementa métricas', async () => {
+      const origMin = env.PUBLIC_ORDERS_MIN_FORM_SECONDS;
+      const origProv = env.PUBLIC_ORDERS_CAPTCHA_PROVIDER;
+      reiniciarMetricasRechazosPublicos();
+      try {
+        env.PUBLIC_ORDERS_MIN_FORM_SECONDS = 3;
+        env.PUBLIC_ORDERS_CAPTCHA_PROVIDER = 'none';
+
+        await assert.rejects(
+          () =>
+            validarProteccionesPreviasPublicas(
+              { empresaWeb: 'https://bot.example', formIniciadoEn: Date.now() - 10_000 },
+              { ipAddress: '127.0.0.1' },
+            ),
+          (err) => err.statusCode === 429 && err.message === MENSAJE_RECHAZO_ANTI_ABUSO,
+        );
+
+        await assert.rejects(
+          () =>
+            validarProteccionesPreviasPublicas(
+              { empresaWeb: '', formIniciadoEn: Date.now() - 500 },
+              { ipAddress: '127.0.0.1' },
+            ),
+          (err) => err.statusCode === 429 && err.message === MENSAJE_RECHAZO_ANTI_ABUSO,
+        );
+
+        await assert.doesNotReject(() =>
+          validarProteccionesPreviasPublicas(
+            { empresaWeb: '', formIniciadoEn: Date.now() - 5000 },
+            { ipAddress: '127.0.0.1' },
+          ),
+        );
+
+        const metricas = obtenerMetricasRechazosPublicos();
+        assert.equal(metricas.total, 2);
+        assert.equal(metricas.porMotivo.HONEYPOT_TRIGGERED, 1);
+        assert.equal(metricas.porMotivo.MIN_FORM_TIME_NOT_MET, 1);
+      } finally {
+        env.PUBLIC_ORDERS_MIN_FORM_SECONDS = origMin;
+        env.PUBLIC_ORDERS_CAPTCHA_PROVIDER = origProv;
+      }
     });
   });
 });

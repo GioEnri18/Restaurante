@@ -1,5 +1,5 @@
 const pg = require('pg');
-const { Sequelize } = require('sequelize');
+const { QueryTypes, Sequelize } = require('sequelize');
 
 // Las columnas de fecha son TIMESTAMP(3) SIN zona horaria y Sequelize las ESCRIBE en UTC.
 // Por defecto el driver `pg` las LEE como hora local del proceso Node: en un servidor en
@@ -113,6 +113,56 @@ async function withTransaction(work, onAfterCommit) {
 async function connectDatabase() {
     await sequelize.authenticate();
 }
+/**
+ * Inspecciona el rol de PostgreSQL con el que corre la API en tiempo de ejecución.
+ * En `NODE_ENV=production`, emite una advertencia visible si la API está conectada
+ * como superusuario, dueño de `auditoria_logs` o con privilegios de UPDATE/DELETE
+ * sobre la bitácora inmutable (sin bloquear arranques en servicios gestionados).
+ */
+async function verificarPrivilegiosRolRuntime({ log = logger, entorno = env.NODE_ENV } = {}) {
+    const [info] = await sequelize.query(
+        `SELECT
+            current_user AS "usuario",
+            r.rolsuper AS "esSuperusuario",
+            EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pos_app_rol')
+              AND pg_has_role(current_user, 'pos_app_rol', 'MEMBER') AS "esMiembroAppRol",
+            has_table_privilege(current_user, 'public.auditoria_logs', 'UPDATE') AS "puedeActualizarAuditoria",
+            has_table_privilege(current_user, 'public.auditoria_logs', 'DELETE') AS "puedeBorrarAuditoria",
+            (SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = 'auditoria_logs') AS "duenoAuditoria"
+         FROM pg_roles r
+         WHERE r.rolname = current_user`,
+        { type: QueryTypes.SELECT },
+    );
+    if (!info) return null;
+
+    const esDueno = Boolean(info.duenoAuditoria && info.usuario === info.duenoAuditoria);
+    const sobreprivilegiado = Boolean(
+        info.esSuperusuario
+        || esDueno
+        || info.puedeActualizarAuditoria
+        || info.puedeBorrarAuditoria,
+    );
+    const resultado = {
+        usuario: info.usuario,
+        esSuperusuario: Boolean(info.esSuperusuario),
+        esMiembroAppRol: Boolean(info.esMiembroAppRol),
+        esDuenoAuditoria: esDueno,
+        puedeActualizarAuditoria: Boolean(info.puedeActualizarAuditoria),
+        puedeBorrarAuditoria: Boolean(info.puedeBorrarAuditoria),
+        sobreprivilegiado,
+    };
+
+    if (sobreprivilegiado && entorno === 'production') {
+        log.warn(
+            {
+                evento: 'DB_ROL_SOBREPRIVILEGIADO',
+                ...resultado,
+            },
+            'SEGURIDAD: La API en producción está conectada como dueño o usuario sobreprivilegiado de BD. Separa DATABASE_MIGRATION_URL (dueño) y DATABASE_URL (miembro de pos_app_rol creado con npm run db:crear-rol-app).',
+        );
+    }
+    return resultado;
+}
 /** Readiness: PostgreSQL responde dentro de `timeoutMs` (sin esperar al pool indefinidamente) */
 async function verificarBaseDatos(timeoutMs = 2000) {
     const inicio = Date.now();
@@ -138,9 +188,9 @@ async function disconnectDatabase() {
 module.exports = {
     sequelize,
     getPgErrorCode,
-    mapDatabaseConcurrencyError,
     withTransaction,
     connectDatabase,
+    verificarPrivilegiosRolRuntime,
     verificarBaseDatos,
     disconnectDatabase,
 };

@@ -73,6 +73,7 @@ const busquedaQuerySchema = z.object({
     search: textoBusqueda(80).optional(),
     page: paginacionQuery.page,
     porReponer: z.enum(['true', 'false']).optional(),
+    soloNegativos: z.enum(['true', 'false']).optional(),
 });
 const paginacionQuerySchema = z.object(paginacionQuery);
 const listarMovimientosQuerySchema = z
@@ -97,6 +98,7 @@ const router = Router();
 router.use(authenticate);
 router.get('/ingredientes', requirePermission('inventario:ver', 'mermas:ver'), validate(busquedaQuerySchema, 'query'), InventarioController.listarIngredientes);
 router.get('/alertas', requirePermission('inventario:ver'), InventarioController.alertas);
+router.get('/en-negativo', requirePermission('inventario:ver'), InventarioController.listarEnNegativo);
 router.get('/mermas-por-ingrediente', requirePermission('inventario:ver', 'mermas:ver'), validate(mermasPorIngredienteQuerySchema, 'query'), InventarioController.mermasPorIngrediente);
 router.post('/ingredientes', requirePermission('inventario:gestionar'), validate(crearIngredienteSchema), InventarioController.crearIngrediente);
 router.put('/ingredientes/:id', requirePermission('inventario:gestionar'), idParams, validate(actualizarIngredienteSchema), InventarioController.actualizarIngrediente);

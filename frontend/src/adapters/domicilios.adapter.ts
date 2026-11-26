@@ -79,6 +79,7 @@ export const domiciliosAdapter = {
       telefono: String(d.telefono ?? ''),
       nit: typeof d.nit === 'string' ? d.nit : null,
       notas: typeof d.notas === 'string' ? d.notas : null,
+      bloqueadoPedidosWeb: Boolean(d.bloqueadoPedidosWeb),
       activo: d.activo !== undefined ? Boolean(d.activo) : true,
       direcciones: asArray<unknown>(d.direcciones).map((dir) => this.fromDireccionJson(dir)),
     };
@@ -128,6 +129,7 @@ export const domiciliosAdapter = {
       tiempoEstimadoMin: Number(d.tiempoEstimadoMin ?? 30),
       clienteNombre: String(d.clienteNombre ?? ''),
       clienteNit: String(d.clienteNit ?? 'CF'),
+      clienteBloqueadoWeb: Boolean(d.clienteBloqueadoWeb),
       clienteTelefono: String(d.clienteTelefono ?? ''),
       direccion: typeof d.direccion === 'string' ? d.direccion : null,
       referencia: typeof d.referencia === 'string' ? d.referencia : null,

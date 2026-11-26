@@ -26,6 +26,10 @@ const {
   NotFoundError,
 } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
+const {
+  validarLimitesDbPedidoPublico,
+  validarProteccionesPreviasPublicas,
+} = require('../shared/services/public-orders-guard.service');
 const { patronContiene } = require('../shared/utils/busqueda');
 const { normalizarTelefono } = require('../shared/utils/privacidadDomicilio');
 const { round2 } = require('../shared/utils/tax');
@@ -322,6 +326,9 @@ class PublicPedidosService {
   }
 
   static async crearPedidoPublico(input, clientMeta) {
+    // 0. Protecciones previas sin tocar PostgreSQL: honeypot, tiempo mínimo y captcha
+    await validarProteccionesPreviasPublicas(input, clientMeta);
+
     const sucursal = await resolverSucursalPublica(input.codigoSucursal);
     const sucursalId = sucursal.id;
     const idempotencyKey = input.idempotencyKey;
@@ -356,6 +363,17 @@ class PublicPedidosService {
       return await withTransaction(async (tx) => {
         const concurrente = await buscarPrevio(tx);
         if (concurrente) return concurrente;
+
+        // 0.1 Validaciones anti-abuso en BD (bloqueo web del cliente + límites indexados)
+        // Los rechazos se registran solo en Pino (warn, sin PII) y métricas; nunca en auditoria_logs.
+        await validarLimitesDbPedidoPublico({
+          tx,
+          sucursalId,
+          telefonoNorm,
+          tipoEntrega: input.tipoEntrega,
+          direccionRaw: input.direccion,
+          clientMeta,
+        });
 
         // 1. Si es domicilio, validar zona activa de la sucursal
         let zona = null;

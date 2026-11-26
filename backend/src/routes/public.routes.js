@@ -1,24 +1,30 @@
 const { Router } = require('express');
-const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const { env } = require('../config/env');
 const { PublicPedidosController } = require('../controllers/public-pedidos.controller');
 const { requireFeature } = require('../middlewares/featureFlag');
+const { crearRateLimiter, obtenerIpCliente } = require('../middlewares/rateLimiter');
 const { validate } = require('../middlewares/validate');
 const { MetodoPago } = require('../models');
 const { enteroPositivoStr, textoBusqueda } = require('../shared/validators/common.validators');
 
 const router = Router();
 
-// Todo el portal público de pedidos vive detrás del mismo feature flag ENABLE_DELIVERY
-router.use(requireFeature('ENABLE_DELIVERY', 'Pedidos en línea'));
+// El portal público exige AMBOS flags: ENABLE_DELIVERY y ENABLE_PUBLIC_ORDERS.
+// Activar solo domicilios internos NO expone ningún endpoint anónimo.
+router.use(
+  requireFeature(
+    ['ENABLE_DELIVERY', 'ENABLE_PUBLIC_ORDERS'],
+    'El portal público de pedidos no está habilitado',
+  ),
+);
 
-// Rate limiters dedicados anti-spam para endpoints públicos sin autenticación
-const crearPedidoPublicoLimiter = rateLimit({
+// Rate limiters dedicados anti-spam para endpoints públicos sin autenticación (prefijos únicos)
+const crearPedidoPublicoLimiter = crearRateLimiter({
+  prefix: 'pub:pedidos:crear:',
   windowMs: 15 * 60 * 1000,
   max: 15,
-  standardHeaders: true,
-  legacyHeaders: false,
+  keyGenerator: (req) => obtenerIpCliente(req),
   message: {
     ok: false,
     error: {
@@ -28,11 +34,11 @@ const crearPedidoPublicoLimiter = rateLimit({
   },
 });
 
-const seguimientoPublicoLimiter = rateLimit({
+const seguimientoPublicoLimiter = crearRateLimiter({
+  prefix: 'pub:pedidos:seg:',
   windowMs: 60 * 1000,
   max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
+  keyGenerator: (req) => obtenerIpCliente(req),
   message: {
     ok: false,
     error: {
@@ -59,6 +65,10 @@ const crearPedidoPublicoSchema = z
     metodoPagoEsperado: z.enum([MetodoPago.EFECTIVO, MetodoPago.TARJETA]).default(MetodoPago.EFECTIVO),
     montoConQuePaga: z.number().min(0).max(50000).optional().nullable(),
     observaciones: z.string().trim().max(300).optional().nullable(),
+    // Campos anti-abuso del portal público (honeypot oculto, tiempo mínimo y token captcha)
+    empresaWeb: z.string().max(200).optional().nullable(),
+    formIniciadoEn: z.number().int().positive().optional().nullable(),
+    captchaToken: z.string().max(4096).optional().nullable(),
     cliente: z.object({
       nombre: z.string().trim().min(2, 'Ingresa tu nombre').max(150),
       telefono: z.string().trim().min(8, 'Ingresa un número de teléfono válido').max(25),

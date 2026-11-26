@@ -35,6 +35,12 @@ Cliente.init(
     telefono: { type: DataTypes.STRING(25), allowNull: false },
     nit: { type: DataTypes.STRING(25), allowNull: true },
     notas: { type: DataTypes.STRING(250), allowNull: true },
+    bloqueadoPedidosWeb: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: 'bloqueado_pedidos_web',
+    },
     activo: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   },
   { sequelize, tableName: 'clientes', timestamps: true, createdAt: true, updatedAt: true },

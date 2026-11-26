@@ -1,5 +1,4 @@
 const { Router } = require('express');
-const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const { CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { env } = require('../config/env');
@@ -7,6 +6,7 @@ const { DomiciliosController } = require('../controllers/domicilios.controller')
 const { authenticate } = require('../middlewares/authenticate');
 const { requirePermission } = require('../middlewares/authorize');
 const { requireFeature } = require('../middlewares/featureFlag');
+const { crearRateLimiter, obtenerIpCliente } = require('../middlewares/rateLimiter');
 const { validate } = require('../middlewares/validate');
 const { EstadoPedidoDomicilio, MetodoPago, ModalidadPagoDomicilio } = require('../models/enums');
 const {
@@ -19,12 +19,11 @@ const {
 } = require('../shared/validators/common.validators');
 
 // Rate limit dedicado para búsqueda de clientes por teléfono (protección contra scraping de PII)
-const busquedaClientesLimiter = rateLimit({
+const busquedaClientesLimiter = crearRateLimiter({
+  prefix: 'dom:clientes:buscar:',
   windowMs: env.DELIVERY_CLIENTE_BUSQUEDA_WINDOW_MS,
   max: env.DELIVERY_CLIENTE_BUSQUEDA_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => `dom-cli:${req.user?.id ?? 'anon'}:${req.ip || req.socket?.remoteAddress || 'unknown'}`,
+  keyGenerator: (req) => `dom-cli:${req.user?.id ?? 'anon'}:${obtenerIpCliente(req)}`,
   message: {
     ok: false,
     error: {
@@ -71,6 +70,17 @@ const actualizarZonaSchema = crearZonaSchema.partial().refine(
 );
 
 // --- Esquemas Zod: Clientes y Direcciones ---
+const listarClientesQuerySchema = z.object({
+  ...paginacionQuery,
+  search: z.string().trim().max(80).optional(),
+  soloBloqueados: z.enum(['true', 'false']).optional(),
+});
+
+const actualizarBloqueoWebSchema = z.object({
+  bloqueado: z.boolean(),
+  motivo: z.string().trim().min(5, 'Indica un motivo de al menos 5 caracteres').max(300),
+});
+
 const buscarClientesQuerySchema = z.object({
   telefono: telefonoSchema,
 });
@@ -227,6 +237,12 @@ router.put(
 
 // --- Clientes y direcciones ---
 router.get(
+  '/clientes',
+  requirePermission('domicilios:configurar'),
+  validate(listarClientesQuerySchema, 'query'),
+  DomiciliosController.listarClientes,
+);
+router.get(
   '/clientes/buscar',
   requirePermission('domicilios:crear', 'domicilios:ver'),
   busquedaClientesLimiter,
@@ -238,6 +254,13 @@ router.get(
   requirePermission('domicilios:crear', 'domicilios:ver'),
   validate(idParamsSchema, 'params'),
   DomiciliosController.obtenerCliente,
+);
+router.patch(
+  '/clientes/:id/bloqueo-web',
+  requirePermission('domicilios:configurar'),
+  validate(idParamsSchema, 'params'),
+  validate(actualizarBloqueoWebSchema),
+  DomiciliosController.actualizarBloqueoWebCliente,
 );
 router.post(
   '/clientes',

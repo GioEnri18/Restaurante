@@ -21,7 +21,7 @@ import {
   UnidadMedida,
 } from '../../models';
 import { isAbortError } from '../../services/httpClient';
-import { inventarioService } from '../../services/inventario.service';
+import { inventarioService, ResumenEnNegativo } from '../../services/inventario.service';
 import { ventasService } from '../../services/ventas.service';
 import { useAuthStore } from '../../store/auth.store';
 import { lbToOzPreview } from '../../utils/formatters';
@@ -93,6 +93,10 @@ export const InventarioPage: React.FC = () => {
   const [busquedaExistencias, setBusquedaExistencias] = useState('');
   const debouncedBusquedaExistencias = useDebouncedValue(busquedaExistencias, 350);
   const [soloPorReponer, setSoloPorReponer] = useState(false);
+  const [soloNegativos, setSoloNegativos] = useState(
+    () => searchParams.get('negativos') === 'true',
+  );
+  const [resumenNegativos, setResumenNegativos] = useState<ResumenEnNegativo | null>(null);
   const [enfocarPendientes, setEnfocarPendientes] = useState(false);
   const tablaExistencias = React.useRef<HTMLDivElement>(null);
   const abortTodoRef = useRef<AbortController | null>(null);
@@ -160,17 +164,21 @@ export const InventarioPage: React.FC = () => {
     setError(null);
     if (tab === 'existencias') actualizarExistencias((version) => version + 1);
     try {
-      const [ings, provs, comp, movs, menu, pendientes] = await Promise.all([
+      const [ings, provs, comp, movs, menu, pendientes, negativosRes] = await Promise.all([
         tab === 'compras' || tab === 'recetas' ? inventarioService.listarIngredientes(undefined, controller.signal) : null,
         canManage || tab === 'compras' || tab === 'proveedores' ? inventarioService.listarProveedores(controller.signal) : null,
         tab === 'compras' ? inventarioService.listarCompras(1, controller.signal) : null,
         tab === 'kardex' ? inventarioService.listarMovimientos({ page: 1 }, controller.signal) : null,
         tab === 'recetas' ? ventasService.obtenerMenu().catch(() => null) : null,
         tab === 'existencias' || tab === 'compras' ? inventarioService.listarAlertas(controller.signal) : null,
+        tab === 'existencias' || tab === 'compras'
+          ? inventarioService.listarEnNegativo(controller.signal).catch(() => null)
+          : null,
       ]);
       if (controller.signal.aborted) return;
       if (ings) setIngredientes(ings);
       if (pendientes) setAlertas(pendientes);
+      if (negativosRes) setResumenNegativos(negativosRes.resumen);
       if (provs) setProveedores(provs);
       if (comp) {
         setCompras(comp.items);
@@ -205,7 +213,13 @@ export const InventarioPage: React.FC = () => {
     const controller = new AbortController();
     setExistenciasCargando(true);
     void inventarioService
-      .listarExistencias(paginaExistencias, debouncedBusquedaExistencias, soloPorReponer, controller.signal)
+      .listarExistencias(
+        paginaExistencias,
+        debouncedBusquedaExistencias,
+        soloPorReponer,
+        controller.signal,
+        soloNegativos,
+      )
       .then(({ items, meta }) => {
         if (controller.signal.aborted) return;
         if (paginaExistencias > meta.totalPages) {
@@ -224,7 +238,7 @@ export const InventarioPage: React.FC = () => {
     return () => {
       controller.abort();
     };
-  }, [tab, paginaExistencias, debouncedBusquedaExistencias, soloPorReponer, versionExistencias]);
+  }, [tab, paginaExistencias, debouncedBusquedaExistencias, soloPorReponer, soloNegativos, versionExistencias]);
 
   const buscarExistencias = (busqueda: string) => {
     setBusquedaExistencias(busqueda);
@@ -491,7 +505,15 @@ export const InventarioPage: React.FC = () => {
               meta={metaExistencias} onPageChange={setPaginaExistencias}
               soloPorReponer={soloPorReponer} onAlternarPorReponer={() => {
                 setPaginaExistencias(1);
+                setSoloNegativos(false);
                 setSoloPorReponer((actual) => !actual);
+              }}
+              soloNegativos={soloNegativos}
+              resumenNegativos={resumenNegativos}
+              onAlternarNegativos={() => {
+                setPaginaExistencias(1);
+                setSoloPorReponer(false);
+                setSoloNegativos((actual) => !actual);
               }}
               onNuevoIngrediente={canManage ? () => setIngModal(true) : undefined}
               onVerMermas={() => cambiarTab('mermas')}

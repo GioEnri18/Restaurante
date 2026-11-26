@@ -25,8 +25,17 @@ services:
         value: production
       - key: API_PREFIX
         value: /api/v1
+      # Proxy same-origin Vercel (/api/* -> Render): usar 2 saltos (Cliente -> Vercel -> Render -> Express).
+      # Si el frontend llama directo a Render sin proxy Vercel, usar "1".
       - key: TRUST_PROXY
-        value: "1"
+        value: "2"
+      - key: RATE_LIMIT_STORE
+        value: postgres
+      - key: RATE_LIMIT_FAIL_OPEN
+        value: "true"
+      # Disco local en Render es efímero: usar PostgreSQL (platillo_fotos) para persistir fotos de platillos
+      - key: MEDIA_STORAGE
+        value: db
       - key: MIGRATE_ON_START
         value: "true"
       - key: DB_SSL
@@ -37,21 +46,32 @@ services:
         value: "10"
       - key: DB_POOL_MIN
         value: "1"
-      - key: DATABASE_URL
+      # Conexión con privilegios de DUEÑO exclusivamente para migraciones (migrate.js / crearRolApp.js)
+      - key: DATABASE_MIGRATION_URL
         fromDatabase:
           name: pos-restaurante-db
           property: connectionString
+      # Conexión de la API en tiempo de ejecución: apunta al usuario de mínimo privilegio (pos_app_rol)
+      # creado con `npm run db:crear-rol-app`. Si el plan gestionado no permite CREATEROLE, puedes
+      # enlazar temporalmente el mismo connectionString (la API emitirá una advertencia al arrancar).
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_DB_USER
+        value: pos_app
+      - key: APP_DB_PASSWORD
+        generateValue: true
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 12h
       - key: BCRYPT_SALT_ROUNDS
         value: "10"
-      # Cookies cross-site (Frontend en Vercel -> Backend en Render sobre HTTPS)
+      # Cookies same-origin (Frontend en Vercel con rewrite /api/* -> Backend en Render).
+      # Si llamas a Render desde otro dominio sin rewrite en Vercel, cambia AUTH_COOKIE_SAMESITE a "none".
       - key: AUTH_COOKIE_NAME
         value: pos_session
       - key: AUTH_COOKIE_SAMESITE
-        value: none
+        value: lax
       - key: AUTH_COOKIE_SECURE
         value: "true"
       - key: CSRF_PROTECTION_ENABLED
@@ -72,7 +92,32 @@ services:
         value: "16"
       - key: ENABLE_TABLE_SERVICE
         value: "false"
+      - key: ENABLE_DELIVERY
+        value: "false"
+      - key: ENABLE_PUBLIC_ORDERS
+        value: "false"
+      # Controles anti-abuso del portal público (activos cuando ENABLE_PUBLIC_ORDERS=true)
+      - key: PUBLIC_ORDERS_MAX_PENDIENTES_POR_TELEFONO
+        value: "2"
+      - key: PUBLIC_ORDERS_VENTANA_PENDIENTES_MIN
+        value: "120"
+      - key: PUBLIC_ORDERS_MAX_POR_TELEFONO_DIA
+        value: "5"
+      - key: PUBLIC_ORDERS_MAX_POR_DIRECCION_DIA
+        value: "6"
+      - key: PUBLIC_ORDERS_MAX_PENDIENTES_SUCURSAL
+        value: "25"
+      - key: PUBLIC_ORDERS_MIN_FORM_SECONDS
+        value: "3"
+      - key: PUBLIC_ORDERS_CAPTCHA_PROVIDER
+        value: none
+      - key: PUBLIC_ORDERS_CAPTCHA_TIMEOUT_MS
+        value: "5000"
       - key: DEFAULT_SERVICE_TYPE
         value: MOSTRADOR
+      - key: INVENTARIO_PERMITIR_STOCK_NEGATIVO
+        value: "true"
+      - key: AUDIT_STOCK_NEGATIVO_ALTO_OZ
+        value: "16"
       - key: ALLOW_SEED_IN_PRODUCTION
         value: "false"

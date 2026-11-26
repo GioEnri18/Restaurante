@@ -73,9 +73,23 @@ MenuEspecialPlatillo.init({
     precioEspecial: { type: DataTypes.DECIMAL(10, 2), allowNull: true, field: 'precio_especial' },
 }, { sequelize, tableName: 'menu_especial_platillos', timestamps: false });
 
+// ==================== PLATILLO_FOTO ====================
+// Almacenamiento persistente opcional en PostgreSQL (MEDIA_STORAGE=db) para miniaturas WebP
+class PlatilloFoto extends Model {
+}
+PlatilloFoto.init({
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
+    platilloId: { type: DataTypes.INTEGER, allowNull: true, field: 'platillo_id' },
+    nombre: { type: DataTypes.STRING(80), allowNull: false, unique: true },
+    mime: { type: DataTypes.STRING(40), allowNull: false, defaultValue: 'image/webp' },
+    bytes: { type: DataTypes.BLOB, allowNull: false },
+    sha256: { type: DataTypes.STRING(64), allowNull: false },
+}, { sequelize, tableName: 'platillo_fotos', timestamps: true, createdAt: true, updatedAt: false });
+
 module.exports = {
   Categoria,
   Platillo,
+  PlatilloFoto,
   RecetaIngrediente,
   Mesa,
   MenuEspecial,

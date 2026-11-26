@@ -406,6 +406,9 @@ export interface ReporteResumenModel {
     totalCompras: number;
     valorInventarioActual: number | null;
     insumosConStockSinCosto: number;
+    ingredientesEnNegativoCount: number;
+    deficitTotalInventarioOz: number;
+    deficitTotalInventarioLb: number;
     utilidadBruta: number;
     margenBrutoPct: number;
     ticketPromedio: number;
@@ -651,6 +654,7 @@ export interface ClienteDomicilioModel {
   telefono: string;
   nit: string | null;
   notas: string | null;
+  bloqueadoPedidosWeb: boolean;
   activo: boolean;
   direcciones: DireccionEntregaModel[];
 }
@@ -698,6 +702,7 @@ export interface PedidoDomicilioModel {
   tiempoEstimadoMin: number;
   clienteNombre: string;
   clienteNit: string;
+  clienteBloqueadoWeb?: boolean;
   clienteTelefono: string;
   direccion: string | null;
   referencia: string | null;

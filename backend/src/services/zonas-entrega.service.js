@@ -180,4 +180,4 @@ class ZonasEntregaService {
   }
 }
 
-module.exports = { ZonasEntregaService, formatearZona };
+module.exports = { ZonasEntregaService };

@@ -21,6 +21,8 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   TRUST_PROXY: z.string().default('false').transform(parseTrustProxy),
   JSON_BODY_LIMIT: z.string().default('2mb'),
+  // Almacenamiento de fotos de platillos: local (disco/volumen) | db (tabla platillo_fotos en PostgreSQL)
+  MEDIA_STORAGE: z.enum(['local', 'db']).default('local'),
   PLATILLOS_MEDIA_DIR: z.string().min(1).optional(),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
 
@@ -57,6 +59,12 @@ const envSchema = z.object({
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   // Límite global por IP en /auth/login (frena password spraying rotando identificadores)
   AUTH_RATE_LIMIT_IP_MAX: z.coerce.number().int().positive().default(30),
+  // Store compartido de rate limiting (memory por defecto en desarrollo/tests; postgres en producción)
+  RATE_LIMIT_STORE: z.enum(['memory', 'postgres']).default('memory'),
+  RATE_LIMIT_FAIL_OPEN: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
   // Bloqueo temporal de cuenta tras N contraseñas incorrectas consecutivas
   AUTH_LOCKOUT_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(50).default(5),
   AUTH_LOCKOUT_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
@@ -98,8 +106,12 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
-  // Módulo de Servicio a Domicilio (feature flag, bloqueo de cierre y protección de búsqueda)
+  // Módulo de Servicio a Domicilio y portal público de pedidos (independientes, apagados por defecto)
   ENABLE_DELIVERY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  ENABLE_PUBLIC_ORDERS: z
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
@@ -111,6 +123,16 @@ const envSchema = z.object({
   DELIVERY_CLIENTE_BUSQUEDA_MAX: z.coerce.number().int().positive().default(30),
   DELIVERY_CLIENTE_BUSQUEDA_LIMIT: z.coerce.number().int().min(1).max(20).default(5),
   DELIVERY_TRACKING_TTL_HORAS: z.coerce.number().int().min(1).max(720).default(24),
+  // Controles anti-abuso del portal público de pedidos (Fase 2)
+  PUBLIC_ORDERS_MAX_PENDIENTES_POR_TELEFONO: z.coerce.number().int().min(1).max(50).default(2),
+  PUBLIC_ORDERS_VENTANA_PENDIENTES_MIN: z.coerce.number().int().min(5).max(1440).default(120),
+  PUBLIC_ORDERS_MAX_POR_TELEFONO_DIA: z.coerce.number().int().min(1).max(100).default(5),
+  PUBLIC_ORDERS_MAX_POR_DIRECCION_DIA: z.coerce.number().int().min(1).max(100).default(6),
+  PUBLIC_ORDERS_MAX_PENDIENTES_SUCURSAL: z.coerce.number().int().min(1).max(500).default(25),
+  PUBLIC_ORDERS_MIN_FORM_SECONDS: z.coerce.number().int().min(0).max(60).default(3),
+  PUBLIC_ORDERS_CAPTCHA_PROVIDER: z.enum(['none', 'turnstile']).default('none'),
+  TURNSTILE_SECRET_KEY: z.string().trim().optional(),
+  PUBLIC_ORDERS_CAPTCHA_TIMEOUT_MS: z.coerce.number().int().min(500).max(15000).default(5000),
   DEFAULT_SERVICE_TYPE: z.enum(['MOSTRADOR', 'LLEVAR', 'MESA', 'DELIVERY']).default('MOSTRADOR'),
   SPECIAL_MENU_DEFAULT_NOTICE_DAYS: z.coerce.number().int().min(1).max(60).default(5),
   // Límites por venta: líneas del carrito y unidades por línea
@@ -125,6 +147,13 @@ const envSchema = z.object({
   AUDIT_DIFERENCIA_CAJA_ALTA_Q: z.coerce.number().positive().max(1000000).default(50),
   AUDIT_REPETICION_UMBRAL: z.coerce.number().int().min(2).max(100).default(3),
   AUDIT_EXPORT_MAX_ROWS: z.coerce.number().int().min(100).max(100000).default(10000),
+  // Control de saldo negativo de inventario en ventas (Fase 4)
+  INVENTARIO_PERMITIR_STOCK_NEGATIVO: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  // Déficit en onzas a partir del cual STOCK_NEGATIVO_GENERADO escala de MEDIA a ALTA (default 16 oz = 1 lb)
+  AUDIT_STOCK_NEGATIVO_ALTO_OZ: z.coerce.number().positive().max(100000).default(16),
 });
 
 const parsed = envSchema.safeParse(process.env);

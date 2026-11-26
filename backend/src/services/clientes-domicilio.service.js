@@ -1,9 +1,13 @@
 const { Op } = require('sequelize');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
 const { getPgErrorCode, withTransaction } = require('../config/database');
 const { env } = require('../config/env');
 const { Cliente, DireccionEntrega, ZonaEntrega } = require('../models');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
-const { normalizarTelefono } = require('../shared/utils/privacidadDomicilio');
+const { AuditService } = require('../shared/services/audit.service');
+const { patronContiene } = require('../shared/utils/busqueda');
+const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
+const { enmascararTelefono, normalizarTelefono } = require('../shared/utils/privacidadDomicilio');
 const { round2 } = require('../shared/utils/tax');
 
 function formatearDireccion(dir) {
@@ -38,6 +42,7 @@ function formatearCliente(cliente) {
     telefono: plain.telefono,
     nit: plain.nit ?? null,
     notas: plain.notas ?? null,
+    bloqueadoPedidosWeb: Boolean(plain.bloqueadoPedidosWeb),
     activo: Boolean(plain.activo),
     direcciones: (plain.direcciones ?? []).map(formatearDireccion),
   };
@@ -64,6 +69,94 @@ const INCLUDE_DIRECCIONES_ACTIVAS = [
  * - Búsqueda por teléfono acotada por `DELIVERY_CLIENTE_BUSQUEDA_LIMIT` y protegida por rate limit en ruta.
  */
 class ClientesDomicilioService {
+  static async listar(sucursalId, query = {}) {
+    const { page, limit, skip } = parsePagination(query.page, query.limit);
+    const where = { sucursalId, activo: true };
+
+    if (query.soloBloqueados === 'true') {
+      where.bloqueadoPedidosWeb = true;
+    }
+
+    const searchRaw = typeof query.search === 'string' ? query.search.trim() : '';
+    if (searchRaw.length > 0) {
+      const telNorm = normalizarTelefono(searchRaw);
+      const condiciones = [{ nombre: { [Op.iLike]: patronContiene(searchRaw) } }];
+      if (telNorm.length >= 3) {
+        condiciones.push({ telefono: { [Op.like]: `%${telNorm}%` } });
+      }
+      where[Op.or] = condiciones;
+    }
+
+    const { rows, count } = await Cliente.findAndCountAll({
+      where,
+      order: [
+        ['bloqueadoPedidosWeb', 'DESC'],
+        ['updatedAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
+      offset: skip,
+      limit,
+    });
+
+    return {
+      items: rows.map(formatearCliente),
+      meta: buildPaginationMeta(count, page, limit),
+    };
+  }
+
+  /**
+   * Activa o desactiva la marca `bloqueado_pedidos_web` de un cliente de domicilio.
+   * Acción exclusiva de Administrador (`domicilios:configurar`), auditada en `auditoria_logs`
+   * sin registrar el teléfono en texto plano (solo enmascarado).
+   */
+  static async actualizarBloqueoWeb(user, clienteId, { bloqueado, motivo }, clientMeta) {
+    return withTransaction(async (tx) => {
+      const cliente = await Cliente.findOne({
+        where: { id: clienteId, sucursalId: user.sucursalId, activo: true },
+        lock: tx.LOCK.UPDATE,
+        transaction: tx,
+      });
+      if (!cliente) {
+        throw new NotFoundError('Cliente de domicilio no encontrado');
+      }
+
+      const valorAnterior = Boolean(cliente.bloqueadoPedidosWeb);
+      const valorNuevo = Boolean(bloqueado);
+      if (valorAnterior !== valorNuevo) {
+        await cliente.update({ bloqueadoPedidosWeb: valorNuevo }, { transaction: tx });
+
+        await AuditService.registrarEvento(
+          {
+            sucursalId: user.sucursalId,
+            usuarioId: user.id,
+            actorRolCodigo: user.rol?.codigo ?? null,
+            clientMeta,
+          },
+          {
+            accion: ACCIONES_AUDITORIA.CLIENTE_BLOQUEO_WEB,
+            entidad: 'Cliente',
+            entidadId: cliente.id,
+            valorAnterior: { bloqueadoPedidosWeb: valorAnterior },
+            valorNuevo: {
+              bloqueadoPedidosWeb: valorNuevo,
+              telefonoEnmascarado: enmascararTelefono(cliente.telefono),
+            },
+            codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
+            motivo:
+              motivo?.trim() ||
+              (valorNuevo
+                ? 'Cliente bloqueado manualmente para pedidos web'
+                : 'Cliente desbloqueado manualmente para pedidos web'),
+            impactoFinanciero: 0,
+          },
+          tx,
+        );
+      }
+
+      return formatearCliente(cliente);
+    });
+  }
+
   static async buscarPorTelefono(sucursalId, telefonoRaw) {
     const telefonoLimpio = normalizarTelefono(telefonoRaw);
     if (telefonoLimpio.length < 4) {
@@ -344,4 +437,4 @@ class ClientesDomicilioService {
   }
 }
 
-module.exports = { ClientesDomicilioService, formatearCliente, formatearDireccion };
+module.exports = { ClientesDomicilioService };

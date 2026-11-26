@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ResponsiveContainer,
   BarChart,
@@ -9,7 +10,7 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
-import { BarChart3, Bike, FileDown, FileSpreadsheet, Filter, UtensilsCrossed } from 'lucide-react';
+import { AlertTriangle, BarChart3, Bike, FileDown, FileSpreadsheet, Filter, UtensilsCrossed } from 'lucide-react';
 import { env } from '../../config/env';
 import {
   PaginationMeta,
@@ -273,6 +274,46 @@ export const ReportesPage: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Indicador de inventario en saldo negativo (Fase 4) */}
+      {k && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-sm shadow-sm ${
+            k.ingredientesEnNegativoCount > 0
+              ? 'border-rose-200 bg-rose-50 text-rose-900'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle
+              className={`h-4 w-4 shrink-0 ${
+                k.ingredientesEnNegativoCount > 0 ? 'text-rose-600' : 'text-slate-400'
+              }`}
+              aria-hidden="true"
+            />
+            <div>
+              <span className="font-bold">Inventario en saldo negativo: </span>
+              {k.ingredientesEnNegativoCount > 0 ? (
+                <span>
+                  <strong>{k.ingredientesEnNegativoCount}</strong> ingrediente(s) con déficit acumulado de{' '}
+                  <strong>{k.deficitTotalInventarioOz.toFixed(2)} oz</strong> (
+                  {k.deficitTotalInventarioLb.toFixed(2)} lb) pendiente de compensar con compras.
+                </span>
+              ) : (
+                <span className="text-slate-600">0 ingredientes en saldo negativo.</span>
+              )}
+            </div>
+          </div>
+          {k.ingredientesEnNegativoCount > 0 && (
+            <Link
+              to="/inventario?tab=existencias&negativos=true"
+              className="inline-flex min-h-[36px] items-center rounded-xl border border-rose-300 bg-white px-3 text-xs font-extrabold text-rose-800 hover:bg-rose-100"
+            >
+              Ver en Inventario
+            </Link>
+          )}
+        </div>
+      )}
 
       {!puedeVerBalance && resumen && !loading && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

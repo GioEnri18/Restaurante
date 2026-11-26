@@ -28,3 +28,8 @@ postman/carga/resultados*.json
 # Memoria de contexto del trabajo (solo local, nunca versionar)
 memoria/
 .vercel/
+
+# Reportes y trazas de pruebas E2E (Playwright)
+playwright-report/
+test-results/
+playwright/.cache/

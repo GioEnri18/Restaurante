@@ -1,9 +1,9 @@
 const { Router } = require('express');
-const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const { env } = require('../config/env');
 const { AuthController } = require('../controllers/auth.controller');
 const { authenticate } = require('../middlewares/authenticate');
+const { crearRateLimiter, obtenerIpCliente } = require('../middlewares/rateLimiter');
 const { validate } = require('../middlewares/validate');
 
 const loginSchema = z.object({
@@ -22,23 +22,21 @@ const mensajeDemasiadosIntentos = {
 
 // Auditoría P0.2: límite global por IP. El limitador IP + identificador por sí solo permitía
 // probar contraseñas sin límite rotando el usuario (password spraying).
-const loginIpLimiter = rateLimit({
+const loginIpLimiter = crearRateLimiter({
+  prefix: 'auth:login:ip:',
   windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
   max: env.AUTH_RATE_LIMIT_IP_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => `ip:${req.ip || req.socket?.remoteAddress || 'unknown'}`,
+  keyGenerator: (req) => `ip:${obtenerIpCliente(req)}`,
   message: mensajeDemasiadosIntentos,
 });
 
 // Fase 2.1: Rate limiter aplicado EXCLUSIVAMENTE a POST /auth/login con clave compuesta IP + identificador
-const loginLimiter = rateLimit({
+const loginLimiter = crearRateLimiter({
+  prefix: 'auth:login:id:',
   windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS,
   max: env.AUTH_RATE_LIMIT_MAX,
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const ip = obtenerIpCliente(req);
     const rawId =
       req.body && typeof req.body.identifier === 'string'
         ? req.body.identifier.trim().toLowerCase().slice(0, 80)

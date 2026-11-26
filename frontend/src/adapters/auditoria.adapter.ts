@@ -118,6 +118,8 @@ const ETIQUETAS_ACCION: Record<string, string> = {
   CAMBIO_DISPONIBILIDAD_PLATILLO: 'Cambio de disponibilidad',
   CAMBIO_FOTO_PLATILLO: 'Cambio de foto de platillo',
   COMPRA_INVENTARIO: 'Compra de inventario',
+  STOCK_NEGATIVO_GENERADO: 'Stock negativo generado',
+  CLIENTE_BLOQUEO_WEB: 'Bloqueo web de cliente',
   AJUSTE_INVENTARIO: 'Ajuste de inventario',
   REGISTRO_MERMA: 'Registro de merma',
   APERTURA_CAJA: 'Apertura de caja',

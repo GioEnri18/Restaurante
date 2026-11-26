@@ -37,6 +37,7 @@ const SEVERIDAD_BASE_POR_ACCION = Object.freeze({
   [ACCIONES_AUDITORIA.CAMBIO_RECETA]: MEDIA,
   [ACCIONES_AUDITORIA.CAMBIO_DISPONIBILIDAD_PLATILLO]: MEDIA,
   [ACCIONES_AUDITORIA.AJUSTE_INVENTARIO]: MEDIA,
+  [ACCIONES_AUDITORIA.STOCK_NEGATIVO_GENERADO]: MEDIA,
   [ACCIONES_AUDITORIA.REGISTRO_MERMA]: MEDIA,
   [ACCIONES_AUDITORIA.MOVIMIENTO_CAJA]: MEDIA,
   [ACCIONES_AUDITORIA.REGISTRO_GASTO_OPERATIVO]: MEDIA,
@@ -48,6 +49,7 @@ const SEVERIDAD_BASE_POR_ACCION = Object.freeze({
   [ACCIONES_AUDITORIA.CORTESIA_APLICADA]: MEDIA,
   [ACCIONES_AUDITORIA.PEDIDO_DOMICILIO_CANCELADO]: MEDIA,
   [ACCIONES_AUDITORIA.GESTION_ZONA_ENTREGA]: MEDIA,
+  [ACCIONES_AUDITORIA.CLIENTE_BLOQUEO_WEB]: MEDIA,
 
   [ACCIONES_AUDITORIA.LOGIN_EXITOSO]: BAJA,
   [ACCIONES_AUDITORIA.LOGOUT]: BAJA,
@@ -102,6 +104,7 @@ function obtenerUmbralesAuditoria() {
     impactoAltoQ: env.AUDIT_IMPACTO_ALTO_Q,
     diferenciaCajaAltaQ: env.AUDIT_DIFERENCIA_CAJA_ALTA_Q,
     repeticionUmbral: env.AUDIT_REPETICION_UMBRAL,
+    stockNegativoAltoOz: env.AUDIT_STOCK_NEGATIVO_ALTO_OZ,
   };
 }
 
@@ -150,6 +153,21 @@ function calcularSeveridad(accion, contexto = {}, umbrales = obtenerUmbralesAudi
       } else if (absDiff > 0) {
         severidad = elevarSeveridad(severidad, MEDIA);
       }
+    }
+  }
+
+  // 1.1 Regla específica para cruce a saldo negativo de inventario:
+  // base = MEDIA, escala a ALTA si el déficit generado alcanza AUDIT_STOCK_NEGATIVO_ALTO_OZ
+  if (accion === ACCIONES_AUDITORIA.STOCK_NEGATIVO_GENERADO) {
+    const stockNuevo = numeroFinito(valorNuevo?.stockNuevoOz);
+    const deficit = numeroFinito(
+      contexto?.deficitOz
+        ?? valorNuevo?.deficitOz
+        ?? (stockNuevo !== null && stockNuevo < 0 ? Math.abs(stockNuevo) : null),
+    );
+    const umbralOz = numeroFinito(umbrales?.stockNegativoAltoOz) ?? env.AUDIT_STOCK_NEGATIVO_ALTO_OZ;
+    if (deficit !== null && Math.abs(deficit) >= umbralOz) {
+      severidad = elevarSeveridad(severidad, ALTA);
     }
   }
 
@@ -205,9 +223,7 @@ function validarMotivoObligatorio(accion, motivo, codigoMotivo) {
 
 module.exports = {
   SEVERIDAD_BASE_POR_ACCION,
-  ACCIONES_CON_MOTIVO_OBLIGATORIO,
   CODIGOS_MOTIVO_AUDITORIA,
-  obtenerUmbralesAuditoria,
   calcularSeveridad,
   normalizarCodigoMotivo,
   mapearMotivoMermaACodigo,

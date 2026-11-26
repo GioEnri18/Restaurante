@@ -38,8 +38,8 @@ export const App: React.FC = () => {
         {/* 1. Login */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* 1b. Menú público de pedidos en línea para clientes (sin login) */}
-        {env.ENABLE_DELIVERY && (
+        {/* 1b. Menú público de pedidos en línea para clientes (sin login; requiere ambos flags) */}
+        {env.ENABLE_DELIVERY && env.ENABLE_PUBLIC_ORDERS && (
           <>
             <Route
               path="/pedir"

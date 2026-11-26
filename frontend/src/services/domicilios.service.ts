@@ -177,6 +177,36 @@ export const domiciliosService = {
     return (res.data ?? []).map((c) => domiciliosAdapter.fromClienteJson(c));
   },
 
+  async listarClientes(
+    filtros: { page?: number; limit?: number; search?: string; soloBloqueados?: boolean } = {},
+    signal?: AbortSignal,
+  ): Promise<{ items: ClienteDomicilioModel[]; meta: PaginationMeta }> {
+    const qs = buildQueryString({
+      page: filtros.page,
+      limit: filtros.limit,
+      search: filtros.search || undefined,
+      soloBloqueados: filtros.soloBloqueados ? 'true' : undefined,
+    });
+    const res = (await httpClient.get<unknown[]>(`/domicilios/clientes${qs}`, {
+      signal,
+    })) as unknown as { data?: unknown[]; meta?: PaginationMeta };
+    return {
+      items: (res.data ?? []).map((c) => domiciliosAdapter.fromClienteJson(c)),
+      meta: res.meta ?? { page: 1, limit: 20, total: 0, totalPages: 1 },
+    };
+  },
+
+  async actualizarBloqueoWebCliente(
+    clienteId: number,
+    payload: { bloqueado: boolean; motivo: string },
+  ): Promise<ClienteDomicilioModel> {
+    const res = await httpClient.patch<unknown>(
+      `/domicilios/clientes/${clienteId}/bloqueo-web`,
+      payload,
+    );
+    return domiciliosAdapter.fromClienteJson(res.data);
+  },
+
   async listarPedidos(
     filtros: {
       page?: number;

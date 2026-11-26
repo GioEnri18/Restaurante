@@ -230,5 +230,4 @@ module.exports = {
   verificarAutorizacionCaja,
   verificarAutorizacionCortesia,
   verificarAutorizacionAnulacionDomicilio,
-  PERMISO_AUTORIZAR_CAJA,
 };

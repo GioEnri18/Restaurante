@@ -41,6 +41,7 @@ router.get('/health', (_req, res) => {
       currencySymbol: env.CURRENCY_SYMBOL,
       ivaRate: env.IVA_RATE,
       enableDelivery: env.ENABLE_DELIVERY,
+      enablePublicOrders: env.ENABLE_DELIVERY && env.ENABLE_PUBLIC_ORDERS,
       timestamp: new Date().toISOString(),
     },
   });

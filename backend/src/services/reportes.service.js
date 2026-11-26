@@ -11,7 +11,8 @@ const {
     parseDateRangeInTimezone,
 } = require('../shared/utils/dates');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
-const { round2 } = require('../shared/utils/tax');
+const { UnitConversionService } = require('../shared/services/unitConversion.service');
+const { round2, round4 } = require('../shared/utils/tax');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { MAX_RANGO_DIAS } = require('../shared/validators/common.validators');
 /**
@@ -296,10 +297,13 @@ class ReportesService {
             consultar(`SELECT COALESCE(SUM(total), 0) AS "sumTotal"
                 FROM compras
                 WHERE sucursal_id = :sucursalId AND fecha_compra >= :desde AND fecha_compra <= :hasta`, rango),
-            consultar(`SELECT COALESCE(SUM(stock_actual_oz * costo_promedio_oz), 0) AS valor,
-                    COUNT(*) FILTER (WHERE costo_promedio_oz <= 0) AS "sinCosto"
+            consultar(`SELECT
+                    COALESCE(SUM(stock_actual_oz * costo_promedio_oz) FILTER (WHERE stock_actual_oz > 0), 0) AS valor,
+                    COUNT(*) FILTER (WHERE stock_actual_oz > 0 AND costo_promedio_oz <= 0) AS "sinCosto",
+                    COUNT(*) FILTER (WHERE activo = true AND stock_actual_oz < 0) AS "enNegativoCount",
+                    COALESCE(SUM(ABS(stock_actual_oz)) FILTER (WHERE activo = true AND stock_actual_oz < 0), 0) AS "deficitTotalOz"
                 FROM ingredientes
-                WHERE sucursal_id = :sucursalId AND stock_actual_oz > 0`, { sucursalId }),
+                WHERE sucursal_id = :sucursalId`, { sucursalId }),
         ]);
         const t = totales[0];
         const cantidadVentas = Number(t.cantidad);
@@ -334,6 +338,9 @@ class ReportesService {
                 totalCompras,
                 valorInventarioActual: num(inventario.valor),
                 insumosConStockSinCosto: Number(inventario.sinCosto),
+                ingredientesEnNegativoCount: Number(inventario.enNegativoCount ?? 0),
+                deficitTotalInventarioOz: round4(Number(inventario.deficitTotalOz ?? 0)),
+                deficitTotalInventarioLb: UnitConversionService.ozToLb(Number(inventario.deficitTotalOz ?? 0)),
                 utilidadBruta,
                 margenBrutoPct,
                 ticketPromedio,

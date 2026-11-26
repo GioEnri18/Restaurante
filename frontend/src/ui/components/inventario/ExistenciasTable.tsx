@@ -1,6 +1,7 @@
 import React from 'react';
-import { PackageOpen, PackagePlus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { AlertTriangle, PackageOpen, PackagePlus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { IngredienteModel, PaginationMeta } from '../../../models';
+import { ResumenEnNegativo } from '../../../services/inventario.service';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
 import { EmptyState } from '../common/EmptyState';
@@ -17,6 +18,9 @@ interface ExistenciasTableProps {
   onBuscar: (busqueda: string) => void;
   soloPorReponer: boolean;
   onAlternarPorReponer: () => void;
+  soloNegativos: boolean;
+  onAlternarNegativos: () => void;
+  resumenNegativos?: ResumenEnNegativo | null;
   meta: PaginationMeta;
   onPageChange: (pagina: number) => void;
   onNuevoIngrediente?: () => void;
@@ -34,6 +38,9 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
   onBuscar,
   soloPorReponer,
   onAlternarPorReponer,
+  soloNegativos,
+  onAlternarNegativos,
+  resumenNegativos,
   meta,
   onPageChange,
   onNuevoIngrediente,
@@ -41,8 +48,9 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
   onComprar,
   onAjustar,
 }) => {
-  const hayFiltros = Boolean(busqueda.trim() || soloPorReponer);
+  const hayFiltros = Boolean(busqueda.trim() || soloPorReponer || soloNegativos);
   const cols = canBuy || canAdjust ? 8 : 7;
+  const cantNegativos = resumenNegativos?.cantidadIngredientes ?? 0;
   return (
     <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -87,6 +95,30 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
         >
           Solo por reponer
         </button>
+        <button
+          type="button"
+          onClick={onAlternarNegativos}
+          aria-pressed={soloNegativos}
+          className={`inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border px-3.5 text-xs font-bold transition ${
+            soloNegativos
+              ? 'border-rose-700 bg-rose-700 text-white'
+              : cantNegativos > 0
+                ? 'border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100'
+                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+          }`}
+        >
+          <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+          En negativo
+          {cantNegativos > 0 && (
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                soloNegativos ? 'bg-white/20 text-white' : 'bg-rose-600 text-white'
+              }`}
+            >
+              {cantNegativos}
+            </span>
+          )}
+        </button>
         {onVerMermas && (
           <button
             type="button"
@@ -98,6 +130,17 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
           </button>
         )}
       </div>
+
+      {soloNegativos && resumenNegativos && resumenNegativos.cantidadIngredientes > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-900">
+          <span className="font-bold">
+            {resumenNegativos.cantidadIngredientes} ingrediente(s) en saldo negativo (ordenados por mayor déficit)
+          </span>
+          <span className="font-extrabold">
+            Déficit acumulado: {resumenNegativos.totalDeficitOz.toFixed(2)} oz ({resumenNegativos.totalDeficitLb.toFixed(2)} lb)
+          </span>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
@@ -142,6 +185,7 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
                             onClick: () => {
                               onBuscar('');
                               if (soloPorReponer) onAlternarPorReponer();
+                              if (soloNegativos) onAlternarNegativos();
                             },
                           }
                         : onNuevoIngrediente
@@ -176,7 +220,12 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
                   </td>
                   <td className="px-2 py-3">
                     {ing.stockActualOz < 0 ? (
-                      <Badge variant="danger">Saldo negativo</Badge>
+                      <div className="space-y-0.5">
+                        <Badge variant="danger">Saldo negativo</Badge>
+                        <p className="text-[11px] font-bold text-rose-700">
+                          Déficit: {Math.abs(ing.stockActualOz).toFixed(2)} oz ({Math.abs(ing.stockActualLb).toFixed(2)} lb)
+                        </p>
+                      </div>
                     ) : ing.stockActualOz === 0 ? (
                       <Badge variant="danger">Sin existencia</Badge>
                     ) : ing.bajoStock ? (

@@ -46,6 +46,7 @@ const CLAVE_QA = 'QaDomicilios2026!';
 
 describe('Módulo de Servicio a Domicilio (PostgreSQL + API HTTP)', () => {
   const originalEnableDelivery = env.ENABLE_DELIVERY;
+  const originalEnablePublicOrders = env.ENABLE_PUBLIC_ORDERS;
   const originalBloquearCierre = env.DELIVERY_BLOQUEAR_CIERRE_CON_PENDIENTES;
 
   let ephemeralServer = null;
@@ -194,6 +195,7 @@ describe('Módulo de Servicio a Domicilio (PostgreSQL + API HTTP)', () => {
 
   after(async () => {
     env.ENABLE_DELIVERY = originalEnableDelivery;
+    env.ENABLE_PUBLIC_ORDERS = originalEnablePublicOrders;
     env.DELIVERY_BLOQUEAR_CIERRE_CON_PENDIENTES = originalBloquearCierre;
     if (ephemeralServer) {
       await new Promise((resolve) => ephemeralServer.close(resolve));
@@ -207,13 +209,27 @@ describe('Módulo de Servicio a Domicilio (PostgreSQL + API HTTP)', () => {
     await disconnectDatabase();
   });
 
-  it('bloquea todas las rutas de /domicilios con 404 cuando ENABLE_DELIVERY=false y habilita al activar', async () => {
+  it('bloquea /domicilios con ENABLE_DELIVERY=false y exige ambos flags (ENABLE_DELIVERY + ENABLE_PUBLIC_ORDERS) para /public/*', async () => {
+    // 1. Con ENABLE_DELIVERY=false (incluso con ENABLE_PUBLIC_ORDERS=true), nada de domicilios ni /public responde
     env.ENABLE_DELIVERY = false;
-    const bloqueado = await api('GET', '/domicilios/zonas', admin.jwt);
-    assert.equal(bloqueado.status, 404);
+    env.ENABLE_PUBLIC_ORDERS = true;
+    assert.equal((await api('GET', '/domicilios/zonas', admin.jwt)).status, 404);
+    assert.equal((await api('GET', '/public/menu', null)).status, 404);
+    assert.equal((await api('GET', '/public/sucursales', null)).status, 404);
 
+    // 2. Con solo ENABLE_DELIVERY=true y ENABLE_PUBLIC_ORDERS=false, el módulo interno funciona pero /public/* da 404
     env.ENABLE_DELIVERY = true;
+    env.ENABLE_PUBLIC_ORDERS = false;
     env.DELIVERY_BLOQUEAR_CIERRE_CON_PENDIENTES = true;
+
+    assert.equal((await api('GET', '/public/menu', null)).status, 404);
+    assert.equal((await api('GET', '/public/sucursales', null)).status, 404);
+    assert.equal((await api('POST', '/public/pedidos', null, {})).status, 404);
+    assert.equal((await api('GET', '/public/pedidos/0123456789abcdef01234567', null)).status, 404);
+
+    const healthSoloInterno = await api('GET', '/health', null);
+    assert.equal(healthSoloInterno.body.data.enableDelivery, true);
+    assert.equal(healthSoloInterno.body.data.enablePublicOrders, false);
 
     const z1 = await api('POST', '/domicilios/zonas', admin.jwt, {
       nombre: `Zona 10 ${RUN_TAG}`,
@@ -600,6 +616,10 @@ describe('Módulo de Servicio a Domicilio (PostgreSQL + API HTTP)', () => {
   });
 
   it('permite pedidos desde menú público sin login (Para llevar), seguimiento sin PII, confirmación en POS y liquidación LLEVAR', async () => {
+    // El portal público requiere AMBOS flags activos
+    env.ENABLE_DELIVERY = true;
+    env.ENABLE_PUBLIC_ORDERS = true;
+
     // 1. Menú público sin JWT (nunca debe exponer costos de receta ni stock real)
     const menuRes = await api('GET', `/public/menu?sucursal=${encodeURIComponent(sucursal.codigo)}`, null);
     assert.equal(menuRes.status, 200);
@@ -617,6 +637,7 @@ describe('Módulo de Servicio a Domicilio (PostgreSQL + API HTTP)', () => {
       codigoSucursal: sucursal.codigo,
       tipoEntrega: 'LLEVAR',
       metodoPagoEsperado: MetodoPago.EFECTIVO,
+      formIniciadoEn: Date.now() - 10_000,
       cliente: { nombre: 'Sofía Castillo', telefono: '5522-9911', nit: 'CF' },
       items: [{ platilloId: platillo.id, cantidad: 1, notas: 'Bien cocido' }],
       observaciones: 'Paso en 20 min',

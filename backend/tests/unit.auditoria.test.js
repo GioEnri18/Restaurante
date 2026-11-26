@@ -72,6 +72,34 @@ describe('Pruebas unitarias del módulo de Auditoría de investigación (sin bas
       );
     });
 
+    it('evalúa STOCK_NEGATIVO_GENERADO según AUDIT_STOCK_NEGATIVO_ALTO_OZ (MEDIA < umbral, ALTA >= umbral)', () => {
+      const umbralesConStock = { ...UMBRALES_TEST, stockNegativoAltoOz: 16 };
+      assert.equal(
+        calcularSeveridad(
+          ACCIONES_AUDITORIA.STOCK_NEGATIVO_GENERADO,
+          { valorNuevo: { deficitOz: 4, stockNuevoOz: -4 } },
+          umbralesConStock,
+        ),
+        SEVERIDADES_AUDITORIA.MEDIA,
+      );
+      assert.equal(
+        calcularSeveridad(
+          ACCIONES_AUDITORIA.STOCK_NEGATIVO_GENERADO,
+          { valorNuevo: { deficitOz: 16, stockNuevoOz: -16 } },
+          umbralesConStock,
+        ),
+        SEVERIDADES_AUDITORIA.ALTA,
+      );
+      assert.equal(
+        calcularSeveridad(
+          ACCIONES_AUDITORIA.STOCK_NEGATIVO_GENERADO,
+          { valorNuevo: { stockNuevoOz: -25 } },
+          umbralesConStock,
+        ),
+        SEVERIDADES_AUDITORIA.ALTA,
+      );
+    });
+
     it('deriva severidad correctamente para filas históricas usando valorNuevo (sin severidad persistida)', () => {
       assert.equal(
         calcularSeveridad(

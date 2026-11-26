@@ -42,6 +42,7 @@ import { Field } from '../components/common/Field';
 import { Modal } from '../components/common/Modal';
 import { Pagination } from '../components/common/Pagination';
 import { TableSkeleton } from '../components/common/TableSkeleton';
+import { ClientesWebPanel } from '../components/domicilios/ClientesWebPanel';
 import { LiquidarPedidoModal } from '../components/domicilios/LiquidarPedidoModal';
 import { ZonasEntregaPanel } from '../components/domicilios/ZonasEntregaPanel';
 import { PrintTicketsModal } from '../components/print/PrintTicketsModal';
@@ -85,9 +86,12 @@ export const DomiciliosPage: React.FC = () => {
   const canAnularFacturaDirecto = can('facturas:anular');
   const rolCodigo = usuario?.rol.codigo ?? '';
 
-  const [tab, setTab] = useState<'pedidos' | 'zonas'>(
-    searchParams.get('tab') === 'zonas' && canConfigurar ? 'zonas' : 'pedidos',
-  );
+  const [tab, setTab] = useState<'pedidos' | 'zonas' | 'clientes'>(() => {
+    const tabParam = searchParams.get('tab');
+    if (canConfigurar && tabParam === 'zonas') return 'zonas';
+    if (canConfigurar && tabParam === 'clientes') return 'clientes';
+    return 'pedidos';
+  });
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoPedidoDomicilio | ''>('');
   const [modalidadFiltro, setModalidadFiltro] = useState<ModalidadPagoDomicilio | ''>('');
   const [tipoEntregaFiltro, setTipoEntregaFiltro] = useState<TipoEntregaPedido | ''>('');
@@ -370,10 +374,22 @@ export const DomiciliosPage: React.FC = () => {
               >
                 Zonas de entrega
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('clientes');
+                  setSearchParams({ tab: 'clientes' });
+                }}
+                className={`min-h-[40px] rounded-lg px-3.5 text-xs font-extrabold transition ${
+                  tab === 'clientes' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+                }`}
+              >
+                Clientes web
+              </button>
             </div>
           )}
 
-          {!esVistaRepartidor && (
+          {!esVistaRepartidor && env.ENABLE_DELIVERY && env.ENABLE_PUBLIC_ORDERS && (
             <a
               href="/pedir"
               target="_blank"
@@ -403,6 +419,8 @@ export const DomiciliosPage: React.FC = () => {
 
       {tab === 'zonas' && canConfigurar ? (
         <ZonasEntregaPanel onZonasActualizadas={() => void cargarCatalogos()} />
+      ) : tab === 'clientes' && canConfigurar ? (
+        <ClientesWebPanel />
       ) : (
         <>
           {/* KPIs rápidos del tablero */}
@@ -895,7 +913,12 @@ export const DomiciliosPage: React.FC = () => {
             <div className="grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
               <div>
                 <p className="text-xs font-bold uppercase text-slate-500">Cliente y entrega</p>
-                <p className="font-bold text-slate-900">{detallePedido.clienteNombre}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-bold text-slate-900">{detallePedido.clienteNombre}</p>
+                  {detallePedido.clienteBloqueadoWeb && (
+                    <Badge variant="danger">Bloqueado web</Badge>
+                  )}
+                </div>
                 <p className="text-xs text-slate-600">Tel: {detallePedido.clienteTelefono}</p>
                 <p className="text-xs text-slate-600">Zona: {detallePedido.zonaNombre}</p>
                 {detallePedido.direccion && (
