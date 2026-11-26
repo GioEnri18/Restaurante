@@ -1,15 +1,16 @@
 %% ============================================================================
 %% CONTEXTO DE LA ARQUITECTURA — SISTEMA POS RESTAURANTE (GUATEMALA)
-%% Actualizado: 2026-11-23
+%% Actualizado: 2026-11-25
 %% Repositorio destino: https://github.com/GioEnri18/Restaurante.git
 %% ============================================================================
 %%
 %% 1. DECISIONES DE ARQUITECTURA Y NEGOCIO
 %% - Negocio: Restaurante en Guatemala, moneda Quetzales (GTQ / Q), IVA 12%
 %%   INCLUIDO en el precio del menú (fórmula legal: base = total / 1.12).
-%% - Servicio actual: Enfoque en MOSTRADOR y PARA LLEVAR (con nombre/turno
-%%   impreso en comanda). Soporte de MESAS oculto por variable de entorno
-%%   (ENABLE_TABLE_SERVICE / VITE_ENABLE_TABLE_SERVICE=false).
+%% - Servicio actual: MOSTRADOR y PARA LLEVAR por defecto; MESAS controlado por
+%%   ENABLE_TABLE_SERVICE / VITE_ENABLE_TABLE_SERVICE=false; SERVICIO A DOMICILIO
+%%   integral controlado por ENABLE_DELIVERY / VITE_ENABLE_DELIVERY=false
+%%   (datos_delivery_json se conserva como legado sin uso en el flujo nuevo).
 %% - Base de datos: PostgreSQL 16 (Docker Compose) + Sequelize 6 (CommonJS)
 %%   con migraciones SQL versionadas en backend/src/database/migrations/ y
 %%   rol de mínimo privilegio pos_app_rol.
@@ -33,37 +34,36 @@
 %%   * Aislamiento estricto de nómina (GESTION_NOMINA solo ADMIN).
 %%
 %% 2. ARQUITECTURA DE CARPETAS
-%% - Backend (backend/src/): MVC + Servicio por 9 dominios (JavaScript CommonJS)
+%% - Backend (backend/src/): MVC + Servicio por 10 dominios (JavaScript CommonJS)
 %%   (auth, ventas, facturas, inventario, mermas, caja, reportes, auditoria,
-%%   accesos) + servicios compartidos (audit.service.js, auditoriaSeveridad.js,
-%%   auditoriaFiltros.js, unitConversion.service.js, dates.js, tax.js).
+%%   accesos, domicilios) + servicios compartidos (audit.service.js, auditoriaSeveridad.js,
+%%   auditoriaFiltros.js, privacidadDomicilio.js, unitConversion.service.js, dates.js, tax.js).
 %% - Frontend (frontend/src/): React 19 + TypeScript estricto + Tailwind + Zustand
-%%   * config/env.ts       -> Variables VITE_* tipadas
+%%   * config/env.ts       -> Variables VITE_* tipadas (incluye VITE_ENABLE_DELIVERY)
 %%   * models/index.ts     -> Modelos de dominio estrictos (sin any)
 %%   * adapters/           -> Traducción exclusiva JSON API <-> modelos UI
 %%   * services/           -> Cliente HTTP (cookie httpOnly) y servicios por dominio
-%%   * store/              -> Estado global Zustand (auth.store.ts, cart.store.ts)
-%%   * ui/components/      -> common/ (Modal dialog+drawer, Field, Pagination, etc.),
-%%                            layout/, print/ (80mm), ventas/, caja/, inventario/,
-%%                            auditoria/ (AuditoriaResumen, AuditoriaFiltros,
-%%                            AuditoriaTabla, AuditoriaDetalleDrawer, NominaPanel)
-%%   * ui/pages/           -> 10 vistas protegidas por RBAC
+%%   * store/              -> Estado global Zustand (auth.store.ts, cart.store.ts sin PII)
+%%   * ui/components/      -> common/, layout/, print/ (80mm + ticket entrega), ventas/,
+%%                            domicilios/ (LiquidarPedidoModal, ZonasEntregaPanel),
+%%                            caja/, inventario/, auditoria/
+%%   * ui/pages/           -> 11 vistas protegidas por RBAC (incluye DomiciliosPage lazy)
 %%
 %% 3. ROLES Y PERMISOS CONFIGURABLES (RBAC EN BD)
-%% - ADMIN   -> Control total + Accesos + Menús Especiales + Nómina + Auditoría (ver/exportar)
-%% - AUDITOR -> Supervisión de caja (caja:autorizar) + Auditoría investigación (ver/exportar, sin nómina)
-%%              + solo lectura en reportes, facturas, caja, inventario y mermas
-%% - CAJERO  -> Ventas (Mostrador/Para Llevar) + Caja (con control dual de supervisor) + Mermas
-%% - MESERO  -> Ventas + Facturas (solo lectura)
-%% - CHEF    -> Cocina/Mermas (sin acceso a Auditoría)
+%% - ADMIN      -> Control total + Accesos + Menús Especiales + Nómina + Domicilios (8 permisos)
+%% - AUDITOR    -> Supervisión de caja + Auditoría económica + solo lectura reportes/domicilios
+%% - CAJERO     -> Ventas + Caja (control dual) + Mermas + Domicilios (crear/asignar/liquidar/cancelar)
+%% - MESERO     -> Ventas + Facturas (solo lectura)
+%% - CHEF       -> Cocina/Mermas + Domicilios (ver, EN_PREPARACION, LISTO)
+%% - REPARTIDOR -> Vista móvil "Mis entregas" (domicilios:ver_propios + EN_RUTA/ENTREGADO/FALLIDO)
 %% ============================================================================
 
 flowchart TD
     subgraph FRONTEND["Frontend POS (React 19 + TypeScript + Tailwind + Zustand)"]
-        ENVF["config/env.ts (.env VITE_*)"]
-        UI["ui/pages (10 vistas) + ui/components/<dominio>\n(AuditoriaResumen, Filtros, Tabla, DetalleDrawer, NominaPanel)"]
-        STORE["store/ (auth.store + cart.store · Zustand)"]
-        SERVICES["services/ (httpClient cookie httpOnly + 9 servicios HTTP)"]
+        ENVF["config/env.ts (.env VITE_* + VITE_ENABLE_DELIVERY)"]
+        UI["ui/pages (11 vistas) + ui/components/<dominio>\n(Ventas, Domicilios/Mis Entregas, Caja, Reportes, Auditoría)"]
+        STORE["store/ (auth.store + cart.store sin PII · Zustand)"]
+        SERVICES["services/ (httpClient cookie httpOnly + 10 servicios HTTP)"]
         ADAPTERS["adapters/ (Traducción estricta JSON <-> Models sin any)"]
         MODELS["models/index.ts"]
 
@@ -78,24 +78,25 @@ flowchart TD
 
     subgraph BACKEND["Backend API REST (/api/v1 · Node.js 22 JS + Express 4 + Sequelize 6)"]
         ENVB["config/env.js (Zod .env + umbrales AUDIT_*)"]
-        MW["Middlewares: JWT cookie httpOnly + CSRF + RBAC permisosCache + Zod validate"]
-        MODS["9 Módulos MVC+Service: auth, ventas, facturas, inventario, mermas, caja, reportes, auditoria (resumen/detalle/CSV), accesos"]
-        SHARED["Transversales: AuditService (redacción + correlación), auditoriaSeveridad, auditoriaFiltros, UnitConversionService"]
+        MW["Middlewares: JWT cookie httpOnly + CSRF + RBAC permisosCache + featureFlag + Zod + rateLimit"]
+        MODS["10 Módulos MVC+Service: auth, ventas, facturas, inventario, mermas, caja, reportes, auditoria, accesos, domicilios"]
+        SHARED["Transversales: AuditService (redacción PII + correlación), auditoriaSeveridad, privacidadDomicilio, UnitConversionService"]
 
         ENVB --> MW
         MW --> MODS
         MODS --> SHARED
     end
 
-    subgraph DATABASE["Base de Datos (PostgreSQL 16 · pos_app_rol mínimo privilegio)"]
-        PG[("Tablas Multi-Sucursal (sucursal_id)\nMigraciones SQL versionadas\nauditoria_logs APPEND-ONLY (triggers inmutables)")]
+    subgraph DATABASE["Base de Datos (PostgreSQL 16 · pos_app_rol mínimo privilegio · 31 modelos)"]
+        PG[("Tablas Multi-Sucursal (sucursal_id)\nMigraciones SQL versionadas\nauditoria_logs y pedido_domicilio_historial APPEND-ONLY")]
     end
 
     subgraph ROLES["Roles Configurables (RBAC)"]
-        R1["ADMIN: Control total + Nómina + Auditoría"]
-        R2["AUDITOR: Supervisión Caja + Investigación Auditoría + Exportar CSV"]
-        R3["CAJERO: Ventas + Caja (control dual) + Mermas"]
-        R4["MESERO / CHEF: Operación sin acceso a Auditoría"]
+        R1["ADMIN: Control total + Nómina + Auditoría + Domicilios"]
+        R2["AUDITOR: Supervisión Caja + Investigación Auditoría + Consulta Domicilios"]
+        R3["CAJERO: Ventas + Caja (control dual) + Mermas + Domicilios (crear/asignar/liquidar)"]
+        R4["CHEF / MESERO: Cocina/Ventas + Domicilios cocina (EN_PREPARACION/LISTO)"]
+        R5["REPARTIDOR: Mis entregas (domicilios:ver_propios + EN_RUTA/ENTREGADO/FALLIDO)"]
     end
 
     SERVICES <-->|"JSON / PDF / Excel / CSV\nCookie httpOnly + CSRF"| MW

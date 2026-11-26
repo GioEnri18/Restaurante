@@ -128,4 +128,107 @@ async function verificarAutorizacionCaja(user, autorizacion, operacion, clientMe
 const verificarAutorizacionCortesia = (user, autorizacion, clientMeta) =>
   verificarAutorizacionCaja(user, autorizacion, 'cortesia', clientMeta, true);
 
-module.exports = { verificarAutorizacionCaja, verificarAutorizacionCortesia, PERMISO_AUTORIZAR_CAJA };
+/**
+ * Control dual para anulación de facturas ligadas a pedidos a domicilio PREPAGADO.
+ * - Si el actor ya posee el permiso `facturas:anular` (p. ej. Administrador), se auto-autoriza.
+ * - En caso contrario, valida credenciales de un supervisor activo de la misma sucursal con `facturas:anular`.
+ */
+async function verificarAutorizacionAnulacionDomicilio(user, autorizacion, clientMeta) {
+  if (user.permisos?.includes('facturas:anular')) {
+    return { id: user.id, username: user.username, autoAutorizado: true };
+  }
+
+  const rawId = autorizacion?.identifier ?? autorizacion?.username;
+  if (!rawId || !autorizacion?.password) {
+    throw new BadRequestError(
+      'Para anular la factura de un pedido prepagado se requiere usuario y contraseña de un supervisor con permiso facturas:anular',
+      [{ campo: 'autorizacionSupervisor', mensaje: 'Ingresa las credenciales del supervisor' }],
+    );
+  }
+
+  const identificador = String(rawId).trim().toLowerCase();
+  const supervisor = await Usuario.findOne({
+    where: {
+      sucursalId: user.sucursalId,
+      [Op.or]: [
+        where(fn('lower', col('Usuario.username')), identificador),
+        where(fn('lower', col('Usuario.email')), identificador),
+      ],
+    },
+    include: [{ model: Rol, as: 'rol' }],
+  });
+
+  const passwordValido = await bcrypt.compare(
+    autorizacion.password,
+    supervisor ? supervisor.passwordHash : DUMMY_PASSWORD_HASH,
+  );
+  const bloqueado = Boolean(supervisor?.bloqueadoHasta && supervisor.bloqueadoHasta > new Date());
+
+  const rechazar = async (motivo, mensaje = MENSAJE_RECHAZO, correlacionId = null) => {
+    const cajaAbierta = await CajaSesion.findOne({
+      where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+      attributes: ['id'],
+    });
+    await AuditService.registrarEvento({
+      user,
+      clientMeta,
+      cajaSesionId: cajaAbierta?.id ?? null,
+      correlacionId,
+    }, {
+      accion: ACCIONES_AUDITORIA.AUTORIZACION_CAJA_RECHAZADA,
+      entidad: 'PedidoDomicilio',
+      entidadId: null,
+      valorNuevo: { operacion: 'anular_prepagado_domicilio', supervisor: sanitizarIdentificadorAuditoria(identificador), motivo },
+      codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.AUTORIZACION_SUPERVISOR,
+      motivo,
+    });
+    throw new ForbiddenError(mensaje);
+  };
+
+  if (!supervisor || bloqueado || !passwordValido) {
+    let correlacionId = null;
+    if (supervisor && !bloqueado && !passwordValido) {
+      const resultadoIntento = await registrarIntentoFallido(supervisor.id);
+      if (resultadoIntento.bloqueadoAhora) {
+        correlacionId = AuditService.crearCorrelacionId();
+        await AuditService.registrarEvento({
+          sucursalId: supervisor.sucursalId,
+          usuarioId: supervisor.id,
+          actorRolCodigo: supervisor.rol?.codigo ?? null,
+          clientMeta,
+          correlacionId,
+        }, {
+          accion: ACCIONES_AUDITORIA.BLOQUEO_CUENTA,
+          entidad: 'Usuario',
+          entidadId: supervisor.id,
+          valorNuevo: {
+            supervisor: sanitizarIdentificadorAuditoria(identificador),
+            bloqueadoHasta: resultadoIntento.bloqueadoHasta,
+            origen: 'autorizacion_anular_domicilio',
+          },
+          codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.SEGURIDAD_ACCESO,
+          motivo: 'Cuenta bloqueada temporalmente por intentos fallidos al autorizar anulación',
+        });
+      }
+    }
+    await rechazar(bloqueado ? 'Supervisor bloqueado temporalmente' : 'Credenciales incorrectas', MENSAJE_RECHAZO, correlacionId);
+  }
+
+  if (!supervisor.activo || !supervisor.rol?.activo || supervisor.sucursalId !== user.sucursalId) {
+    await rechazar('Supervisor inactivo o de otra sucursal');
+  }
+  const permisos = await obtenerPermisosEfectivos(supervisor.id, supervisor.rolId);
+  if (!permisos.includes('facturas:anular')) {
+    await rechazar('Sin permiso facturas:anular', 'El usuario indicado no tiene permiso para anular facturas');
+  }
+
+  await supervisor.update({ intentosFallidos: 0 });
+  return { id: supervisor.id, username: supervisor.username, autoAutorizado: false };
+}
+
+module.exports = {
+  verificarAutorizacionCaja,
+  verificarAutorizacionCortesia,
+  verificarAutorizacionAnulacionDomicilio,
+  PERMISO_AUTORIZAR_CAJA,
+};

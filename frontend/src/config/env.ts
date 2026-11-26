@@ -43,6 +43,7 @@ export const env = {
   CART_STORAGE_KEY: import.meta.env.VITE_CART_STORAGE_KEY || 'pos_cart_v1',
   AUTO_PRINT_ENABLED: getEnvBoolean(import.meta.env.VITE_AUTO_PRINT_ENABLED, true),
   ENABLE_TABLE_SERVICE: getEnvBoolean(import.meta.env.VITE_ENABLE_TABLE_SERVICE, false),
+  ENABLE_DELIVERY: getEnvBoolean(import.meta.env.VITE_ENABLE_DELIVERY, false),
   DEFAULT_SERVICE_TYPE: (import.meta.env.VITE_DEFAULT_SERVICE_TYPE || 'MOSTRADOR') as
     | 'MOSTRADOR'
     | 'LLEVAR'

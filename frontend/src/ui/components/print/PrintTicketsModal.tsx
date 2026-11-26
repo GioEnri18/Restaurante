@@ -8,18 +8,20 @@ interface PrintTicketsModalProps {
   ticket: TicketImprimibleModel | null;
   includeFactura?: boolean;
   includeComanda?: boolean;
+  includeEntrega?: boolean;
   autoPrint?: boolean;
   onClose: () => void;
 }
 
 /**
- * Modal de vista previa e impresión térmica 80mm para FACTURA y COMANDA DE COCINA.
+ * Modal de vista previa e impresión térmica 80mm para FACTURA, COMANDA DE COCINA y TICKET DE ENTREGA.
  * Cuando se confirma una venta y VITE_AUTO_PRINT_ENABLED=true, dispara window.print() automáticamente.
  */
 export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   ticket,
   includeFactura = true,
   includeComanda = true,
+  includeEntrega = true,
   autoPrint = false,
   onClose,
 }) => {
@@ -166,6 +168,10 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                   Servicio: {ticket.venta.tipoServicio}
                   {ticket.comanda?.mesaNumero ? ` (${ticket.comanda.mesaNumero})` : ''}
                 </p>
+                {ticket.factura.zonaEntregaNombre && <p>Zona entrega: {ticket.factura.zonaEntregaNombre}</p>}
+                {ticket.venta.tipoServicio === 'DELIVERY' && ticket.factura.clienteDireccion && (
+                  <p>Dirección: {ticket.factura.clienteDireccion}</p>
+                )}
                 {ticket.comanda?.nombreTurno && <p>Turno/Entrega: {ticket.comanda.nombreTurno}</p>}
                 <p>Atendió: {ticket.venta.cajeroNombre}</p>
               </div>
@@ -186,6 +192,17 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                     </div>
                   </div>
                 ))}
+                {(ticket.factura.costoEnvio ?? 0) > 0 && (
+                  <div className="mt-1 border-t border-dotted border-slate-300 pt-1">
+                    <div className="flex justify-between font-semibold">
+                      <span>
+                        Envío a domicilio
+                        {ticket.factura.zonaEntregaNombre ? ` (${ticket.factura.zonaEntregaNombre})` : ''}
+                      </span>
+                      <span>{formatCurrency(ticket.factura.costoEnvio ?? 0)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1 border-b border-dashed border-slate-400 py-2">
@@ -238,8 +255,17 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
 
                 <div className="border-b border-dashed border-slate-400 py-2">
                   <p>Hora: {formatDateTime(ticket.comanda.createdAt)}</p>
-                  <p>Factura ref: {ticket.factura.numeroCompleto}</p>
-                  <p>Mesero/Cajero: {ticket.venta.cajeroNombre}</p>
+                  <p>Ref: {ticket.entrega?.numeroPedido ?? ticket.factura.numeroCompleto}</p>
+                  <p>Atendió: {ticket.venta.cajeroNombre}</p>
+                  {ticket.comanda.zonaEntregaNombre && (
+                    <p className="mt-1 font-bold">Zona: {ticket.comanda.zonaEntregaNombre}</p>
+                  )}
+                  {ticket.comanda.direccionEntrega && (
+                    <p>Dir: {ticket.comanda.direccionEntrega}</p>
+                  )}
+                  {ticket.comanda.referenciaEntrega && (
+                    <p>Ref entrega: {ticket.comanda.referenciaEntrega}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2 py-3">
@@ -256,6 +282,73 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                       )}
                     </div>
                   ))}
+                  {(ticket.comanda.costoEnvio ?? 0) > 0 && (
+                    <div className="flex justify-between border-t border-dashed border-slate-400 pt-1.5 font-bold">
+                      <span>ENVÍO A DOMICILIO:</span>
+                      <span>{formatCurrency(ticket.comanda.costoEnvio ?? 0)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TICKET 3: TICKET DE ENTREGA PARA REPARTIDOR (Servicio a Domicilio) */}
+            {includeEntrega && ticket.entrega && (
+              <div className="print-page-break mx-auto w-full max-w-[320px] rounded-xl border border-slate-300 bg-white p-4 font-mono text-xs text-slate-900 shadow-sm">
+                <div className="border-b-2 border-dashed border-slate-900 pb-2 text-center">
+                  <p className="text-base font-black tracking-wide">TICKET DE ENTREGA</p>
+                  <p className="text-sm font-bold">{ticket.entrega.numeroPedido}</p>
+                  <p className="mt-1 rounded bg-slate-900 px-2 py-0.5 text-xs font-black text-white">
+                    {ticket.entrega.modalidadPago === 'PREPAGADO'
+                      ? 'PREPAGADO · NO COBRAR'
+                      : `CONTRA ENTREGA · COBRAR ${formatCurrency(ticket.entrega.total)}`}
+                  </p>
+                </div>
+
+                <div className="space-y-0.5 border-b border-dashed border-slate-400 py-2">
+                  <p className="font-bold">Cliente: {ticket.entrega.clienteNombre}</p>
+                  <p>Tel: {ticket.entrega.clienteTelefono}</p>
+                  <p className="font-bold">Zona: {ticket.entrega.zonaNombre}</p>
+                  <p>Dir: {ticket.entrega.direccion}</p>
+                  {ticket.entrega.referencia && <p>Ref: {ticket.entrega.referencia}</p>}
+                  {ticket.entrega.observaciones && (
+                    <p className="mt-1 rounded bg-amber-100 px-1.5 py-0.5 font-bold">
+                      OBS: {ticket.entrega.observaciones}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1 border-b border-dashed border-slate-400 py-2">
+                  {ticket.venta.detalles.map((item) => (
+                    <div key={item.id} className="flex justify-between">
+                      <span>
+                        {item.cantidad}x {item.nombrePlatillo}
+                      </span>
+                      <span>{formatCurrency(item.subtotal)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between border-t border-dotted border-slate-300 pt-1 font-semibold">
+                    <span>Envío ({ticket.entrega.zonaNombre})</span>
+                    <span>{formatCurrency(ticket.entrega.costoEnvio)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1 pt-2">
+                  <div className="flex justify-between text-sm font-black">
+                    <span>TOTAL:</span>
+                    <span>{formatCurrency(ticket.entrega.total)}</span>
+                  </div>
+                  {ticket.entrega.modalidadPago === 'CONTRA_ENTREGA' && (
+                    <>
+                      <p>Método esperado: {ticket.entrega.metodoPagoEsperado}</p>
+                      {ticket.entrega.montoConQuePaga !== null && ticket.entrega.montoConQuePaga > ticket.entrega.total && (
+                        <p className="font-bold">
+                          Paga con {formatCurrency(ticket.entrega.montoConQuePaga)} · Llevar vuelto:{' '}
+                          {formatCurrency(ticket.entrega.montoConQuePaga - ticket.entrega.total)}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}

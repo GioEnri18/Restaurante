@@ -98,6 +98,19 @@ const envSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+  // Módulo de Servicio a Domicilio (feature flag, bloqueo de cierre y protección de búsqueda)
+  ENABLE_DELIVERY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  DELIVERY_BLOQUEAR_CIERRE_CON_PENDIENTES: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  DELIVERY_CLIENTE_BUSQUEDA_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+  DELIVERY_CLIENTE_BUSQUEDA_MAX: z.coerce.number().int().positive().default(30),
+  DELIVERY_CLIENTE_BUSQUEDA_LIMIT: z.coerce.number().int().min(1).max(20).default(5),
+  DELIVERY_TRACKING_TTL_HORAS: z.coerce.number().int().min(1).max(720).default(24),
   DEFAULT_SERVICE_TYPE: z.enum(['MOSTRADOR', 'LLEVAR', 'MESA', 'DELIVERY']).default('MOSTRADOR'),
   SPECIAL_MENU_DEFAULT_NOTICE_DAYS: z.coerce.number().int().min(1).max(60).default(5),
   // Límites por venta: líneas del carrito y unidades por línea

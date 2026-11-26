@@ -1,5 +1,12 @@
+import { domiciliosAdapter } from '../adapters/domicilios.adapter';
 import { reportesAdapter } from '../adapters/reportes.adapter';
-import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../models';
+import {
+  PaginationMeta,
+  ReporteDomiciliosModel,
+  ReporteResumenModel,
+  SerieVentasDiaModel,
+  TopProductoModel,
+} from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
 export interface BalanceEconomico {
@@ -74,6 +81,16 @@ export const reportesService = {
     const qs = buildQueryString({ fechaDesde, fechaHasta });
     const res = await httpClient.get<unknown>(`/reportes/resumen${qs}`, { signal });
     return reportesAdapter.fromResumenJson(res.data);
+  },
+
+  async obtenerReporteDomicilios(
+    fechaDesde?: string,
+    fechaHasta?: string,
+    signal?: AbortSignal,
+  ): Promise<ReporteDomiciliosModel> {
+    const qs = buildQueryString({ fechaDesde, fechaHasta });
+    const res = await httpClient.get<unknown>(`/reportes/domicilios${qs}`, { signal });
+    return domiciliosAdapter.fromReporteDomiciliosJson(res.data);
   },
 
   async obtenerVentasPeriodo(

@@ -112,6 +112,7 @@ interface RawMenuDataJson {
   cajaAbierta?: boolean;
   cajaSesionId?: number | string | null;
   habilitarMesas?: boolean;
+  habilitarDelivery?: boolean;
   tipoServicioDefault?: string;
   categorias?: unknown[];
   platillos?: unknown[];
@@ -138,6 +139,8 @@ interface RawTicketFacturaJson {
   clienteDireccion?: string;
   subtotalSinIva?: number | string;
   ivaMonto?: number | string;
+  costoEnvio?: number | string;
+  zonaEntregaNombre?: string | null;
   total?: number | string;
   estado?: string;
   reimpresionesCount?: number | string;
@@ -152,6 +155,10 @@ interface RawTicketComandaJson {
   tipoServicio?: string;
   mesaNumero?: string | null;
   nombreTurno?: string | null;
+  costoEnvio?: number | string;
+  direccionEntrega?: string | null;
+  referenciaEntrega?: string | null;
+  zonaEntregaNombre?: string | null;
   createdAt?: string;
 }
 
@@ -178,6 +185,7 @@ interface RawTicketVentaJson {
   id?: number | string;
   tipoServicio?: string;
   metodoPago?: string;
+  costoEnvio?: number | string;
   montoRecibido?: number | string;
   cambio?: number | string;
   usuario?: RawTicketUsuarioJson | null;
@@ -318,6 +326,7 @@ export const ventasAdapter = {
       cajaAbierta: Boolean(data.cajaAbierta),
       cajaSesionId: data.cajaSesionId ? Number(data.cajaSesionId) : null,
       habilitarMesas: Boolean(data.habilitarMesas),
+      habilitarDelivery: Boolean(data.habilitarDelivery),
       tipoServicioDefault: toTipoServicio(data.tipoServicioDefault, 'MOSTRADOR'),
       categorias: asArray<unknown>(data.categorias).map((item) => {
         const c = asRecord<RawCategoriaJson>(item);
@@ -407,6 +416,8 @@ export const ventasAdapter = {
         clienteDireccion: String(factura.clienteDireccion ?? 'Ciudad'),
         subtotalSinIva: Number(factura.subtotalSinIva ?? 0),
         ivaMonto: Number(factura.ivaMonto ?? 0),
+        costoEnvio: Number(factura.costoEnvio ?? venta.costoEnvio ?? 0),
+        zonaEntregaNombre: factura.zonaEntregaNombre ?? comanda?.zonaEntregaNombre ?? null,
         total: Number(factura.total ?? 0),
         estado: toEstadoFactura(factura.estado),
         reimpresionesCount: Number(factura.reimpresionesCount ?? 0),
@@ -420,6 +431,10 @@ export const ventasAdapter = {
             tipoServicio: toTipoServicio(comanda.tipoServicio, 'MOSTRADOR'),
             mesaNumero: comanda.mesaNumero ?? null,
             nombreTurno: comanda.nombreTurno ?? null,
+            costoEnvio: Number(comanda.costoEnvio ?? venta.costoEnvio ?? 0),
+            direccionEntrega: comanda.direccionEntrega ?? null,
+            referenciaEntrega: comanda.referenciaEntrega ?? null,
+            zonaEntregaNombre: comanda.zonaEntregaNombre ?? factura.zonaEntregaNombre ?? null,
             createdAt: String(comanda.createdAt ?? new Date().toISOString()),
           }
         : undefined,
@@ -427,6 +442,7 @@ export const ventasAdapter = {
         id: Number(venta.id),
         tipoServicio: toTipoServicio(venta.tipoServicio, 'MOSTRADOR'),
         metodoPago: toMetodoPago(venta.metodoPago),
+        costoEnvio: Number(venta.costoEnvio ?? factura.costoEnvio ?? 0),
         montoRecibido: Number(venta.montoRecibido ?? 0),
         cambio: Number(venta.cambio ?? 0),
         cajeroNombre: String(cajero.nombreCompleto ?? ''),

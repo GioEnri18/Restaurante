@@ -12,6 +12,8 @@ const ETIQUETA_TIPO_CAJA: Record<string, string> = {
   INGRESO_MANUAL: 'Ingreso previo',
   EGRESO_MANUAL: 'Egreso previo',
   EGRESO_ANULACION: 'Anulación',
+  INGRESO_DIFERENCIA_REPARTIDOR: 'Excedente repartidor',
+  EGRESO_DIFERENCIA_REPARTIDOR: 'Faltante repartidor',
 };
 
 const ETIQUETA_METODO: Record<string, string> = {

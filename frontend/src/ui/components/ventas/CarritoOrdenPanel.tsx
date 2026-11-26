@@ -12,6 +12,7 @@ import {
   StickyNote,
   UserRound,
   AlertTriangle,
+  Bike,
   X,
 } from 'lucide-react';
 import { env } from '../../../config/env';
@@ -45,6 +46,7 @@ export interface CarritoOrdenPanelProps {
   mesas: MesaModel[];
   nombreTurno: string;
   habilitarMesas: boolean;
+  habilitarDelivery?: boolean;
   totals: CarritoTotals;
   canCreate: boolean;
   canOpenCaja?: boolean;
@@ -72,6 +74,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
   mesas,
   nombreTurno,
   habilitarMesas,
+  habilitarDelivery = false,
   totals,
   canCreate,
   canOpenCaja = false,
@@ -127,9 +130,11 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
                   ? 'Despacho directo en mostrador'
                   : tipoServicio === 'LLEVAR'
                     ? 'Empaque para llevar'
-                    : mesaSeleccionada
-                      ? `Mesa ${mesaSeleccionada.numero}`
-                      : 'Selecciona una mesa'}
+                    : tipoServicio === 'DELIVERY'
+                      ? 'Servicio a domicilio'
+                      : mesaSeleccionada
+                        ? `Mesa ${mesaSeleccionada.numero}`
+                        : 'Selecciona una mesa'}
               </p>
             </div>
           </div>
@@ -150,9 +155,17 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
           </div>
         </div>
 
-        {/* Selector enfocado en Mostrador + Para Llevar (Mesas listas para futuro vía .env) */}
+        {/* Selector enfocado en Mostrador + Para Llevar (+ Domicilio y Mesas condicionales por .env) */}
         <div className="space-y-3 border-b border-slate-200 bg-slate-50/70 p-3.5">
-          <div className={`grid gap-2 ${habilitarMesas ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div
+            className={`grid gap-2 ${
+              habilitarMesas && habilitarDelivery
+                ? 'grid-cols-2 sm:grid-cols-4'
+                : habilitarMesas || habilitarDelivery
+                  ? 'grid-cols-3'
+                  : 'grid-cols-2'
+            }`}
+          >
             <button
               type="button"
               aria-pressed={tipoServicio === 'MOSTRADOR'}
@@ -179,6 +192,21 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
               <ShoppingBag className="h-4 w-4" aria-hidden="true" />
               Para Llevar
             </button>
+            {habilitarDelivery && (
+              <button
+                type="button"
+                aria-pressed={tipoServicio === 'DELIVERY'}
+                onClick={() => onSetTipoServicio('DELIVERY')}
+                className={`flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border text-xs font-extrabold transition ${
+                  tipoServicio === 'DELIVERY'
+                    ? 'border-brand-700 bg-brand-700 text-white shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Bike className="h-4 w-4" aria-hidden="true" />
+                Domicilio
+              </button>
+            )}
             {habilitarMesas && (
               <button
                 type="button"
@@ -197,7 +225,7 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
           </div>
 
           {/* Campo rápido de nombre o turno para entrega en mostrador */}
-          {(!habilitarMesas || tipoServicio !== 'MESA') && (
+          {tipoServicio !== 'DELIVERY' && (!habilitarMesas || tipoServicio !== 'MESA') && (
             <Field label="Nombre o turno para llamar en mostrador (opcional)" srOnlyLabel>
               {(controlProps) => (
                 <div className="relative">
@@ -442,12 +470,19 @@ export const CarritoOrdenPanel: React.FC<CarritoOrdenPanelProps> = ({
             )}
             <button
               type="button"
-              disabled={!canCreate || items.length === 0 || !cajaAbierta}
+              disabled={
+                items.length === 0 ||
+                (tipoServicio === 'DELIVERY' ? !habilitarDelivery : !canCreate || !cajaAbierta)
+              }
               onClick={onAbrirCobro}
               className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-700 to-brand-800 px-4 text-base font-extrabold text-white shadow-lg shadow-brand-900/25 transition hover:from-brand-800 hover:to-brand-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-              {items.length === 0 ? 'Agrega platillos para cobrar' : `Cobrar ${formatCurrency(totals.total)}`}
+              {items.length === 0
+                ? 'Agrega platillos para cobrar'
+                : tipoServicio === 'DELIVERY'
+                  ? `Domicilio ${formatCurrency(totals.total)} + envío`
+                  : `Cobrar ${formatCurrency(totals.total)}`}
             </button>
           </div>
         </div>

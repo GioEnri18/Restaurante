@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   X,
   ChefHat,
+  Bike,
 } from 'lucide-react';
 import { env, ROLES_ECONOMIA } from '../../../config/env';
 import { useAuthStore } from '../../../store/auth.store';
@@ -23,7 +24,9 @@ interface NavItem {
   to: string;
   label: string;
   hint: string;
-  permiso: string | readonly string[];
+  permiso?: string | readonly string[];
+  permisoAlguno?: readonly string[];
+  habilitado?: boolean;
   rolesPermitidos?: readonly string[];
   adminOnly?: boolean;
   Icon: React.ElementType;
@@ -39,6 +42,14 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Atención y Ventas',
     items: [
       { to: '/ventas', label: 'Menú / Ventas', hint: 'Tomar pedidos y cobrar', permiso: 'ventas:ver', Icon: UtensilsCrossed },
+      {
+        to: '/domicilios',
+        label: 'Domicilios',
+        hint: 'Entregas, rutas y liquidación',
+        permisoAlguno: ['domicilios:ver', 'domicilios:ver_propios'],
+        habilitado: env.ENABLE_DELIVERY,
+        Icon: Bike,
+      },
       { to: '/caja', label: 'Caja', hint: 'Abrir turno y cuadrar', permiso: 'caja:ver', Icon: Wallet },
       { to: '/facturas', label: 'Facturas', hint: 'Buscar, reimprimir y anular', permiso: 'facturas:ver', Icon: FileText },
     ],
@@ -88,8 +99,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const visibleGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items.filter((item) => {
+      if (item.habilitado === false) return false;
       if (item.adminOnly && !isAdmin()) return false;
       if (item.rolesPermitidos && (!usuario || !item.rolesPermitidos.includes(usuario.rol.codigo))) return false;
+      if (item.permisoAlguno) return item.permisoAlguno.some(can);
+      if (!item.permiso) return true;
       return typeof item.permiso === 'string' ? can(item.permiso) : item.permiso.every(can);
     }),
   })).filter((group) => group.items.length > 0);

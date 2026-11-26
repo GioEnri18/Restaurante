@@ -91,6 +91,31 @@
       "value": "1",
       "type": "string",
       "description": "ID de la última sesión de caja abierta"
+    },
+    {
+      "key": "zonaEntregaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clienteDomicilioId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "direccionEntregaId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "pedidoDomicilioId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "repartidorId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -4533,6 +4558,1102 @@
               "pm.request.headers.upsert({ key: \"Origin\", value: origin });"
             ]
           }
+        }
+      ]
+    },
+    {
+      "name": "12. Servicio a Domicilio",
+      "description": "Endpoints del módulo de Servicio a Domicilio (requiere `ENABLE_DELIVERY=true` en el backend). Incluye zonas de entrega, directorio de clientes/direcciones, pedidos prepagados y contra entrega, tablero con polling `?desde=`, asignación de repartidor, liquidación de efectivo/tarjeta y reporte operativo.",
+      "item": [
+        {
+          "name": "GET Listar Zonas de Entrega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (Array.isArray(json.data) && json.data.length > 0) {",
+                  "    pm.collectionVariables.set(\"zonaEntregaId\", json.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/zonas?soloActivas=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "zonas"
+              ],
+              "query": [
+                {
+                  "key": "soloActivas",
+                  "value": "true",
+                  "disabled": false,
+                  "description": "Filtra solo zonas activas (true/false)"
+                }
+              ]
+            },
+            "description": "Lista las zonas de entrega de la sucursal. Permiso: `domicilios:ver`, `domicilios:crear` o `domicilios:configurar`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Zona de Entrega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set(\"zonaEntregaId\", json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Zona 10 - Oakland\",\n  \"costoEnvio\": 15,\n  \"tiempoEstimadoMin\": 35,\n  \"pedidoMinimo\": 50,\n  \"activa\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/zonas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "zonas"
+              ]
+            },
+            "description": "Crea una nueva zona de entrega con costo de envío (IVA incluido) y pedido mínimo. Permiso: `domicilios:configurar`."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Actualizar Zona de Entrega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Zona 10 - Oakland\",\n  \"costoEnvio\": 18,\n  \"tiempoEstimadoMin\": 40,\n  \"pedidoMinimo\": 60,\n  \"activa\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/zonas/{{zonaEntregaId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "zonas",
+                "{{zonaEntregaId}}"
+              ]
+            },
+            "description": "Actualiza tarifa, tiempo estimado o estado de una zona. Permiso: `domicilios:configurar`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Buscar Clientes por Teléfono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/clientes/buscar?telefono=55123456",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "clientes",
+                "buscar"
+              ],
+              "query": [
+                {
+                  "key": "telefono",
+                  "value": "55123456",
+                  "disabled": false,
+                  "description": "Teléfono o prefijo (mín. 4 dígitos). Protegido con rate limit dedicado."
+                }
+              ]
+            },
+            "description": "Busca clientes de la sucursal por teléfono junto con sus direcciones guardadas. Permiso: `domicilios:crear` o `domicilios:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear o Actualizar Cliente de Domicilio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set(\"clienteDomicilioId\", json.data.id);",
+                  "}",
+                  "if (json.data && Array.isArray(json.data.direcciones) && json.data.direcciones.length > 0) {",
+                  "    pm.collectionVariables.set(\"direccionEntregaId\", json.data.direcciones[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Ana Lucia Morales\",\n  \"telefono\": \"5512-3456\",\n  \"nit\": \"CF\",\n  \"direccionInicial\": {\n    \"alias\": \"Casa\",\n    \"direccion\": \"4a calle 12-45 Zona 10, Ciudad de Guatemala\",\n    \"referencia\": \"Portón negro frente al parqueo\",\n    \"zonaEntregaId\": \"{{zonaEntregaId}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/clientes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "clientes"
+              ]
+            },
+            "description": "Crea un cliente con teléfono único por sucursal y dirección inicial opcional. Permiso: `domicilios:crear`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Agregar Dirección a Cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.id) {",
+                  "    pm.collectionVariables.set(\"direccionEntregaId\", json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"alias\": \"Oficina\",\n  \"direccion\": \"Diagonal 6 10-01 Zona 10, Torre II nivel 5\",\n  \"referencia\": \"Dejar en recepción\",\n  \"zonaEntregaId\": \"{{zonaEntregaId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/clientes/{{clienteDomicilioId}}/direcciones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "clientes",
+                "{{clienteDomicilioId}}",
+                "direcciones"
+              ]
+            },
+            "description": "Agrega una dirección de entrega a un cliente existente. Permiso: `domicilios:crear`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Repartidores Disponibles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (Array.isArray(json.data) && json.data.length > 0) {",
+                  "    pm.collectionVariables.set(\"repartidorId\", json.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/repartidores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "repartidores"
+              ]
+            },
+            "description": "Lista usuarios activos con rol `REPARTIDOR` en la sucursal. Permiso: `domicilios:asignar` o `domicilios:ver`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Pedido a Domicilio (CONTRA_ENTREGA)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.pedido && json.data.pedido.id) {",
+                  "    pm.collectionVariables.set(\"pedidoDomicilioId\", json.data.pedido.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{$guid}}\",\n  \"modalidadPago\": \"CONTRA_ENTREGA\",\n  \"zonaEntregaId\": \"{{zonaEntregaId}}\",\n  \"cliente\": {\n    \"nombre\": \"Ana Lucia Morales\",\n    \"telefono\": \"55123456\",\n    \"nit\": \"CF\"\n  },\n  \"direccion\": {\n    \"alias\": \"Casa\",\n    \"direccion\": \"4a calle 12-45 Zona 10\",\n    \"referencia\": \"Portón negro\"\n  },\n  \"items\": [\n    {\n      \"platilloId\": \"{{platilloId}}\",\n      \"cantidad\": 2,\n      \"notas\": \"Sin cebolla\"\n    }\n  ],\n  \"notas\": \"Llamar al llegar\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "pedidos"
+              ]
+            },
+            "description": "Crea un pedido `CONTRA_ENTREGA` (sin cobro aún, genera comanda de cocina y valida stock en solo lectura). Requiere `idempotencyKey` UUID. Permiso: `domicilios:crear`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Crear Pedido a Domicilio (PREPAGADO)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 201\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.pedido && json.data.pedido.id) {",
+                  "    pm.collectionVariables.set(\"pedidoDomicilioId\", json.data.pedido.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{$guid}}\",\n  \"modalidadPago\": \"PREPAGADO\",\n  \"zonaEntregaId\": \"{{zonaEntregaId}}\",\n  \"cliente\": {\n    \"nombre\": \"Carlos Mendoza\",\n    \"telefono\": \"55987654\",\n    \"nit\": \"1234567-8\"\n  },\n  \"direccion\": {\n    \"alias\": \"Oficina\",\n    \"direccion\": \"Avenida Reforma 8-60 Zona 9\",\n    \"referencia\": \"Edificio Galerías\"\n  },\n  \"items\": [\n    {\n      \"platilloId\": \"{{platilloId}}\",\n      \"cantidad\": 2\n    }\n  ],\n  \"pago\": {\n    \"metodoPago\": \"TARJETA\",\n    \"referencia\": \"AUTH-998877\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/pedidos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "pedidos"
+              ]
+            },
+            "description": "Crea un pedido `PREPAGADO` cobrando de inmediato en una sola transacción (venta + factura + comanda + caja + descuento de inventario). Permiso: `domicilios:crear`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar Pedidos (Tablero y Polling ?desde=)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/pedidos?page=1&limit=25",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "pedidos"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "25",
+                  "disabled": false
+                },
+                {
+                  "key": "estado",
+                  "value": "NUEVO",
+                  "disabled": true,
+                  "description": "NUEVO|EN_PREPARACION|LISTO|EN_RUTA|ENTREGADO|CANCELADO|FALLIDO"
+                },
+                {
+                  "key": "soloPendientesLiquidar",
+                  "value": "true",
+                  "disabled": true,
+                  "description": "Filtra ENTREGADO + CONTRA_ENTREGA sin liquidar"
+                },
+                {
+                  "key": "desde",
+                  "value": "2026-11-25T00:00:00.000Z",
+                  "disabled": true,
+                  "description": "Timestamp ISO para polling incremental (devuelve solo cambios)"
+                }
+              ]
+            },
+            "description": "Lista pedidos del tablero con paginación, filtros y soporte de polling incremental por `?desde=`. Repartidores solo ven sus pedidos activos asignados. Permiso: `domicilios:ver` o `domicilios:ver_propios`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Detalle de Pedido a Domicilio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/pedidos/{{pedidoDomicilioId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "pedidos",
+                "{{pedidoDomicilioId}}"
+              ]
+            },
+            "description": "Obtiene detalle completo del pedido, ítems, historial de transiciones y datos enlazados (venta/factura/comanda). Permiso: `domicilios:ver` o `domicilios:ver_propios`."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH Asignar Repartidor a Pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"repartidorId\": \"{{repartidorId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/pedidos/{{pedidoDomicilioId}}/asignar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "pedidos",
+                "{{pedidoDomicilioId}}",
+                "asignar"
+              ]
+            },
+            "description": "Asigna o reasigna un usuario con rol `REPARTIDOR` al pedido. Permiso: `domicilios:asignar`."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH Actualizar Estado de Pedido (Transición)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"estadoAnterior\": \"NUEVO\",\n  \"estadoNuevo\": \"EN_PREPARACION\",\n  \"motivo\": \"Iniciado en cocina\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/pedidos/{{pedidoDomicilioId}}/estado",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "pedidos",
+                "{{pedidoDomicilioId}}",
+                "estado"
+              ]
+            },
+            "description": "Ejecuta una transición válida con bloqueo optimista (`estadoAnterior`). Sincroniza `comandas.estado_cocina`, genera merma automática si aplica y exige `autorizacionSupervisor` cuando se cancela/falla un pedido `PREPAGADO`. Permiso: `domicilios:actualizar_estado` o `domicilios:cancelar`."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Liquidar Pedido CONTRA_ENTREGA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"idempotencyKey\": \"{{$guid}}\",\n  \"metodoPago\": \"EFECTIVO\",\n  \"efectivoRecibido\": 100,\n  \"observacionDiferencia\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/domicilios/pedidos/{{pedidoDomicilioId}}/liquidar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "domicilios",
+                "pedidos",
+                "{{pedidoDomicilioId}}",
+                "liquidar"
+              ]
+            },
+            "description": "Liquida un pedido `CONTRA_ENTREGA` en estado `ENTREGADO` con la caja abierta actual. Registra venta + factura + inventario + movimiento de diferencia de repartidor si lo entregado difiere del total. Permiso: `domicilios:liquidar`."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Reporte de Servicio a Domicilio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validaciones QA estándar del endpoint de Servicio a Domicilio",
+                  "const maxMs = Number(pm.environment.get(\"maxResponseTimeMs\") || 2000);",
+                  "",
+                  "pm.test(\"Status HTTP es 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Tiempo de respuesta aceptable (< \" + maxMs + \" ms)\", function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(maxMs);",
+                  "});",
+                  "",
+                  "pm.test(\"La respuesta es JSON con estructura { ok: true, data }\", function () {",
+                  "    pm.response.to.be.json;",
+                  "    const json = pm.response.json();",
+                  "    pm.expect(json).to.be.an(\"object\");",
+                  "    pm.expect(json.ok).to.eql(true);",
+                  "    pm.expect(json).to.have.property(\"data\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Requested-With",
+                "value": "XMLHttpRequest",
+                "type": "text",
+                "description": "Encabezado anti-CSRF obligatorio en peticiones mutadoras con cookie httpOnly"
+              },
+              {
+                "key": "Origin",
+                "value": "{{frontendOrigin}}",
+                "type": "text",
+                "description": "Origen permitido por CORS_ORIGIN y validado por csrfProtection"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/reportes/domicilios?fechaDesde={{fechaDesde}}&fechaHasta={{fechaHasta}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "reportes",
+                "domicilios"
+              ],
+              "query": [
+                {
+                  "key": "fechaDesde",
+                  "value": "{{fechaDesde}}",
+                  "disabled": false,
+                  "description": "YYYY-MM-DD"
+                },
+                {
+                  "key": "fechaHasta",
+                  "value": "{{fechaHasta}}",
+                  "disabled": false,
+                  "description": "YYYY-MM-DD"
+                }
+              ]
+            },
+            "description": "KPIs de Servicio a Domicilio: totales, tiempo promedio de entrega, ingresos por envío, desglose por zona, por repartidor y tasa de cancelación/fallidos. Permiso: `reportes:ver`."
+          },
+          "response": []
         }
       ]
     }

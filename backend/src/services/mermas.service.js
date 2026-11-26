@@ -1,8 +1,21 @@
 const { createHash } = require('node:crypto');
-const { Op, col, fn } = require('sequelize');
-const { ACCIONES_AUDITORIA } = require('../config/constants');
-const { getPgErrorCode, withTransaction } = require('../config/database');
-const { CajaSesion, EstadoCaja, Ingrediente, InventarioMovimiento, Merma, TipoMovimientoInventario, Usuario } = require('../models');
+const { Op, QueryTypes, col, fn } = require('sequelize');
+const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
+const { getPgErrorCode, sequelize, withTransaction } = require('../config/database');
+const {
+  CajaSesion,
+  EstadoCaja,
+  Ingrediente,
+  InventarioMovimiento,
+  Merma,
+  MotivoMerma,
+  PedidoDomicilioDetalle,
+  Platillo,
+  RecetaIngrediente,
+  TipoMovimientoInventario,
+  UnidadMedida,
+  Usuario,
+} = require('../models');
 const { BadRequestError, ConflictError, NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
@@ -213,6 +226,158 @@ class MermasService {
             }
             throw error;
         });
+    }
+
+    /**
+     * Genera mermas automáticas según la receta de los platillos de un pedido a domicilio
+     * cancelado tras iniciar preparación o marcado como FALLIDO, dentro de la misma transacción.
+     * - Bloquea ingredientes con FOR UPDATE ordenado por ID (anti-deadlock).
+     * - Descuenta `min(requeridoOz, stockActualOz)` para no bloquear el cierre si hubo consumoPendiente.
+     * - Audita cada merma con `codigoMotivo = PEDIDO_NO_ENTREGADO`, impacto negativo = -costo y `correlacionId`.
+     */
+    static async registrarMermasPorPedidoDomicilioEnTx(tx, user, pedido, motivoTexto, clientMeta, opciones = {}) {
+        const detalles = await PedidoDomicilioDetalle.findAll({
+            where: { pedidoDomicilioId: pedido.id },
+            include: [
+                {
+                    model: Platillo,
+                    as: 'platillo',
+                    include: [{ model: RecetaIngrediente, as: 'receta' }],
+                },
+            ],
+            transaction: tx,
+        });
+
+        const requeridoPorIngrediente = new Map();
+        for (const det of detalles) {
+            const cantidad = Number(det.cantidad);
+            for (const rec of det.platillo?.receta ?? []) {
+                const oz = round4(Number(rec.cantidadOz) * cantidad);
+                if (oz <= 0) continue;
+                requeridoPorIngrediente.set(
+                    rec.ingredienteId,
+                    round4((requeridoPorIngrediente.get(rec.ingredienteId) ?? 0) + oz),
+                );
+            }
+        }
+
+        const ingredienteIds = Array.from(requeridoPorIngrediente.keys()).sort((a, b) => a - b);
+        if (ingredienteIds.length === 0) {
+            return { cantidadMermas: 0, costoTotalMermas: 0 };
+        }
+
+        const filasBloqueadas = await sequelize.query(
+            `SELECT id, nombre, stock_actual_oz, costo_promedio_oz
+             FROM ingredientes
+             WHERE id IN (:ids) AND sucursal_id = :sucursalId AND activo = true
+             ORDER BY id ASC
+             FOR UPDATE`,
+            {
+                replacements: { ids: ingredienteIds, sucursalId: user.sucursalId },
+                type: QueryTypes.SELECT,
+                transaction: tx,
+            },
+        );
+
+        const turno = await CajaSesion.findOne({
+            where: { sucursalId: user.sucursalId, estado: EstadoCaja.ABIERTA },
+            attributes: ['id'],
+            transaction: tx,
+        });
+
+        const fecha = new Date();
+        const correlacionId = opciones.correlacionId ?? AuditService.crearCorrelacionId();
+        const observacion = `Pedido domicilio ${pedido.numeroPedido} no entregado: ${motivoTexto}`.slice(0, 300);
+
+        let cantidadMermas = 0;
+        let costoTotalMermas = 0;
+
+        for (const fila of filasBloqueadas) {
+            const requeridoOz = requeridoPorIngrediente.get(fila.id) ?? 0;
+            if (requeridoOz <= 0) continue;
+
+            const stockAnteriorOz = round4(Number(fila.stock_actual_oz));
+            const descontarOz = round4(Math.min(requeridoOz, Math.max(0, stockAnteriorOz)));
+            const stockNuevoOz = round4(stockAnteriorOz - descontarOz);
+            const costoUnitarioOz = Number(fila.costo_promedio_oz);
+            const costoEstimado = round2(requeridoOz * costoUnitarioOz);
+
+            const merma = await Merma.create(
+                {
+                    sucursalId: user.sucursalId,
+                    ingredienteId: fila.id,
+                    usuarioId: user.id,
+                    pedidoDomicilioId: pedido.id,
+                    cantidadOriginal: requeridoOz,
+                    unidadOriginal: UnidadMedida.oz,
+                    cantidadOz: requeridoOz,
+                    costoEstimado,
+                    motivo: MotivoMerma.OTRO,
+                    observacion,
+                    fecha,
+                },
+                { transaction: tx },
+            );
+
+            if (descontarOz > 0) {
+                await Ingrediente.update(
+                    { stockActualOz: stockNuevoOz },
+                    { where: { id: fila.id, sucursalId: user.sucursalId }, transaction: tx },
+                );
+                await InventarioMovimiento.create(
+                    {
+                        sucursalId: user.sucursalId,
+                        ingredienteId: fila.id,
+                        usuarioId: user.id,
+                        tipo: TipoMovimientoInventario.SALIDA_MERMA,
+                        cantidadOz: -descontarOz,
+                        stockAnteriorOz,
+                        stockNuevoOz,
+                        costoUnitarioOz,
+                        referenciaTipo: 'MERMA',
+                        referenciaId: merma.id,
+                        motivo: `Merma automática ${pedido.numeroPedido} (PEDIDO_NO_ENTREGADO)`,
+                    },
+                    { transaction: tx },
+                );
+            }
+
+            await AuditService.registrarEvento(
+                {
+                    user,
+                    clientMeta,
+                    cajaSesionId: turno?.id ?? null,
+                    correlacionId,
+                },
+                {
+                    accion: ACCIONES_AUDITORIA.REGISTRO_MERMA,
+                    entidad: 'Merma',
+                    entidadId: merma.id,
+                    valorAnterior: {
+                        ingrediente: fila.nombre,
+                        stockActualOz: stockAnteriorOz,
+                    },
+                    valorNuevo: {
+                        ingrediente: fila.nombre,
+                        stockActualOz: stockNuevoOz,
+                        cantidadMermadaOz: requeridoOz,
+                        cantidadDescontadaOz: descontarOz,
+                        pedidoDomicilioId: pedido.id,
+                        numeroPedido: pedido.numeroPedido,
+                        costoEstimado,
+                    },
+                    codigoMotivo: CODIGOS_MOTIVO_AUDITORIA.PEDIDO_NO_ENTREGADO,
+                    motivo: observacion,
+                    impactoFinanciero: round2(-costoEstimado),
+                },
+                tx,
+            );
+
+            cantidadMermas++;
+            costoTotalMermas = round2(costoTotalMermas + costoEstimado);
+        }
+
+        return { cantidadMermas, costoTotalMermas };
     }
 }
 

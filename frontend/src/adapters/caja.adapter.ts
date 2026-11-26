@@ -37,6 +37,12 @@ interface RawCajaSesionJson {
   fechaCierre?: string | null;
   usuarioApertura?: RawCajaUsuarioRefJson | null;
   usuarioCierre?: RawCajaUsuarioRefJson | null;
+  domiciliosPendientesLiquidar?: {
+    cantidad?: number | string;
+    montoTotal?: number | string;
+    enRutaCantidad?: number | string;
+    bloquearCierre?: boolean;
+  } | null;
   movimientos?: unknown[];
 }
 
@@ -56,7 +62,9 @@ function toTipoMovimiento(value: unknown): CajaMovimientoModel['tipo'] {
     value === 'INGRESO_VENTA' ||
     value === 'INGRESO_MANUAL' ||
     value === 'EGRESO_MANUAL' ||
-    value === 'EGRESO_ANULACION'
+    value === 'EGRESO_ANULACION' ||
+    value === 'INGRESO_DIFERENCIA_REPARTIDOR' ||
+    value === 'EGRESO_DIFERENCIA_REPARTIDOR'
   ) {
     return value;
   }
@@ -141,6 +149,14 @@ export const cajaAdapter = {
       fechaCierre: data.fechaCierre ?? null,
       usuarioAperturaNombre: String(usuarioApertura.nombreCompleto ?? '—'),
       usuarioCierreNombre: usuarioCierre.nombreCompleto ?? null,
+      domiciliosPendientesLiquidar: data.domiciliosPendientesLiquidar
+        ? {
+            cantidad: Number(data.domiciliosPendientesLiquidar.cantidad ?? 0),
+            montoTotal: Number(data.domiciliosPendientesLiquidar.montoTotal ?? 0),
+            enRutaCantidad: Number(data.domiciliosPendientesLiquidar.enRutaCantidad ?? 0),
+            bloquearCierre: Boolean(data.domiciliosPendientesLiquidar.bloquearCierre),
+          }
+        : undefined,
       movimientos: asArray<unknown>(data.movimientos).map((m) => this.fromMovimientoJson(m)),
     };
   },

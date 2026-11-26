@@ -753,6 +753,14 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
             />
           )}
 
+          {actual?.domiciliosPendientesLiquidar?.bloquearCierre &&
+            actual.domiciliosPendientesLiquidar.cantidad > 0 && (
+              <Alert
+                type="error"
+                message={`No se puede cerrar la caja: hay ${actual.domiciliosPendientesLiquidar.cantidad} entrega(s) a domicilio contra entrega sin liquidar (${formatCurrency(actual.domiciliosPendientesLiquidar.montoTotal)}). Liquídalas primero en el módulo Domicilios.`}
+              />
+            )}
+
           {motivoBloqueoSubmit && (
             <p className="text-right text-xs font-semibold text-amber-800">
               {motivoBloqueoSubmit}
@@ -770,7 +778,15 @@ export const ArqueoCierreModal: React.FC<ArqueoCierreModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!conciliacionCompleta || !cuadreExacto || cerrando}
+              disabled={
+                !conciliacionCompleta ||
+                !cuadreExacto ||
+                cerrando ||
+                Boolean(
+                  actual?.domiciliosPendientesLiquidar?.bloquearCierre &&
+                    actual.domiciliosPendientesLiquidar.cantidad > 0,
+                )
+              }
               className="min-h-[46px] rounded-xl bg-red-600 px-6 text-sm font-extrabold text-white shadow-md hover:bg-red-700 disabled:opacity-50"
             >
               {cerrando ? 'Cerrando turno…' : 'Confirmar cierre'}

@@ -1,6 +1,7 @@
-const { UniqueConstraintError, col, fn } = require('sequelize');
+const { QueryTypes, UniqueConstraintError, col, fn } = require('sequelize');
 const { ACCIONES_AUDITORIA, CODIGOS_MOTIVO_AUDITORIA } = require('../config/constants');
-const { getPgErrorCode, withTransaction } = require('../config/database');
+const { getPgErrorCode, sequelize, withTransaction } = require('../config/database');
+const { env } = require('../config/env');
 const { CajaMovimiento, CajaSesion, EstadoCaja, EstadoVenta, Factura, MetodoPago, TipoMovimientoCaja, Usuario, Venta, VentaDetalle } = require('../models');
 const { BadRequestError, ConflictError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
@@ -10,9 +11,48 @@ const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagina
 const { round2 } = require('../shared/utils/tax');
 const TIPOS_MOVIMIENTO_POR_FILTRO = {
     VENTAS: [TipoMovimientoCaja.INGRESO_VENTA],
-    INGRESOS: [TipoMovimientoCaja.INGRESO_MANUAL],
-    EGRESOS: [TipoMovimientoCaja.EGRESO_MANUAL, TipoMovimientoCaja.EGRESO_ANULACION],
+    INGRESOS: [TipoMovimientoCaja.INGRESO_MANUAL, TipoMovimientoCaja.INGRESO_DIFERENCIA_REPARTIDOR],
+    EGRESOS: [TipoMovimientoCaja.EGRESO_MANUAL, TipoMovimientoCaja.EGRESO_ANULACION, TipoMovimientoCaja.EGRESO_DIFERENCIA_REPARTIDOR],
 };
+
+/** Consulta conteo y monto de pedidos a domicilio CONTRA_ENTREGA entregados sin liquidar y pedidos EN_RUTA */
+async function obtenerResumenDomiciliosCaja(sucursalId, transaction) {
+    if (!env.ENABLE_DELIVERY) {
+        return {
+            cantidad: 0,
+            montoTotal: 0,
+            enRutaCantidad: 0,
+            bloquearCierre: false,
+        };
+    }
+    const [fila] = await sequelize.query(
+        `SELECT
+           COUNT(*) FILTER (
+             WHERE "modalidad_pago" = 'CONTRA_ENTREGA'
+               AND "estado" = 'ENTREGADO'
+               AND "venta_id" IS NULL
+           )::int AS "cantidad",
+           COALESCE(SUM("total") FILTER (
+             WHERE "modalidad_pago" = 'CONTRA_ENTREGA'
+               AND "estado" = 'ENTREGADO'
+               AND "venta_id" IS NULL
+           ), 0) AS "montoTotal",
+           COUNT(*) FILTER (WHERE "estado" = 'EN_RUTA')::int AS "enRutaCantidad"
+         FROM "pedidos_domicilio"
+         WHERE "sucursal_id" = :sucursalId`,
+        {
+            replacements: { sucursalId },
+            type: QueryTypes.SELECT,
+            transaction,
+        },
+    );
+    return {
+        cantidad: Number(fila?.cantidad ?? 0),
+        montoTotal: round2(Number(fila?.montoTotal ?? 0)),
+        enRutaCantidad: Number(fila?.enRutaCantidad ?? 0),
+        bloquearCierre: env.DELIVERY_BLOQUEAR_CIERRE_CON_PENDIENTES,
+    };
+}
 function isUniqueCajaAbiertaError(error) {
     if (error instanceof UniqueConstraintError)
         return true;
@@ -103,9 +143,11 @@ class CajaService {
             return null;
         const plain = sesion.get({ plain: true });
         const desglose = this.calcularDesgloseCaja(sesion);
+        const domiciliosPendientesLiquidar = await obtenerResumenDomiciliosCaja(sucursalId);
         return {
             ...plain,
             ...desglose,
+            domiciliosPendientesLiquidar,
             movimientos: (plain.movimientos ?? []).map((m) => ({
                 ...m,
                 monto: Number(m.monto),
@@ -388,6 +430,13 @@ class CajaService {
             }
             if (input.cajaId !== undefined && input.cajaId !== sesion.id) {
                 throw new ConflictError('El turno cambió. Vuelve a abrir el cierre de caja.');
+            }
+            const pendientesDomicilio = await obtenerResumenDomiciliosCaja(user.sucursalId, tx);
+            if (pendientesDomicilio.bloquearCierre && pendientesDomicilio.cantidad > 0) {
+                throw new ConflictError(
+                    `No se puede cerrar la caja porque hay ${pendientesDomicilio.cantidad} entrega(s) a domicilio contra entrega pendientes de liquidar (Q ${pendientesDomicilio.montoTotal.toFixed(2)}). Liquídalas primero en Domicilios.`,
+                    { domiciliosPendientesLiquidar: pendientesDomicilio },
+                );
             }
             const ventasTarjeta = await Venta.findAll({
                 where: filtroVentasTarjeta(user.sucursalId, sesion.id),

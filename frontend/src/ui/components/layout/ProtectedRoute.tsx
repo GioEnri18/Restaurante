@@ -6,6 +6,7 @@ import { useAuthStore } from '../../../store/auth.store';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   permiso?: string | readonly string[];
+  permisoAlguno?: readonly string[];
   rolesPermitidos?: readonly string[];
   adminOnly?: boolean;
 }
@@ -13,6 +14,7 @@ interface ProtectedRouteProps {
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   permiso,
+  permisoAlguno,
   rolesPermitidos,
   adminOnly = false,
 }) => {
@@ -39,7 +41,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={usuario.rol.vistaInicial || '/ventas'} replace />;
   }
 
-  const permisoInsuficiente = permiso && (typeof permiso === 'string' ? !can(permiso) : !permiso.every(can));
+  const permisoInsuficiente =
+    (permiso && (typeof permiso === 'string' ? !can(permiso) : !permiso.every(can))) ||
+    (permisoAlguno && !permisoAlguno.some(can));
   if (permisoInsuficiente || (rolesPermitidos && !rolesPermitidos.includes(usuario.rol.codigo))) {
     return (
       <div className="mx-auto mt-16 max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">

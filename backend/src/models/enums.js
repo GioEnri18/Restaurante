@@ -38,6 +38,21 @@ const TipoMovimientoCaja = {
     INGRESO_MANUAL: 'INGRESO_MANUAL',
     EGRESO_MANUAL: 'EGRESO_MANUAL',
     EGRESO_ANULACION: 'EGRESO_ANULACION',
+    INGRESO_DIFERENCIA_REPARTIDOR: 'INGRESO_DIFERENCIA_REPARTIDOR',
+    EGRESO_DIFERENCIA_REPARTIDOR: 'EGRESO_DIFERENCIA_REPARTIDOR',
+};
+const EstadoPedidoDomicilio = {
+    NUEVO: 'NUEVO',
+    EN_PREPARACION: 'EN_PREPARACION',
+    LISTO: 'LISTO',
+    EN_RUTA: 'EN_RUTA',
+    ENTREGADO: 'ENTREGADO',
+    CANCELADO: 'CANCELADO',
+    FALLIDO: 'FALLIDO',
+};
+const ModalidadPagoDomicilio = {
+    PREPAGADO: 'PREPAGADO',
+    CONTRA_ENTREGA: 'CONTRA_ENTREGA',
 };
 const TipoMovimientoInventario = {
     ENTRADA_COMPRA: 'ENTRADA_COMPRA',
@@ -67,6 +82,8 @@ module.exports = {
   EstadoComanda,
   EstadoCaja,
   TipoMovimientoCaja,
+  EstadoPedidoDomicilio,
+  ModalidadPagoDomicilio,
   TipoMovimientoInventario,
   MotivoMerma,
   UnidadMedida,

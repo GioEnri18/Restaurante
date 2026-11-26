@@ -9,6 +9,8 @@ const ACCIONES_ECONOMICAS = [
   'CAMBIO_PRECIO', 'CAMBIO_DISPONIBILIDAD_PLATILLO', 'COMPRA_INVENTARIO', 'AJUSTE_INVENTARIO', 'REGISTRO_MERMA',
   'APERTURA_CAJA', 'MOVIMIENTO_CAJA', 'CIERRE_CAJA', 'REGISTRO_GASTO_OPERATIVO',
   'EDICION_GASTO_OPERATIVO', 'ANULACION_GASTO_OPERATIVO',
+  'PEDIDO_DOMICILIO_CREADO', 'PEDIDO_DOMICILIO_CANCELADO', 'PEDIDO_DOMICILIO_FALLIDO',
+  'PEDIDO_DOMICILIO_LIQUIDADO', 'GESTION_ZONA_ENTREGA',
 ];
 
 // Listas derivadas desde la fuente única `SEVERIDAD_BASE_POR_ACCION` para evaluar filas históricas (severidad IS NULL) en SQL
@@ -155,14 +157,15 @@ function construirFiltrosAuditoria(sucursalId, query = {}, conNomina = false) {
     if (query.fechaDesde) {
       const desde = startOfDayInTimezone(query.fechaDesde);
       rango[Op.gte] = desde;
-      sqlClauses.push('a."created_at" >= :fechaDesde');
+      // Convierte explícitamente a TIMESTAMP UTC sin zona para evitar que PostgreSQL descarte el offset en máquinas con TZ local
+      sqlClauses.push('a."created_at" >= ((:fechaDesde)::timestamptz AT TIME ZONE \'UTC\')');
       replacements.fechaDesde = desde;
       filtrosAplicados.fechaDesde = query.fechaDesde;
     }
     if (query.fechaHasta) {
       const hasta = endOfDayInTimezone(query.fechaHasta);
       rango[Op.lte] = hasta;
-      sqlClauses.push('a."created_at" <= :fechaHasta');
+      sqlClauses.push('a."created_at" <= ((:fechaHasta)::timestamptz AT TIME ZONE \'UTC\')');
       replacements.fechaHasta = hasta;
       filtrosAplicados.fechaHasta = query.fechaHasta;
     }

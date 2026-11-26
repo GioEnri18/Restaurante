@@ -39,6 +39,14 @@ const ACCIONES_AUDITORIA = {
     EXPORTAR_AUDITORIA: 'EXPORTAR_AUDITORIA',
     CORTESIA_APLICADA: 'CORTESIA_APLICADA',
     AUTORIZACION_CORTESIA_RECHAZADA: 'AUTORIZACION_CORTESIA_RECHAZADA',
+    // Servicio a Domicilio
+    PEDIDO_DOMICILIO_CREADO: 'PEDIDO_DOMICILIO_CREADO',
+    PEDIDO_DOMICILIO_ESTADO: 'PEDIDO_DOMICILIO_ESTADO',
+    PEDIDO_DOMICILIO_ASIGNADO: 'PEDIDO_DOMICILIO_ASIGNADO',
+    PEDIDO_DOMICILIO_CANCELADO: 'PEDIDO_DOMICILIO_CANCELADO',
+    PEDIDO_DOMICILIO_FALLIDO: 'PEDIDO_DOMICILIO_FALLIDO',
+    PEDIDO_DOMICILIO_LIQUIDADO: 'PEDIDO_DOMICILIO_LIQUIDADO',
+    GESTION_ZONA_ENTREGA: 'GESTION_ZONA_ENTREGA',
 };
 // Códigos reservados para funcionalidades aún inexistentes en el POS (sin UI ni lógica)
 const ACCIONES_AUDITORIA_RESERVADAS = {
@@ -69,6 +77,7 @@ const CODIGOS_MOTIVO_AUDITORIA = {
     AUTORIZACION_SUPERVISOR: 'AUTORIZACION_SUPERVISOR',
     SEGURIDAD_ACCESO: 'SEGURIDAD_ACCESO',
     GESTION_CATALOGO: 'GESTION_CATALOGO',
+    PEDIDO_NO_ENTREGADO: 'PEDIDO_NO_ENTREGADO',
     OTRO: 'OTRO',
 };
 // Catálogo base de permisos organizados por vista para RBAC configurable
@@ -108,6 +117,15 @@ const PERMISOS_CATALOGO = [
     // Accesos (exclusivo Administrador)
     { codigo: 'accesos:ver', vista: 'accesos', accion: 'ver', descripcion: 'Ver usuarios, roles y permisos (solo Admin)' },
     { codigo: 'accesos:gestionar', vista: 'accesos', accion: 'gestionar', descripcion: 'Administrar usuarios, roles y permisos (solo Admin)' },
+    // Servicio a Domicilio
+    { codigo: 'domicilios:ver', vista: 'domicilios', accion: 'ver', descripcion: 'Ver tablero y detalle de pedidos a domicilio' },
+    { codigo: 'domicilios:crear', vista: 'domicilios', accion: 'crear', descripcion: 'Registrar nuevos pedidos a domicilio y clientes' },
+    { codigo: 'domicilios:asignar', vista: 'domicilios', accion: 'asignar', descripcion: 'Asignar o reasignar repartidor a pedidos a domicilio' },
+    { codigo: 'domicilios:actualizar_estado', vista: 'domicilios', accion: 'actualizar_estado', descripcion: 'Avanzar estado de pedidos a domicilio según rol' },
+    { codigo: 'domicilios:cancelar', vista: 'domicilios', accion: 'cancelar', descripcion: 'Cancelar pedidos a domicilio antes de despachar' },
+    { codigo: 'domicilios:liquidar', vista: 'domicilios', accion: 'liquidar', descripcion: 'Liquidar cobros contra entrega en caja' },
+    { codigo: 'domicilios:configurar', vista: 'domicilios', accion: 'configurar', descripcion: 'Administrar zonas de entrega, tarifas y pedido mínimo' },
+    { codigo: 'domicilios:ver_propios', vista: 'domicilios', accion: 'ver_propios', descripcion: 'Ver únicamente los pedidos a domicilio asignados al propio repartidor' },
 ];
 
 module.exports = {

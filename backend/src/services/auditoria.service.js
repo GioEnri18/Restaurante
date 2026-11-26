@@ -12,10 +12,12 @@ const {
   Factura,
   Ingrediente,
   MenuEspecial,
+  PedidoDomicilio,
   Platillo,
   Rol,
   Usuario,
   Venta,
+  ZonaEntrega,
 } = require('../models');
 const { NotFoundError } = require('../shared/errors/AppError');
 const { AuditService } = require('../shared/services/audit.service');
@@ -43,6 +45,8 @@ const ENTIDADES_AUDITORIA = [
   'Usuario',
   'Rol',
   'AuditoriaLog',
+  'PedidoDomicilio',
+  'ZonaEntrega',
 ];
 
 const INCLUDES_LISTADO = [
@@ -223,6 +227,37 @@ async function resolverEntidadOrigen(log, sucursalId) {
       etiqueta: `Merma #${idNum}`,
       ruta: '/mermas',
       permisoRequerido: 'mermas:ver',
+    };
+  }
+
+  if (log.entidad === 'PedidoDomicilio') {
+    const pedido = await PedidoDomicilio.findOne({
+      where: { id: idNum, sucursalId },
+      attributes: ['id', 'numeroPedido', 'estado'],
+    });
+    if (!pedido) return null;
+    return {
+      tipo: 'PedidoDomicilio',
+      id: pedido.id,
+      etiqueta: `Pedido ${pedido.numeroPedido}`,
+      ruta: '/domicilios',
+      permisoRequerido: 'domicilios:ver',
+      extra: { estado: pedido.estado },
+    };
+  }
+
+  if (log.entidad === 'ZonaEntrega') {
+    const zona = await ZonaEntrega.findOne({
+      where: { id: idNum, sucursalId },
+      attributes: ['id', 'nombre'],
+    });
+    if (!zona) return null;
+    return {
+      tipo: 'ZonaEntrega',
+      id: zona.id,
+      etiqueta: `Zona ${zona.nombre}`,
+      ruta: '/domicilios?tab=zonas',
+      permisoRequerido: 'domicilios:configurar',
     };
   }
 

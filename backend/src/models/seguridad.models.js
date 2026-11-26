@@ -13,6 +13,7 @@ Sucursal.init({
     serieFactura: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'A', field: 'serie_factura' },
     correlativoActual: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'correlativo_actual' },
     correlativoComanda: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'correlativo_comanda' },
+    correlativoDomicilio: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0, field: 'correlativo_domicilio' },
     activa: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
 }, { sequelize, tableName: 'sucursales', timestamps: true, createdAt: true, updatedAt: true });
 // ==================== ROL ====================

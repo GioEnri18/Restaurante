@@ -1,7 +1,7 @@
-import React, { lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from './store/auth.store';
-import { ROLES_ECONOMIA } from './config/env';
+import { env, ROLES_ECONOMIA } from './config/env';
 import { MainLayout } from './ui/components/layout/MainLayout';
 import { ProtectedRoute } from './ui/components/layout/ProtectedRoute';
 
@@ -17,6 +17,8 @@ const AuditoriaPage = lazy(() => import('./ui/pages/AuditoriaPage').then((m) => 
 const EconomiaPage = lazy(() => import('./ui/pages/EconomiaPage').then((m) => ({ default: m.EconomiaPage })));
 const AccesosPage = lazy(() => import('./ui/pages/AccesosPage').then((m) => ({ default: m.AccesosPage })));
 const MenusEspecialesPage = lazy(() => import('./ui/pages/MenusEspecialesPage').then((m) => ({ default: m.MenusEspecialesPage })));
+const DomiciliosPage = lazy(() => import('./ui/pages/DomiciliosPage').then((m) => ({ default: m.DomiciliosPage })));
+const PedirPublicoPage = lazy(() => import('./ui/pages/PedirPublicoPage').then((m) => ({ default: m.PedirPublicoPage })));
 
 export const App: React.FC = () => {
   const { hydrate, clearSession, usuario, can } = useAuthStore();
@@ -35,6 +37,36 @@ export const App: React.FC = () => {
       <Routes>
         {/* 1. Login */}
         <Route path="/login" element={<LoginPage />} />
+
+        {/* 1b. Menú público de pedidos en línea para clientes (sin login) */}
+        {env.ENABLE_DELIVERY && (
+          <>
+            <Route
+              path="/pedir"
+              element={
+                <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Cargando menú...</div>}>
+                  <PedirPublicoPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pedir/seguimiento/:token"
+              element={
+                <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Cargando seguimiento...</div>}>
+                  <PedirPublicoPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/pedir/:codigoSucursal"
+              element={
+                <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500">Cargando menú...</div>}>
+                  <PedirPublicoPage />
+                </Suspense>
+              }
+            />
+          </>
+        )}
 
         {/* Shell principal con navegación lateral filtrada por permisos */}
         <Route
@@ -56,6 +88,18 @@ export const App: React.FC = () => {
               </ProtectedRoute>
             }
           />
+
+          {/* 2b. Servicio a Domicilio (solo si VITE_ENABLE_DELIVERY=true) */}
+          {env.ENABLE_DELIVERY && (
+            <Route
+              path="domicilios"
+              element={
+                <ProtectedRoute permisoAlguno={['domicilios:ver', 'domicilios:ver_propios']}>
+                  <DomiciliosPage />
+                </ProtectedRoute>
+              }
+            />
+          )}
 
           {/* 3. Facturas */}
           <Route

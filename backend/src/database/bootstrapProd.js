@@ -9,7 +9,7 @@ const { Permiso, Rol, RolPermiso, Sucursal, Usuario } = require('../models');
  * Bootstrap limpio para producción:
  * 1. Crea la sucursal principal (el trigger SQL precarga automáticamente el menú base BX).
  * 2. Sincroniza el catálogo oficial de permisos maestros.
- * 3. Crea/sincroniza los 4 roles del negocio: ADMIN, CAJERO, MESERO y AUDITOR (con caja:autorizar).
+ * 3. Crea/sincroniza los roles del negocio: ADMIN, CAJERO, MESERO, CHEF, REPARTIDOR, AUDITOR y AUDITOR_SISTEMA.
  * 4. Crea el primer usuario Administrador usando ADMIN_PASSWORD (obligatoria, >= PASSWORD_MIN_LENGTH).
  */
 async function main() {
@@ -89,6 +89,16 @@ async function main() {
           'caja:abrir',
           'caja:movimiento',
           'caja:cerrar',
+          'facturas:ver',
+          'facturas:reimprimir',
+          'mermas:ver',
+          'mermas:crear',
+          'domicilios:ver',
+          'domicilios:crear',
+          'domicilios:asignar',
+          'domicilios:actualizar_estado',
+          'domicilios:cancelar',
+          'domicilios:liquidar',
         ],
       },
       {
@@ -100,23 +110,60 @@ async function main() {
         permisos: ['ventas:ver', 'ventas:crear', 'facturas:ver'],
       },
       {
+        codigo: 'CHEF',
+        nombre: 'Chef',
+        descripcion: 'Consulta existencias, registra pérdidas de cocina y prepara pedidos a domicilio',
+        vistaInicial: '/inventario',
+        esSistema: false,
+        permisos: [
+          'inventario:ver',
+          'mermas:ver',
+          'mermas:crear',
+          'domicilios:ver',
+          'domicilios:actualizar_estado',
+        ],
+      },
+      {
+        codigo: 'REPARTIDOR',
+        nombre: 'Repartidor',
+        descripcion: 'Consulta sus entregas asignadas a domicilio y actualiza el estado en ruta',
+        vistaInicial: '/domicilios',
+        esSistema: false,
+        permisos: [
+          'domicilios:ver_propios',
+          'domicilios:actualizar_estado',
+        ],
+      },
+      {
         codigo: 'AUDITOR',
-        nombre: 'Auditor',
+        nombre: 'Auditor económico',
         descripcion:
-          'Supervisión de caja y consulta de solo lectura sobre reportes, auditoría, facturas, inventario y mermas',
-        vistaInicial: '/auditoria',
+          'Supervisión de caja y consulta de solo lectura sobre reportes, auditoría, facturas, inventario, mermas y domicilios',
+        vistaInicial: '/economia',
         esSistema: false,
         permisos: [
           'reportes:ver',
           'reportes:exportar',
+          'reportes:balance',
           'auditoria:ver',
+          'auditoria:economica',
           'auditoria:exportar',
+          'ventas:autorizar_cortesia',
           'facturas:ver',
           'caja:ver',
           'caja:autorizar',
           'inventario:ver',
           'mermas:ver',
+          'domicilios:ver',
         ],
+      },
+      {
+        codigo: 'AUDITOR_SISTEMA',
+        nombre: 'Auditor de sistema',
+        descripcion: 'Consultar la bitácora de actividad y seguridad',
+        vistaInicial: '/auditoria',
+        esSistema: false,
+        permisos: ['auditoria:ver', 'auditoria:sistema', 'auditoria:exportar'],
       },
     ];
 

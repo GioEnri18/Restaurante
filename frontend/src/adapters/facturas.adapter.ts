@@ -16,6 +16,10 @@ interface RawFacturaComandaJson {
   tipoServicio?: string;
   mesaNumero?: string | null;
   nombreTurno?: string | null;
+  costoEnvio?: number | string;
+  direccionEntrega?: string | null;
+  referenciaEntrega?: string | null;
+  zonaEntregaNombre?: string | null;
   createdAt?: string;
 }
 
@@ -37,6 +41,7 @@ interface RawFacturaVentaJson {
   id?: number | string;
   tipoServicio?: string;
   metodoPago?: string;
+  costoEnvio?: number | string;
   montoRecibido?: number | string;
   cambio?: number | string;
   usuario?: RawFacturaUsuarioRefJson | null;
@@ -64,6 +69,8 @@ interface RawFacturaJson {
   clienteDireccion?: string;
   subtotalSinIva?: number | string;
   ivaMonto?: number | string;
+  costoEnvio?: number | string;
+  zonaEntregaNombre?: string | null;
   total?: number | string;
   estado?: string;
   motivoAnulacion?: string | null;
@@ -168,6 +175,8 @@ export const facturasAdapter = {
         clienteDireccion: String(data.clienteDireccion ?? 'Ciudad'),
         subtotalSinIva: Number(data.subtotalSinIva ?? 0),
         ivaMonto: Number(data.ivaMonto ?? 0),
+        costoEnvio: Number(data.costoEnvio ?? venta.costoEnvio ?? 0),
+        zonaEntregaNombre: data.zonaEntregaNombre ?? comanda?.zonaEntregaNombre ?? null,
         total: Number(data.total ?? 0),
         estado: toEstadoFactura(data.estado),
         reimpresionesCount: Number(data.reimpresionesCount ?? 0),
@@ -181,6 +190,10 @@ export const facturasAdapter = {
             tipoServicio: toTipoServicio(comanda.tipoServicio ?? venta.tipoServicio, 'MOSTRADOR'),
             mesaNumero: comanda.mesaNumero ?? mesa.numero ?? null,
             nombreTurno: comanda.nombreTurno ?? null,
+            costoEnvio: Number(comanda.costoEnvio ?? venta.costoEnvio ?? 0),
+            direccionEntrega: comanda.direccionEntrega ?? null,
+            referenciaEntrega: comanda.referenciaEntrega ?? null,
+            zonaEntregaNombre: comanda.zonaEntregaNombre ?? data.zonaEntregaNombre ?? null,
             createdAt: String(comanda.createdAt ?? data.createdAt ?? ''),
           }
         : undefined,
@@ -188,6 +201,7 @@ export const facturasAdapter = {
         id: Number(venta.id ?? data.ventaId ?? 0),
         tipoServicio: toTipoServicio(venta.tipoServicio, 'MESA'),
         metodoPago: toMetodoPago(venta.metodoPago),
+        costoEnvio: Number(venta.costoEnvio ?? data.costoEnvio ?? 0),
         montoRecibido: Number(venta.montoRecibido ?? data.total ?? 0),
         cambio: Number(venta.cambio ?? 0),
         cajeroNombre: String(cajero.nombreCompleto ?? '—'),

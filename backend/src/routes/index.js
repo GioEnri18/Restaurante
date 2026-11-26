@@ -5,9 +5,11 @@ const accesosRoutes = require('./accesos.routes');
 const auditoriaRoutes = require('./auditoria.routes');
 const authRoutes = require('./auth.routes');
 const cajaRoutes = require('./caja.routes');
+const domiciliosRoutes = require('./domicilios.routes');
 const facturasRoutes = require('./facturas.routes');
 const inventarioRoutes = require('./inventario.routes');
 const mermasRoutes = require('./mermas.routes');
+const publicRoutes = require('./public.routes');
 const reportesRoutes = require('./reportes.routes');
 const ventasRoutes = require('./ventas.routes');
 
@@ -38,6 +40,7 @@ router.get('/health', (_req, res) => {
       currency: env.CURRENCY_CODE,
       currencySymbol: env.CURRENCY_SYMBOL,
       ivaRate: env.IVA_RATE,
+      enableDelivery: env.ENABLE_DELIVERY,
       timestamp: new Date().toISOString(),
     },
   });
@@ -53,5 +56,7 @@ router.use('/caja', cajaRoutes);
 router.use('/reportes', reportesRoutes);
 router.use('/auditoria', auditoriaRoutes);
 router.use('/accesos', accesosRoutes);
+router.use('/domicilios', domiciliosRoutes);
+router.use('/public', publicRoutes);
 
 module.exports = router;

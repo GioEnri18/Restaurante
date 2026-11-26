@@ -155,6 +155,34 @@ export const CajaPage: React.FC = () => {
       {error && <Alert type="error" message={error} />}
       {success && <Alert type="success" message={success} />}
 
+      {actual?.domiciliosPendientesLiquidar &&
+        (actual.domiciliosPendientesLiquidar.cantidad > 0 ||
+          actual.domiciliosPendientesLiquidar.enRutaCantidad > 0) && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <div>
+              {actual.domiciliosPendientesLiquidar.cantidad > 0 && (
+                <p className="font-extrabold">
+                  Hay {actual.domiciliosPendientesLiquidar.cantidad} entrega(s) a domicilio contra entrega
+                  pendientes de liquidar ({formatCurrency(actual.domiciliosPendientesLiquidar.montoTotal)}).
+                  {actual.domiciliosPendientesLiquidar.bloquearCierre &&
+                    ' Debes liquidarlas antes de cerrar la caja.'}
+                </p>
+              )}
+              {actual.domiciliosPendientesLiquidar.enRutaCantidad > 0 && (
+                <p className="text-xs text-amber-800">
+                  Pedidos actualmente en ruta: {actual.domiciliosPendientesLiquidar.enRutaCantidad}
+                </p>
+              )}
+            </div>
+            <Link
+              to="/domicilios?pendientes=true"
+              className="inline-flex min-h-[40px] items-center rounded-xl bg-amber-700 px-3.5 text-xs font-extrabold text-white hover:bg-amber-800"
+            >
+              Ir a liquidar entregas
+            </Link>
+          </div>
+        )}
+
       {loading ? (
         <div className="rounded-2xl bg-white p-12 text-center text-slate-600">Cargando estado de caja...</div>
       ) : !actual ? (

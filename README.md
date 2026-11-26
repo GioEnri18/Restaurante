@@ -30,9 +30,9 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
 │   │   ├── app.js                     # Configuración Express, Helmet, CORS, Cookies, CSRF y timeouts
 │   │   ├── server.js                  # Bootstrap y apagado limpio
 │   │   ├── config/                    # env.js (Zod), constants.js, database.js (Sequelize + withTransaction)
-│   │   ├── models/                    # 25 modelos Sequelize, enums y asociaciones relacionales
-│   │   ├── services/                  # Lógica de negocio (incluyendo menu, menus-especiales, platillos y checkout)
-│   │   ├── controllers/               # Controladores MVC de los 9 dominios
+│   │   ├── models/                    # 31 modelos Sequelize, enums y asociaciones relacionales
+│   │   ├── services/                  # Lógica de negocio (incluyendo menu, menus-especiales, platillos, checkout y domicilios)
+│   │   ├── controllers/               # Controladores MVC de los 10 dominios
 │   │   ├── routes/                    # Enrutadores /api/v1 y validaciones Zod
 │   │   ├── middlewares/               # authenticate, authorize, csrfProtection, validate, requestTimeout, errorHandler
 │   │   ├── shared/                    # AppError, AuditService, UnitConversionService, dates.js, tax.js
@@ -47,7 +47,7 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
 │   │   ├── adapters/                  # Traducción estricta JSON API -> modelos (sin any)
 │   │   ├── services/                  # Cliente HTTP (cookies httpOnly) y servicios por dominio
 │   │   ├── store/                     # Estado global Zustand
-│   │   └── ui/                        # Componentes modulares por dominio y 10 vistas
+│   │   └── ui/                        # Componentes modulares por dominio y 11 vistas (incluye Domicilios)
 │   ├── Dockerfile                     # Build Vite + Nginx SPA + proxy /api/
 │   └── eslint.config.js
 ├── postman/                           # Colección Postman v2.1 (55 rutas) + Environment
@@ -79,6 +79,10 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
    - `REQUEST_TIMEOUT_MS`, `DB_POOL_MAX`, `DB_LOCK_TIMEOUT_MS`, `DB_STATEMENT_TIMEOUT_MS`.
    - `DEFAULT_TIMEZONE=America/Guatemala`, `IVA_RATE=0.12`, `UNIT_OZ_PER_LB=16`.
    - `ALLOW_SEED_IN_PRODUCTION=false`, `SEED_ADMIN_PASSWORD`, `SEED_CAJERO_PASSWORD`, `SEED_MESERO_PASSWORD`.
+   - **Servicio a Domicilio:**
+     - `ENABLE_DELIVERY` (default `false`): habilita las rutas `/api/v1/domicilios` y `/api/v1/reportes/domicilios`.
+     - `DELIVERY_BLOQUEAR_CIERRE_CON_PENDIENTES` (default `true`): impide cerrar la caja mientras existan pedidos `CONTRA_ENTREGA` entregados sin liquidar.
+     - `DELIVERY_CLIENTE_BUSQUEDA_WINDOW_MS` (`60000`), `DELIVERY_CLIENTE_BUSQUEDA_MAX` (`30`), `DELIVERY_CLIENTE_BUSQUEDA_LIMIT` (`5`): rate limit y tope de resultados en búsqueda de clientes por teléfono.
    - **Auditoría de investigación:**
      - `AUDIT_IMPACTO_ALTO_Q` (default `500`): monto en Quetzales a partir del cual egresos, mermas, ajustes o compras escalan a severidad `ALTA`.
      - `AUDIT_DIFERENCIA_CAJA_ALTA_Q` (default `50`): diferencia de arqueo de caja (`|contado - esperado|`) en Quetzales que escala a `ALTA`.
@@ -86,7 +90,7 @@ Sistema de Punto de Venta (POS) diseñado para restaurantes en Guatemala, con co
      - `AUDIT_EXPORT_MAX_ROWS` (default `10000`): límite máximo de filas permitidas por exportación CSV.
 
 3. **Frontend (`frontend/.env`):**
-   Crea `frontend/.env` si necesitas sobrescribir la URL local de la API. Define `VITE_API_BASE_URL` y guarda las credenciales en el backend. Vite expone las variables `VITE_*` al navegador.
+   Crea `frontend/.env` si necesitas sobrescribir la URL local de la API. Define `VITE_API_BASE_URL` y guarda las credenciales en el backend. Vite expone las variables `VITE_*` al navegador. Para activar la interfaz de domicilios define `VITE_ENABLE_DELIVERY=true` junto con `ENABLE_DELIVERY=true` en el backend.
 
 ---
 
@@ -181,6 +185,22 @@ La bitácora `auditoria_logs` es estrictamente **APPEND-ONLY** (trigger `trg_aud
   - `GET /auditoria/:id`: detalle con diff antes/después, enlace a la entidad origen y eventos correlacionados.
   - `GET /auditoria/exportar`: descarga CSV por streaming (lotes de 500 filas, protección anti formula-injection, requiere permisos `auditoria:ver` + `auditoria:exportar` y audita su propia ejecución con `EXPORTAR_AUDITORIA`).
   - `GET /auditoria/nomina`: exclusivo `ADMIN`; `GESTION_NOMINA` permanece totalmente excluida de listados, resúmenes, detalles y exportaciones para el resto de roles.
+
+---
+
+## Módulo de Servicio a Domicilio
+
+Activado mediante `ENABLE_DELIVERY=true` (backend) y `VITE_ENABLE_DELIVERY=true` (frontend), sin alterar los flujos existentes de `MOSTRADOR`, `LLEVAR`, `MESA` ni la columna legada `ventas.datos_delivery_json`.
+
+- **Entidades y catálogo:** `zonas_entrega` (tarifa de envío IVA 12% incluido, tiempo estimado y pedido mínimo), `clientes` (teléfono único normalizado por sucursal), `direcciones_entrega`, `pedidos_domicilio` (con snapshots inmutables de tarifa/cliente/dirección e idempotencia), `pedido_domicilio_detalles` y `pedido_domicilio_historial` (append-only).
+- **Ciclo de estados (bloqueo optimista):** `NUEVO → EN_PREPARACION → LISTO → EN_RUTA → ENTREGADO`, con salidas `CANCELADO` (antes de despachar) y `FALLIDO` (desde `EN_RUTA`). Sincroniza automáticamente `comandas.estado_cocina` (`LISTO ↔ LISTA`).
+- **Modalidades de pago:**
+  - `PREPAGADO`: reutiliza el núcleo transaccional `CheckoutService.ejecutarVentaEnTransaccion` al crear el pedido (venta + factura + comanda + caja + descuento de inventario + auditoría en la misma transacción).
+  - `CONTRA_ENTREGA`: nace sin venta ni descuento (validando stock solo lectura con advertencias) y crea comanda de cocina; al marcar `ENTREGADO`, el cajero liquida en `POST /api/v1/domicilios/pedidos/:id/liquidar` reutilizando la comanda original, conciliando cualquier diferencia de efectivo del repartidor en caja y auditando con severidad según `AUDIT_DIFERENCIA_CAJA_ALTA_Q`.
+- **Mermas y anulaciones automáticas:** `CANCELADO` en `NUEVO` no genera merma; `CANCELADO` tras iniciar preparación o `FALLIDO` generan merma automática por receta (`PEDIDO_NO_ENTREGADO`). Si era `PREPAGADO`, exige autorización de supervisor (`facturas:anular`), anula la factura reintegrando inventario y registra la merma en la misma transacción (efecto neto = `-1` receta).
+- **RBAC y privacidad:** nuevo rol `REPARTIDOR` (`domicilios:ver_propios`, `domicilios:actualizar_estado` solo en sus pedidos activos) y 8 permisos `domicilios:*`. Teléfono y dirección se redactan automáticamente en Pino (incluyendo query `?telefono=[OCULTO]`) y en `auditoria_logs`, nunca se guardan en `sessionStorage`, y la búsqueda por teléfono está limitada y protegida con rate limit.
+- **Tiempo real y reportes:** polling incremental con `?desde=<ISO>` + `serverTime` y `AbortController`, y métricas en `GET /api/v1/reportes/domicilios` (por estado, zona, tiempo promedio, tasa de fallos/cancelaciones, ingresos por envío y desempeño por repartidor).
+- **Puntos de extensión documentados (fuera de alcance actual):** tracking GPS/mapas por `pedido.id`/`repartidorId`, notificaciones WhatsApp/SMS vía callback `onAfterCommit` de `withTransaction`, cálculo dinámico por distancia e integraciones con apps de terceros sobre `DomiciliosService.crearPedido`.
 
 ---
 

@@ -1,8 +1,16 @@
-// Registro central de los 25 modelos Sequelize y TODAS sus asociaciones relacionales (Capa Modelo MVC)
+// Registro central de los 31 modelos Sequelize y TODAS sus asociaciones relacionales (Capa Modelo MVC)
 const { Permiso, Rol, RolPermiso, Sucursal, Usuario, UsuarioPermiso } = require('./seguridad.models');
 const { Categoria, MenuEspecial, MenuEspecialPlatillo, Mesa, Platillo, RecetaIngrediente } = require('./menu.models');
 const { Compra, CompraDetalle, Ingrediente, InventarioMovimiento, Merma, Proveedor } = require('./inventario.models');
 const { AuditoriaLog, CajaMovimiento, CajaSesion, Comanda, Factura, Venta, VentaDetalle } = require('./operaciones.models');
+const {
+  Cliente,
+  DireccionEntrega,
+  PedidoDomicilio,
+  PedidoDomicilioDetalle,
+  PedidoDomicilioHistorial,
+  ZonaEntrega,
+} = require('./domicilios.models');
 // --- Seguridad & RBAC ---
 Sucursal.hasMany(Usuario, { foreignKey: 'sucursalId', as: 'usuarios' });
 Usuario.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
@@ -63,6 +71,37 @@ Comanda.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
 AuditoriaLog.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
 AuditoriaLog.belongsTo(Usuario, { foreignKey: 'aprobadorId', as: 'aprobador' });
 AuditoriaLog.belongsTo(CajaSesion, { foreignKey: 'cajaSesionId', as: 'cajaSesion' });
+// --- Servicio a Domicilio ---
+Sucursal.hasMany(ZonaEntrega, { foreignKey: 'sucursalId', as: 'zonasEntrega' });
+ZonaEntrega.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+Sucursal.hasMany(Cliente, { foreignKey: 'sucursalId', as: 'clientes' });
+Cliente.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+Cliente.hasMany(DireccionEntrega, { foreignKey: 'clienteId', as: 'direcciones' });
+DireccionEntrega.belongsTo(Cliente, { foreignKey: 'clienteId', as: 'cliente' });
+DireccionEntrega.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+DireccionEntrega.belongsTo(ZonaEntrega, { foreignKey: 'zonaEntregaId', as: 'zonaEntrega' });
+ZonaEntrega.hasMany(DireccionEntrega, { foreignKey: 'zonaEntregaId', as: 'direcciones' });
+PedidoDomicilio.belongsTo(Sucursal, { foreignKey: 'sucursalId', as: 'sucursal' });
+PedidoDomicilio.belongsTo(Cliente, { foreignKey: 'clienteId', as: 'cliente' });
+Cliente.hasMany(PedidoDomicilio, { foreignKey: 'clienteId', as: 'pedidosDomicilio' });
+PedidoDomicilio.belongsTo(DireccionEntrega, { foreignKey: 'direccionEntregaId', as: 'direccionEntrega' });
+PedidoDomicilio.belongsTo(ZonaEntrega, { foreignKey: 'zonaEntregaId', as: 'zonaEntrega' });
+ZonaEntrega.hasMany(PedidoDomicilio, { foreignKey: 'zonaEntregaId', as: 'pedidosDomicilio' });
+PedidoDomicilio.belongsTo(Usuario, { foreignKey: 'creadoPorId', as: 'creadoPor' });
+PedidoDomicilio.belongsTo(Usuario, { foreignKey: 'repartidorId', as: 'repartidor' });
+PedidoDomicilio.belongsTo(Usuario, { foreignKey: 'liquidadoPorId', as: 'liquidadoPor' });
+PedidoDomicilio.belongsTo(Venta, { foreignKey: 'ventaId', as: 'venta' });
+Venta.belongsTo(PedidoDomicilio, { foreignKey: 'pedidoDomicilioId', as: 'pedidoDomicilio' });
+PedidoDomicilio.hasOne(Comanda, { foreignKey: 'pedidoDomicilioId', as: 'comanda' });
+Comanda.belongsTo(PedidoDomicilio, { foreignKey: 'pedidoDomicilioId', as: 'pedidoDomicilio' });
+PedidoDomicilio.hasMany(PedidoDomicilioDetalle, { foreignKey: 'pedidoDomicilioId', as: 'detalles' });
+PedidoDomicilioDetalle.belongsTo(PedidoDomicilio, { foreignKey: 'pedidoDomicilioId', as: 'pedidoDomicilio' });
+PedidoDomicilioDetalle.belongsTo(Platillo, { foreignKey: 'platilloId', as: 'platillo' });
+PedidoDomicilio.hasMany(PedidoDomicilioHistorial, { foreignKey: 'pedidoDomicilioId', as: 'historial' });
+PedidoDomicilioHistorial.belongsTo(PedidoDomicilio, { foreignKey: 'pedidoDomicilioId', as: 'pedidoDomicilio' });
+PedidoDomicilioHistorial.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
+PedidoDomicilio.hasMany(Merma, { foreignKey: 'pedidoDomicilioId', as: 'mermas' });
+Merma.belongsTo(PedidoDomicilio, { foreignKey: 'pedidoDomicilioId', as: 'pedidoDomicilio' });
 
 module.exports = {
   ...require('./enums'),
@@ -91,4 +130,10 @@ module.exports = {
   Factura,
   Comanda,
   AuditoriaLog,
+  ZonaEntrega,
+  Cliente,
+  DireccionEntrega,
+  PedidoDomicilio,
+  PedidoDomicilioDetalle,
+  PedidoDomicilioHistorial,
 };

@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const { PERMISOS_CATALOGO } = require('../config/constants');
 const { disconnectDatabase, sequelize } = require('../config/database');
 const { env } = require('../config/env');
-const { Categoria, Ingrediente, InventarioMovimiento, MenuEspecial, Mesa, Permiso, Platillo, Proveedor, RecetaIngrediente, Rol, RolPermiso, Sucursal, TipoMovimientoInventario, Usuario } = require('../models');
+const { Categoria, Ingrediente, InventarioMovimiento, MenuEspecial, Mesa, Permiso, Platillo, Proveedor, RecetaIngrediente, Rol, RolPermiso, Sucursal, TipoMovimientoInventario, Usuario, ZonaEntrega } = require('../models');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
 const { nowInTimezone } = require('../shared/utils/dates');
 function resolveSeedPassword(envKey, devDefault) {
@@ -76,6 +76,12 @@ async function main() {
                 'facturas:reimprimir',
                 'mermas:ver',
                 'mermas:crear',
+                'domicilios:ver',
+                'domicilios:crear',
+                'domicilios:asignar',
+                'domicilios:actualizar_estado',
+                'domicilios:cancelar',
+                'domicilios:liquidar',
             ],
         },
         {
@@ -87,9 +93,34 @@ async function main() {
             permisos: ['ventas:ver', 'ventas:crear', 'facturas:ver'],
         },
         {
+            codigo: 'CHEF',
+            nombre: 'Chef',
+            descripcion: 'Consulta existencias, registra pérdidas de cocina y prepara pedidos a domicilio',
+            vistaInicial: '/inventario',
+            esSistema: false,
+            permisos: [
+                'inventario:ver',
+                'mermas:ver',
+                'mermas:crear',
+                'domicilios:ver',
+                'domicilios:actualizar_estado',
+            ],
+        },
+        {
+            codigo: 'REPARTIDOR',
+            nombre: 'Repartidor',
+            descripcion: 'Consulta sus entregas asignadas a domicilio y actualiza el estado en ruta',
+            vistaInicial: '/domicilios',
+            esSistema: false,
+            permisos: [
+                'domicilios:ver_propios',
+                'domicilios:actualizar_estado',
+            ],
+        },
+        {
             codigo: 'AUDITOR',
             nombre: 'Auditor económico',
-            descripcion: 'Supervisión de caja y consulta de solo lectura sobre reportes, auditoría, facturas, inventario y mermas',
+            descripcion: 'Supervisión de caja y consulta de solo lectura sobre reportes, auditoría, facturas, inventario, mermas y domicilios',
             vistaInicial: '/economia',
             esSistema: false,
             permisos: [
@@ -105,6 +136,7 @@ async function main() {
                 'caja:autorizar',
                 'inventario:ver',
                 'mermas:ver',
+                'domicilios:ver',
             ],
         },
         {
@@ -172,6 +204,13 @@ async function main() {
             email: 'mesero@parrillachapina.gt',
             passwordPlain: resolveSeedPassword('SEED_MESERO_PASSWORD', 'Mesero123!'),
             rolCodigo: 'MESERO',
+        },
+        {
+            username: 'repartidor',
+            nombreCompleto: 'Diego Morales (Repartidor)',
+            email: 'repartidor@parrillachapina.gt',
+            passwordPlain: resolveSeedPassword('SEED_REPARTIDOR_PASSWORD', 'Repartidor123!'),
+            rolCodigo: 'REPARTIDOR',
         },
     ];
     let adminUserId = 1;
@@ -334,6 +373,18 @@ async function main() {
             diasAvisoPrevio: 5,
             activo: true,
             esMenuPrincipal: false,
+        });
+    }
+    // 10. Zonas de entrega de ejemplo para servicio a domicilio
+    const zonasSeed = [
+        { nombre: 'Zona 10', descripcion: 'Cobertura cercana a sucursal Zona 10', costoEnvio: 15.0, tiempoEstimadoMin: 25, pedidoMinimo: 50.0 },
+        { nombre: 'Zona 14', descripcion: 'Las Américas y alrededores', costoEnvio: 20.0, tiempoEstimadoMin: 35, pedidoMinimo: 60.0 },
+        { nombre: 'Zona 15', descripcion: 'Vista Hermosa I, II y III', costoEnvio: 25.0, tiempoEstimadoMin: 40, pedidoMinimo: 75.0 },
+    ];
+    for (const z of zonasSeed) {
+        await ZonaEntrega.findOrCreate({
+            where: { sucursalId: sucursal.id, nombre: z.nombre },
+            defaults: { sucursalId: sucursal.id, ...z, activa: true },
         });
     }
     console.log('✅ Seed Sequelize completado exitosamente.');

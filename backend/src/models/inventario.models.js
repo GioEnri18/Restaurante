@@ -86,6 +86,7 @@ Merma.init({
     costoEstimado: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: 'costo_estimado' },
     motivo: { type: DataTypes.STRING(30), allowNull: false },
     observacion: { type: DataTypes.STRING(300), allowNull: true },
+    pedidoDomicilioId: { type: DataTypes.INTEGER, allowNull: true, field: 'pedido_domicilio_id' },
     idempotencyKey: { type: DataTypes.UUID, field: 'idempotency_key' },
     idempotencyHuella: { type: DataTypes.STRING(64), field: 'idempotency_huella' },
     fecha: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },

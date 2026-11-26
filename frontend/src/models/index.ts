@@ -130,6 +130,7 @@ export interface MenuDataModel {
   cajaAbierta: boolean;
   cajaSesionId: number | null;
   habilitarMesas: boolean;
+  habilitarDelivery?: boolean;
   tipoServicioDefault: TipoServicio;
   categorias: CategoriaModel[];
   platillos: PlatilloModel[];
@@ -169,6 +170,8 @@ export interface TicketImprimibleModel {
     clienteDireccion: string;
     subtotalSinIva: number;
     ivaMonto: number;
+    costoEnvio?: number;
+    zonaEntregaNombre?: string | null;
     total: number;
     estado: 'EMITIDA' | 'ANULADA';
     reimpresionesCount: number;
@@ -181,12 +184,32 @@ export interface TicketImprimibleModel {
     tipoServicio: TipoServicio;
     mesaNumero: string | null;
     nombreTurno: string | null;
+    costoEnvio?: number;
+    direccionEntrega?: string | null;
+    referenciaEntrega?: string | null;
+    zonaEntregaNombre?: string | null;
     createdAt: string;
+  };
+  entrega?: {
+    numeroPedido: string;
+    modalidadPago: ModalidadPagoDomicilio;
+    metodoPagoEsperado: MetodoPago;
+    clienteNombre: string;
+    clienteTelefono: string;
+    direccion: string;
+    referencia: string | null;
+    zonaNombre: string;
+    costoEnvio: number;
+    subtotalPlatillos: number;
+    total: number;
+    montoConQuePaga: number | null;
+    observaciones: string | null;
   };
   venta: {
     id: number;
     tipoServicio: TipoServicio;
     metodoPago: MetodoPago;
+    costoEnvio?: number;
     montoRecibido: number;
     cambio: number;
     cajeroNombre: string;
@@ -324,12 +347,25 @@ export interface MermasListadoModel {
 // --- CAJA ---
 export interface CajaMovimientoModel {
   id: number;
-  tipo: 'INGRESO_VENTA' | 'INGRESO_MANUAL' | 'EGRESO_MANUAL' | 'EGRESO_ANULACION';
+  tipo:
+    | 'INGRESO_VENTA'
+    | 'INGRESO_MANUAL'
+    | 'EGRESO_MANUAL'
+    | 'EGRESO_ANULACION'
+    | 'INGRESO_DIFERENCIA_REPARTIDOR'
+    | 'EGRESO_DIFERENCIA_REPARTIDOR';
   metodoPago: MetodoPago;
   monto: number;
   descripcion: string;
   usuarioNombre: string;
   createdAt: string;
+}
+
+export interface CajaDomiciliosPendientesModel {
+  cantidad: number;
+  montoTotal: number;
+  enRutaCantidad: number;
+  bloquearCierre: boolean;
 }
 
 export interface CajaSesionModel {
@@ -352,6 +388,7 @@ export interface CajaSesionModel {
   fechaCierre: string | null;
   usuarioAperturaNombre: string;
   usuarioCierreNombre: string | null;
+  domiciliosPendientesLiquidar?: CajaDomiciliosPendientesModel;
   movimientos: CajaMovimientoModel[];
 }
 
@@ -570,4 +607,194 @@ export interface PersonaNominaModel {
   activo: boolean;
   fechaIngreso: string | null;
   sueldoMensual: number | null;
+}
+
+// --- SERVICIO A DOMICILIO ---
+export type EstadoPedidoDomicilio =
+  | 'NUEVO'
+  | 'EN_PREPARACION'
+  | 'LISTO'
+  | 'EN_RUTA'
+  | 'ENTREGADO'
+  | 'CANCELADO'
+  | 'FALLIDO';
+
+export type ModalidadPagoDomicilio = 'PREPAGADO' | 'CONTRA_ENTREGA';
+export type TipoEntregaPedido = 'DELIVERY' | 'LLEVAR';
+export type OrigenPedido = 'POS' | 'WEB';
+
+export interface ZonaEntregaModel {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  costoEnvio: number;
+  tiempoEstimadoMin: number;
+  pedidoMinimo: number;
+  activa: boolean;
+}
+
+export interface DireccionEntregaModel {
+  id: number;
+  clienteId: number;
+  zonaEntregaId: number | null;
+  alias: string;
+  direccion: string;
+  referencia: string | null;
+  esPrincipal: boolean;
+  activa: boolean;
+  zonaEntrega: ZonaEntregaModel | null;
+}
+
+export interface ClienteDomicilioModel {
+  id: number;
+  nombre: string;
+  telefono: string;
+  nit: string | null;
+  notas: string | null;
+  activo: boolean;
+  direcciones: DireccionEntregaModel[];
+}
+
+export interface PedidoDomicilioDetalleModel {
+  id: number;
+  platilloId: number;
+  nombrePlatillo: string;
+  cantidad: number;
+  cantidadCortesia: number;
+  precioUnitario: number;
+  subtotal: number;
+  notas: string | null;
+}
+
+export interface PedidoDomicilioHistorialModel {
+  id: number;
+  estadoAnterior: EstadoPedidoDomicilio | null;
+  estadoNuevo: EstadoPedidoDomicilio;
+  usuarioId: number;
+  usuarioNombre: string | null;
+  observacion: string | null;
+  createdAt: string;
+}
+
+export interface PedidoDomicilioModel {
+  id: number;
+  numeroPedido: string;
+  clienteId: number;
+  direccionEntregaId: number | null;
+  zonaEntregaId: number | null;
+  creadoPorId: number | null;
+  repartidorId: number | null;
+  ventaId: number | null;
+  tipoEntrega: TipoEntregaPedido;
+  origen: OrigenPedido;
+  trackingToken: string | null;
+  estado: EstadoPedidoDomicilio;
+  modalidadPago: ModalidadPagoDomicilio;
+  metodoPagoEsperado: MetodoPago;
+  subtotalPlatillos: number;
+  costoEnvio: number;
+  total: number;
+  zonaNombre: string;
+  tiempoEstimadoMin: number;
+  clienteNombre: string;
+  clienteNit: string;
+  clienteTelefono: string;
+  direccion: string | null;
+  referencia: string | null;
+  observaciones: string | null;
+  montoConQuePaga: number | null;
+  montoRecibidoRepartidor: number | null;
+  diferenciaLiquidacion: number | null;
+  referenciaPagoLiquidacion: string | null;
+  liquidadoEn: string | null;
+  motivoCierre: string | null;
+  mermaGenerada: boolean;
+  facturaAnuladaCierre: boolean;
+  pendienteLiquidar: boolean;
+  asignadoEn: string | null;
+  despachadoEn: string | null;
+  entregadoEn: string | null;
+  canceladoEn: string | null;
+  fallidoEn: string | null;
+  createdAt: string;
+  updatedAt: string;
+  creadoPor: { id: number; nombreCompleto: string; username: string } | null;
+  repartidor: { id: number; nombreCompleto: string; username: string } | null;
+  liquidadoPor: { id: number; nombreCompleto: string; username: string } | null;
+  comanda: { id: number; numeroComanda: string; estadoCocina: string; createdAt: string } | null;
+  venta: {
+    id: number;
+    metodoPago: MetodoPago;
+    estado: string;
+    total: number;
+    costoEnvio: number;
+    referenciaPago: string | null;
+    createdAt: string;
+    factura: {
+      id: number;
+      numeroCompleto: string;
+      estado: string;
+      total: number;
+      costoEnvio: number;
+      createdAt: string;
+    } | null;
+  } | null;
+  detalles: PedidoDomicilioDetalleModel[];
+  historial?: PedidoDomicilioHistorialModel[];
+}
+
+export interface DomiciliosResumenModel {
+  porEstado: Record<EstadoPedidoDomicilio, number>;
+  activosCount: number;
+  pendientesLiquidarCount: number;
+}
+
+export interface AdvertenciaStockModel {
+  ingredienteId: number;
+  ingredienteNombre: string;
+  requeridoOz: number;
+  stockActualOz: number;
+  faltanteOz: number;
+}
+
+export interface ReporteDomiciliosModel {
+  periodo: { fechaDesde: string; fechaHasta: string };
+  kpis: {
+    totalPedidos: number;
+    entregados: number;
+    cancelados: number;
+    fallidos: number;
+    activos: number;
+    pendientesLiquidar: number;
+    tasaCancelacionPct: number;
+    tasaFalloPct: number;
+    tiempoPromedioEntregaMin: number;
+    ingresosTotalesDomicilio: number;
+    ingresosEnvioTotal: number;
+    costoMermasDomicilio: number;
+    diferenciaLiquidacionNeta: number;
+  };
+  porEstado: Array<{ estado: EstadoPedidoDomicilio; cantidad: number; total: number }>;
+  porZona: Array<{
+    zonaEntregaId: number;
+    zonaNombre: string;
+    totalPedidos: number;
+    entregados: number;
+    fallidos: number;
+    cancelados: number;
+    ingresosEnvio: number;
+    totalFacturado: number;
+    tiempoPromedioMin: number;
+  }>;
+  porRepartidor: Array<{
+    repartidorId: number;
+    nombreCompleto: string;
+    username: string;
+    asignados: number;
+    entregados: number;
+    fallidos: number;
+    pendientesLiquidar: number;
+    tiempoPromedioRutaMin: number;
+    diferenciaAcumulada: number;
+  }>;
 }

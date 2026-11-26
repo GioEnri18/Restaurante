@@ -271,7 +271,8 @@ class ReportesService {
                     COALESCE(SUM(total), 0) AS ingresos,
                     COALESCE(SUM(subtotal_sin_iva), 0) AS subtotal,
                     COALESCE(SUM(iva_monto), 0) AS iva,
-                    COALESCE(SUM(costo_total_receta), 0) AS costo
+                    COALESCE(SUM(costo_total_receta), 0) AS costo,
+                    COALESCE(SUM(costo_envio), 0) AS envios
                 FROM ventas
                 WHERE sucursal_id = :sucursalId AND estado = :estado
                   AND created_at >= :desde AND created_at <= :hasta`, { ...rango, estado: EstadoVenta.COMPLETADA }),
@@ -324,6 +325,7 @@ class ReportesService {
                 cantidadAnuladas: Number(anuladas?.cnt ?? 0),
                 totalAnulado: num(anuladas?.sumTotal),
                 ingresosTotales,
+                ingresosEnvioDomicilio: num(t.envios),
                 subtotalSinIva,
                 ivaTotal: num(t.iva),
                 costoRecetasTotal,
@@ -438,6 +440,124 @@ class ReportesService {
             ? { data, meta: buildPaginationMeta(Number(resultado[0].total), paginacion.page, paginacion.limit) }
             : data;
     }
+    /**
+     * Reporte analítico de Servicio a Domicilio:
+     * KPIs generales, desglose por estado, rendimiento por zona y desempeño por repartidor.
+     */
+    static async obtenerReporteDomicilios(sucursalId, fechaDesde, fechaHasta) {
+        const { desde, hasta, labelDesde, labelHasta } = parseDateRange(fechaDesde, fechaHasta);
+        const rango = { sucursalId, desde, hasta };
+        const [[kpisRow], porEstadoRows, porZonaRows, porRepartidorRows, [mermasDom]] = await Promise.all([
+            consultar(`SELECT
+                COUNT(*)::int AS "totalPedidos",
+                COUNT(*) FILTER (WHERE estado = 'ENTREGADO')::int AS "entregados",
+                COUNT(*) FILTER (WHERE estado = 'CANCELADO')::int AS "cancelados",
+                COUNT(*) FILTER (WHERE estado = 'FALLIDO')::int AS "fallidos",
+                COUNT(*) FILTER (WHERE estado IN ('NUEVO','EN_PREPARACION','LISTO','EN_RUTA'))::int AS "activos",
+                COUNT(*) FILTER (WHERE modalidad_pago = 'CONTRA_ENTREGA' AND estado = 'ENTREGADO' AND venta_id IS NULL)::int AS "pendientesLiquidar",
+                COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (entregado_en - created_at)) / 60.0) FILTER (WHERE estado = 'ENTREGADO' AND entregado_en IS NOT NULL)::numeric, 1), 0) AS "tiempoPromedioMin",
+                COALESCE(SUM(total) FILTER (WHERE venta_id IS NOT NULL AND estado <> 'CANCELADO' AND estado <> 'FALLIDO'), 0) AS "ingresosTotales",
+                COALESCE(SUM(costo_envio) FILTER (WHERE venta_id IS NOT NULL AND estado <> 'CANCELADO' AND estado <> 'FALLIDO'), 0) AS "ingresosEnvio",
+                COALESCE(SUM(diferencia_liquidacion) FILTER (WHERE diferencia_liquidacion IS NOT NULL), 0) AS "diferenciaLiquidacionNeta"
+              FROM pedidos_domicilio
+              WHERE sucursal_id = :sucursalId
+                AND created_at >= :desde AND created_at <= :hasta`, rango),
+            consultar(`SELECT estado, COUNT(*)::int AS cantidad, COALESCE(SUM(total), 0) AS total
+              FROM pedidos_domicilio
+              WHERE sucursal_id = :sucursalId
+                AND created_at >= :desde AND created_at <= :hasta
+              GROUP BY estado
+              ORDER BY estado`, rango),
+            consultar(`SELECT
+                zona_entrega_id AS "zonaEntregaId",
+                zona_nombre_snapshot AS "zonaNombre",
+                COUNT(*)::int AS "totalPedidos",
+                COUNT(*) FILTER (WHERE estado = 'ENTREGADO')::int AS "entregados",
+                COUNT(*) FILTER (WHERE estado = 'FALLIDO')::int AS "fallidos",
+                COUNT(*) FILTER (WHERE estado = 'CANCELADO')::int AS "cancelados",
+                COALESCE(SUM(costo_envio) FILTER (WHERE venta_id IS NOT NULL AND estado NOT IN ('CANCELADO','FALLIDO')), 0) AS "ingresosEnvio",
+                COALESCE(SUM(total) FILTER (WHERE venta_id IS NOT NULL AND estado NOT IN ('CANCELADO','FALLIDO')), 0) AS "totalFacturado",
+                COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (entregado_en - created_at)) / 60.0) FILTER (WHERE estado = 'ENTREGADO' AND entregado_en IS NOT NULL)::numeric, 1), 0) AS "tiempoPromedioMin"
+              FROM pedidos_domicilio
+              WHERE sucursal_id = :sucursalId
+                AND created_at >= :desde AND created_at <= :hasta
+              GROUP BY zona_entrega_id, zona_nombre_snapshot
+              ORDER BY "totalPedidos" DESC, "zonaNombre" ASC`, rango),
+            consultar(`SELECT
+                p.repartidor_id AS "repartidorId",
+                u.nombre_completo AS "nombreCompleto",
+                u.username,
+                COUNT(*)::int AS "asignados",
+                COUNT(*) FILTER (WHERE p.estado = 'ENTREGADO')::int AS "entregados",
+                COUNT(*) FILTER (WHERE p.estado = 'FALLIDO')::int AS "fallidos",
+                COUNT(*) FILTER (WHERE p.modalidad_pago = 'CONTRA_ENTREGA' AND p.estado = 'ENTREGADO' AND p.venta_id IS NULL)::int AS "pendientesLiquidar",
+                COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM (p.entregado_en - p.despachado_en)) / 60.0) FILTER (WHERE p.estado = 'ENTREGADO' AND p.entregado_en IS NOT NULL AND p.despachado_en IS NOT NULL)::numeric, 1), 0) AS "tiempoPromedioRutaMin",
+                COALESCE(SUM(p.diferencia_liquidacion) FILTER (WHERE p.diferencia_liquidacion IS NOT NULL), 0) AS "diferenciaAcumulada"
+              FROM pedidos_domicilio p
+              JOIN usuarios u ON u.id = p.repartidor_id
+              WHERE p.sucursal_id = :sucursalId
+                AND p.repartidor_id IS NOT NULL
+                AND p.created_at >= :desde AND p.created_at <= :hasta
+              GROUP BY p.repartidor_id, u.nombre_completo, u.username
+              ORDER BY "entregados" DESC, "asignados" DESC`, rango),
+            consultar(`SELECT COALESCE(SUM(costo_estimado), 0) AS "costoMermas"
+              FROM mermas
+              WHERE sucursal_id = :sucursalId
+                AND pedido_domicilio_id IS NOT NULL
+                AND fecha >= :desde AND fecha <= :hasta`, rango),
+        ]);
+        const totalPedidos = Number(kpisRow?.totalPedidos ?? 0);
+        const entregados = Number(kpisRow?.entregados ?? 0);
+        const cancelados = Number(kpisRow?.cancelados ?? 0);
+        const fallidos = Number(kpisRow?.fallidos ?? 0);
+        const tasaCancelacionPct = totalPedidos > 0 ? round2((cancelados / totalPedidos) * 100) : 0;
+        const tasaFalloPct = totalPedidos > 0 ? round2((fallidos / totalPedidos) * 100) : 0;
+        return {
+            periodo: { fechaDesde: labelDesde, fechaHasta: labelHasta },
+            kpis: {
+                totalPedidos,
+                entregados,
+                cancelados,
+                fallidos,
+                activos: Number(kpisRow?.activos ?? 0),
+                pendientesLiquidar: Number(kpisRow?.pendientesLiquidar ?? 0),
+                tasaCancelacionPct,
+                tasaFalloPct,
+                tiempoPromedioEntregaMin: Number(kpisRow?.tiempoPromedioMin ?? 0),
+                ingresosTotalesDomicilio: num(kpisRow?.ingresosTotales),
+                ingresosEnvioTotal: num(kpisRow?.ingresosEnvio),
+                costoMermasDomicilio: num(mermasDom?.costoMermas),
+                diferenciaLiquidacionNeta: num(kpisRow?.diferenciaLiquidacionNeta),
+            },
+            porEstado: porEstadoRows.map((r) => ({
+                estado: r.estado,
+                cantidad: Number(r.cantidad),
+                total: num(r.total),
+            })),
+            porZona: porZonaRows.map((r) => ({
+                zonaEntregaId: Number(r.zonaEntregaId),
+                zonaNombre: r.zonaNombre,
+                totalPedidos: Number(r.totalPedidos),
+                entregados: Number(r.entregados),
+                fallidos: Number(r.fallidos),
+                cancelados: Number(r.cancelados),
+                ingresosEnvio: num(r.ingresosEnvio),
+                totalFacturado: num(r.totalFacturado),
+                tiempoPromedioMin: Number(r.tiempoPromedioMin ?? 0),
+            })),
+            porRepartidor: porRepartidorRows.map((r) => ({
+                repartidorId: Number(r.repartidorId),
+                nombreCompleto: r.nombreCompleto,
+                username: r.username,
+                asignados: Number(r.asignados),
+                entregados: Number(r.entregados),
+                fallidos: Number(r.fallidos),
+                pendientesLiquidar: Number(r.pendientesLiquidar),
+                tiempoPromedioRutaMin: Number(r.tiempoPromedioRutaMin ?? 0),
+                diferenciaAcumulada: num(r.diferenciaAcumulada),
+            })),
+        };
+    }
     static async exportarPdf(sucursalId, fechaDesde, fechaHasta) {
         const [sucursal, resumen, serie, topProductos] = await Promise.all([
             Sucursal.findByPk(sucursalId),
@@ -474,6 +594,7 @@ class ReportesService {
             doc.text(`• Ventas completadas: ${k.cantidadVentas}   |   Ticket promedio: ${q(k.ticketPromedio)}`);
             doc.text(`• Facturas anuladas: ${k.cantidadAnuladas}   |   Total anulado: ${q(k.totalAnulado)}`);
             doc.text(`• Ingresos totales (IVA incluido): ${q(k.ingresosTotales)}   (Base: ${q(k.subtotalSinIva)} | IVA 12%: ${q(k.ivaTotal)})`);
+            if (k.ingresosEnvioDomicilio > 0) doc.text(`• Ingresos por envío a domicilio incluidos: ${q(k.ingresosEnvioDomicilio)}`);
             doc.text(`• Costo por recetas vendidas: ${q(k.costoRecetasTotal)}   |   Costo por mermas: ${q(k.costoMermasTotal)}`);
             doc.text(`• Ganancia antes de salarios y otros gastos: ${q(k.utilidadBruta)}   |   Margen: ${k.margenBrutoPct.toFixed(2)}%`);
             doc.text(`• Compras del período: ${q(k.totalCompras)}   |   Inventario actual al costo: ${q(k.valorInventarioActual)}`);
@@ -529,6 +650,7 @@ class ReportesService {
             { indicador: 'Cantidad de Anuladas', valor: resumen.kpis.cantidadAnuladas },
             { indicador: 'Total Anulado (GTQ)', valor: resumen.kpis.totalAnulado },
             { indicador: 'Ingresos Totales (GTQ)', valor: resumen.kpis.ingresosTotales },
+            { indicador: 'Ingresos por Envío a Domicilio (GTQ)', valor: resumen.kpis.ingresosEnvioDomicilio },
             { indicador: 'Base Imponible sin IVA (GTQ)', valor: resumen.kpis.subtotalSinIva },
             { indicador: 'IVA 12% Incluido (GTQ)', valor: resumen.kpis.ivaTotal },
             { indicador: 'Costo por Recetas (GTQ)', valor: resumen.kpis.costoRecetasTotal },

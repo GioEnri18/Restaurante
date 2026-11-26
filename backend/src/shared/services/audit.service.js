@@ -29,6 +29,23 @@ const CLAVES_SENSIBLES_EXACTAS = new Set([
   'cardnumber',
   'numerotarjeta',
   'numero_tarjeta',
+  // Privacidad de clientes de servicio a domicilio (teléfono y dirección nunca en claro en auditoría)
+  'telefono',
+  'clientetelefono',
+  'cliente_telefono',
+  'clientetelefonosnapshot',
+  'cliente_telefono_snapshot',
+  'direccion',
+  'clientedireccion',
+  'cliente_direccion',
+  'direccionsnapshot',
+  'direccion_snapshot',
+  'direccionentrega',
+  'direccion_entrega',
+  'referenciasnapshot',
+  'referencia_snapshot',
+  'referenciaentrega',
+  'referencia_entrega',
 ]);
 
 const PATRON_CLAVE_SENSIBLE = /(password|passwd|secret|token|jwt|cookie|authorization|card_?num|numero_?tarjeta|cvv|cvc)/i;

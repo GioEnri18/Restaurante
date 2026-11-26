@@ -240,6 +240,7 @@ class MenuService {
       cajaAbierta: Boolean(cajaAbierta),
       cajaSesionId: cajaAbierta?.id ?? null,
       habilitarMesas: env.ENABLE_TABLE_SERVICE,
+      habilitarDelivery: env.ENABLE_DELIVERY,
       tipoServicioDefault: env.DEFAULT_SERVICE_TYPE,
       categorias: categorias.map((c) => c.get({ plain: true })),
       platillos: platillosFormateados,

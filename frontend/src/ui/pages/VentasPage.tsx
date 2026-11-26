@@ -19,11 +19,13 @@ import { CarritoMobileSheet } from '../components/ventas/CarritoMobileSheet';
 import { CarritoOrdenPanel } from '../components/ventas/CarritoOrdenPanel';
 import { CatalogoPlatillos } from '../components/ventas/CatalogoPlatillos';
 import { CobroModal } from '../components/ventas/CobroModal';
+import { DomicilioCobroModal } from '../components/ventas/DomicilioCobroModal';
 import { PlatilloRecetaModal } from '../components/ventas/PlatilloRecetaModal';
 import { VentasStatusHeader } from '../components/ventas/VentasStatusHeader';
 
 export const VentasPage: React.FC = () => {
   const canCreate = useAuthStore((s) => s.can('ventas:crear'));
+  const canCreateDelivery = useAuthStore((s) => s.can('domicilios:crear'));
   const canOpenCaja = useAuthStore((s) => s.can('caja:abrir'));
   // Creación de categorías y platillos reservada exclusivamente al Administrador
   const isAdminMenu = useAuthStore((s) => s.isAdmin() && s.can('ventas:gestionar_menu'));
@@ -57,14 +59,18 @@ export const VentasPage: React.FC = () => {
   const [catModalOpen, setCatModalOpen] = useState(false);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
+  const [incluirFacturaTicket, setIncluirFacturaTicket] = useState(true);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [idempotencyKey, setIdempotencyKey] = useState<string>('');
 
   const [ticketImprimir, setTicketImprimir] = useState<TicketImprimibleModel | null>(null);
   const [ultimoTicket, setUltimoTicket] = useState<TicketImprimibleModel | null>(null);
 
-  // Controlado por variables de entorno (.env) para habilitar mesas en el futuro sin tocar código
+  // Controlado por variables de entorno (.env) para habilitar mesas y domicilio sin tocar código
   const habilitarMesas = menu ? menu.habilitarMesas && env.ENABLE_TABLE_SERVICE : env.ENABLE_TABLE_SERVICE;
+  const habilitarDelivery =
+    env.ENABLE_DELIVERY && canCreateDelivery && (menu ? Boolean(menu.habilitarDelivery) : true);
 
   const cargarMenu = useCallback(async (enSegundoPlano = false) => {
     if (!enSegundoPlano) {
@@ -91,8 +97,11 @@ export const VentasPage: React.FC = () => {
           );
         }
       }
-      // Si el servicio en mesas está deshabilitado actualmente, asegurar servicio en MOSTRADOR
+      // Si el servicio en mesas o domicilio está deshabilitado actualmente, asegurar servicio en MOSTRADOR
       if (!data.habilitarMesas && useCartStore.getState().tipoServicio === 'MESA') {
+        useCartStore.getState().setTipoServicio('MOSTRADOR');
+      }
+      if ((!env.ENABLE_DELIVERY || !data.habilitarDelivery) && useCartStore.getState().tipoServicio === 'DELIVERY') {
         useCartStore.getState().setTipoServicio('MOSTRADOR');
       }
       setSelectedCat((actual) => {
@@ -191,6 +200,10 @@ export const VentasPage: React.FC = () => {
     }
     setError(null);
     setIdempotencyKey(generarUuid());
+    if (habilitarDelivery && tipoServicio === 'DELIVERY') {
+      setDeliveryModalOpen(true);
+      return;
+    }
     setCheckoutOpen(true);
   };
 
@@ -225,6 +238,38 @@ export const VentasPage: React.FC = () => {
     setCartNotice(null);
     setIdempotencyKey('');
     setCheckoutOpen(false);
+    setIncluirFacturaTicket(true);
+    setUltimoTicket(ticket);
+    setTicketImprimir(ticket);
+    await cargarMenu();
+  };
+
+  const handlePedidoDomicilioCreado = async ({
+    pedido,
+    ticket,
+    incluirFactura,
+    advertenciasStock,
+  }: {
+    pedido: { numeroPedido: string; modalidadPago: string };
+    ticket: TicketImprimibleModel;
+    incluirFactura: boolean;
+    advertenciasStock: Array<{ ingredienteNombre: string }>;
+  }) => {
+    clearCart();
+    setCortesias({});
+    setIdempotencyKey('');
+    setDeliveryModalOpen(false);
+    setIncluirFacturaTicket(incluirFactura);
+    setSuccess(
+      `Pedido a domicilio ${pedido.numeroPedido} registrado (${pedido.modalidadPago === 'PREPAGADO' ? 'Prepagado' : 'Contra entrega'}).`,
+    );
+    if (advertenciasStock.length > 0) {
+      setCartNotice(
+        `Aviso de stock bajo al crear ${pedido.numeroPedido}: ${advertenciasStock.map((a) => a.ingredienteNombre).join(', ')}.`,
+      );
+    } else {
+      setCartNotice(null);
+    }
     setUltimoTicket(ticket);
     setTicketImprimir(ticket);
     await cargarMenu();
@@ -280,6 +325,7 @@ export const VentasPage: React.FC = () => {
           mesas={menu?.mesas ?? []}
           nombreTurno={nombreTurno}
           habilitarMesas={habilitarMesas}
+          habilitarDelivery={habilitarDelivery}
           totals={totals}
           canCreate={canCreate}
           canOpenCaja={canOpenCaja}
@@ -312,6 +358,7 @@ export const VentasPage: React.FC = () => {
         mesas={menu?.mesas ?? []}
         nombreTurno={nombreTurno}
         habilitarMesas={habilitarMesas}
+        habilitarDelivery={habilitarDelivery}
         totals={totals}
         canCreate={canCreate}
         canOpenCaja={canOpenCaja}
@@ -349,9 +396,23 @@ export const VentasPage: React.FC = () => {
         onInventarioInsuficiente={() => void cargarMenu(true)}
       />
 
+      {habilitarDelivery && (
+        <DomicilioCobroModal
+          open={deliveryModalOpen}
+          onClose={() => setDeliveryModalOpen(false)}
+          idempotencyKey={idempotencyKey}
+          cajaAbierta={Boolean(menu?.cajaAbierta)}
+          items={itemsCobro}
+          subtotalPlatillos={totals.total}
+          onPedidoCreado={handlePedidoDomicilioCreado}
+        />
+      )}
+
       <PrintTicketsModal
         ticket={ticketImprimir}
+        includeFactura={incluirFacturaTicket}
         includeComanda
+        includeEntrega
         autoPrint
         onClose={() => setTicketImprimir(null)}
       />

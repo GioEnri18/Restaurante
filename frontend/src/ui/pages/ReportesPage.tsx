@@ -9,8 +9,15 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
-import { BarChart3, FileDown, FileSpreadsheet, Filter, UtensilsCrossed } from 'lucide-react';
-import { PaginationMeta, ReporteResumenModel, SerieVentasDiaModel, TopProductoModel } from '../../models';
+import { BarChart3, Bike, FileDown, FileSpreadsheet, Filter, UtensilsCrossed } from 'lucide-react';
+import { env } from '../../config/env';
+import {
+  PaginationMeta,
+  ReporteDomiciliosModel,
+  ReporteResumenModel,
+  SerieVentasDiaModel,
+  TopProductoModel,
+} from '../../models';
 import { isAbortError } from '../../services/httpClient';
 import { reportesService } from '../../services/reportes.service';
 import { useAuthStore } from '../../store/auth.store';
@@ -31,6 +38,7 @@ export const ReportesPage: React.FC = () => {
   const [resumen, setResumen] = useState<ReporteResumenModel | null>(null);
   const [serie, setSerie] = useState<SerieVentasDiaModel[]>([]);
   const [topProductos, setTopProductos] = useState<TopProductoModel[]>([]);
+  const [reporteDomicilios, setReporteDomicilios] = useState<ReporteDomiciliosModel | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,10 +57,15 @@ export const ReportesPage: React.FC = () => {
     setCargandoDetalle(false);
     setError(null);
     try {
-      const [res, ser, top] = await Promise.all([
+      const [res, ser, top, dom] = await Promise.all([
         reportesService.obtenerResumen(fechaDesde, fechaHasta, controller.signal),
         reportesService.obtenerVentasPeriodo(fechaDesde, fechaHasta, 1, controller.signal),
         reportesService.obtenerTopProductos(fechaDesde, fechaHasta, 1, controller.signal),
+        env.ENABLE_DELIVERY
+          ? reportesService
+              .obtenerReporteDomicilios(fechaDesde, fechaHasta, controller.signal)
+              .catch(() => null)
+          : Promise.resolve(null),
       ]);
       if (solicitud !== solicitudActual.current || controller.signal.aborted) return;
       setResumen(res);
@@ -60,6 +73,7 @@ export const ReportesPage: React.FC = () => {
       setMetaDetalle(ser.meta);
       setTopProductos(top.items);
       setMetaProductos(top.meta);
+      setReporteDomicilios(dom);
     } catch (err) {
       if (isAbortError(err) || solicitud !== solicitudActual.current) return;
       setError(err instanceof Error ? err.message : 'Error cargando reportes');
@@ -412,6 +426,121 @@ export const ReportesPage: React.FC = () => {
           <Pagination meta={metaProductos} onPageChange={(page) => void cargarPaginaDetalle(page, 'productos')} />
         )}
       </div>
+
+      {/* Sección analítica de Servicio a Domicilio (solo si VITE_ENABLE_DELIVERY=true) */}
+      {env.ENABLE_DELIVERY && reporteDomicilios && (
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <Bike className="h-5 w-5 text-brand-700" aria-hidden="true" />
+            <h2 className="text-base font-extrabold text-slate-900">
+              Desempeño de Servicio a Domicilio
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-500">Pedidos</p>
+              <p className="mt-1 text-xl font-black text-slate-900">
+                {reporteDomicilios.kpis.totalPedidos}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-500">Entregados</p>
+              <p className="mt-1 text-xl font-black text-emerald-700">
+                {reporteDomicilios.kpis.entregados}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-500">Tiempo prom.</p>
+              <p className="mt-1 text-xl font-black text-slate-900">
+                {reporteDomicilios.kpis.tiempoPromedioEntregaMin} min
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-500">Fallos / Canc.</p>
+              <p className="mt-1 text-xl font-black text-red-700">
+                {reporteDomicilios.kpis.tasaFalloPct}% / {reporteDomicilios.kpis.tasaCancelacionPct}%
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-500">Ingresos envío</p>
+              <p className="mt-1 text-xl font-black text-brand-700">
+                {formatCurrency(reporteDomicilios.kpis.ingresosEnvioTotal)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-bold text-slate-500">Mermas dom.</p>
+              <p className="mt-1 text-xl font-black text-amber-700">
+                {formatCurrency(reporteDomicilios.kpis.costoMermasDomicilio)}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="overflow-x-auto rounded-xl border border-slate-200 p-3">
+              <h3 className="mb-2 text-xs font-extrabold uppercase text-slate-600">Por zona</h3>
+              {reporteDomicilios.porZona.length === 0 ? (
+                <p className="py-4 text-center text-xs text-slate-500">Sin pedidos en este período.</p>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b text-slate-500">
+                      <th className="py-2">Zona</th>
+                      <th className="py-2 text-right">Pedidos</th>
+                      <th className="py-2 text-right">Entreg.</th>
+                      <th className="py-2 text-right">Prom.</th>
+                      <th className="py-2 text-right">Envíos</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reporteDomicilios.porZona.map((z) => (
+                      <tr key={z.zonaEntregaId}>
+                        <td className="py-2 font-bold text-slate-900">{z.zonaNombre}</td>
+                        <td className="py-2 text-right">{z.totalPedidos}</td>
+                        <td className="py-2 text-right text-emerald-700">{z.entregados}</td>
+                        <td className="py-2 text-right">{z.tiempoPromedioMin} min</td>
+                        <td className="py-2 text-right font-semibold">{formatCurrency(z.ingresosEnvio)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200 p-3">
+              <h3 className="mb-2 text-xs font-extrabold uppercase text-slate-600">Por repartidor</h3>
+              {reporteDomicilios.porRepartidor.length === 0 ? (
+                <p className="py-4 text-center text-xs text-slate-500">Sin asignaciones en este período.</p>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b text-slate-500">
+                      <th className="py-2">Repartidor</th>
+                      <th className="py-2 text-right">Entreg.</th>
+                      <th className="py-2 text-right">Fallidos</th>
+                      <th className="py-2 text-right">Ruta prom.</th>
+                      <th className="py-2 text-right">Dif. caja</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reporteDomicilios.porRepartidor.map((r) => (
+                      <tr key={r.repartidorId}>
+                        <td className="py-2 font-bold text-slate-900">{r.nombreCompleto}</td>
+                        <td className="py-2 text-right text-emerald-700">{r.entregados}</td>
+                        <td className="py-2 text-right text-red-700">{r.fallidos}</td>
+                        <td className="py-2 text-right">{r.tiempoPromedioRutaMin} min</td>
+                        <td className="py-2 text-right font-semibold">
+                          {formatCurrency(r.diferenciaAcumulada)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

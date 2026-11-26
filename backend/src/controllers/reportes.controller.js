@@ -66,6 +66,17 @@ class ReportesController {
             next(error);
         }
     }
+    static async domicilios(req, res, next) {
+        try {
+            const fechaDesde = typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined;
+            const fechaHasta = typeof req.query.fechaHasta === 'string' ? req.query.fechaHasta : undefined;
+            const data = await ReportesService.obtenerReporteDomicilios(req.user.sucursalId, fechaDesde, fechaHasta);
+            res.status(200).json({ ok: true, data });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
     static async exportarPdf(req, res, next) {
         try {
             const fechaDesde = typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined;

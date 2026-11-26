@@ -20,12 +20,28 @@ const logger = pino({
       '*.password',
       '*.passwordHash',
       '*.token',
+      // Privacidad de servicio a domicilio: nunca registrar teléfono ni dirección en claro en logs
+      '*.telefono',
+      '*.clienteTelefono',
+      '*.clienteTelefonoSnapshot',
+      '*.direccion',
+      '*.clienteDireccion',
+      '*.direccionSnapshot',
+      '*.direccionEntrega',
+      '*.referenciaEntrega',
+      '*.referenciaSnapshot',
     ],
     censor: '[OCULTO]',
   },
 });
 
 const REQUEST_ID_VALIDO = /^[A-Za-z0-9._-]{8,64}$/;
+
+/** Oculta parámetros sensibles (como ?telefono=...) antes de escribir la URL en los logs HTTP */
+function sanitizarUrlParaLog(url) {
+  if (typeof url !== 'string' || !url.includes('?')) return url;
+  return url.replace(/([?&](?:telefono|direccion|clienteTelefono)=)[^&]*/gi, '$1[OCULTO]');
+}
 
 const httpLogger = pinoHttp({
   logger,
@@ -45,9 +61,14 @@ const httpLogger = pinoHttp({
   // Los healthchecks de Docker corren cada pocos segundos: no llenar el log con ellos
   autoLogging: { ignore: (req) => req.url?.includes('/health') },
   serializers: {
-    req: (req) => ({ id: req.id, method: req.method, url: req.url, ip: req.raw?.ip ?? req.remoteAddress }),
+    req: (req) => ({
+      id: req.id,
+      method: req.method,
+      url: sanitizarUrlParaLog(req.url),
+      ip: req.raw?.ip ?? req.remoteAddress,
+    }),
     res: (res) => ({ statusCode: res.statusCode }),
   },
 });
 
-module.exports = { logger, httpLogger };
+module.exports = { logger, httpLogger, sanitizarUrlParaLog };

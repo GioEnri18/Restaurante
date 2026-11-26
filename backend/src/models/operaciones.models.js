@@ -65,6 +65,8 @@ Venta.init({
     idempotencyKey: { type: DataTypes.STRING(64), allowNull: true, field: 'idempotency_key' },
     idempotencyHuella: { type: DataTypes.STRING(64), allowNull: true, field: 'idempotency_huella' },
     reservaId: { type: DataTypes.INTEGER, allowNull: true, field: 'reserva_id' },
+    pedidoDomicilioId: { type: DataTypes.INTEGER, allowNull: true, field: 'pedido_domicilio_id' },
+    costoEnvio: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: 'costo_envio' },
     datosDeliveryJson: { type: DataTypes.JSONB, allowNull: true, field: 'datos_delivery_json' },
 }, { sequelize, tableName: 'ventas', timestamps: true, createdAt: true, updatedAt: false });
 // ==================== VENTA_DETALLE ====================
@@ -100,6 +102,8 @@ Factura.init({
     clienteDireccion: { type: DataTypes.STRING(250), allowNull: true, defaultValue: 'Ciudad', field: 'cliente_direccion' },
     subtotalSinIva: { type: DataTypes.DECIMAL(12, 2), allowNull: false, field: 'subtotal_sin_iva' },
     ivaMonto: { type: DataTypes.DECIMAL(12, 2), allowNull: false, field: 'iva_monto' },
+    costoEnvio: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: 'costo_envio' },
+    zonaEntregaNombre: { type: DataTypes.STRING(100), allowNull: true, field: 'zona_entrega_nombre' },
     total: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
     estado: { type: DataTypes.STRING(20), allowNull: false, defaultValue: EstadoFactura.EMITIDA },
     motivoAnulacion: { type: DataTypes.STRING(300), allowNull: true, field: 'motivo_anulacion' },
@@ -115,11 +119,16 @@ class Comanda extends Model {
 Comanda.init({
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     sucursalId: { type: DataTypes.INTEGER, allowNull: false, field: 'sucursal_id' },
-    ventaId: { type: DataTypes.INTEGER, allowNull: false, unique: true, field: 'venta_id' },
+    ventaId: { type: DataTypes.INTEGER, allowNull: true, unique: true, field: 'venta_id' },
+    pedidoDomicilioId: { type: DataTypes.INTEGER, allowNull: true, field: 'pedido_domicilio_id' },
     numeroComanda: { type: DataTypes.STRING(30), allowNull: false, field: 'numero_comanda' },
     tipoServicio: { type: DataTypes.STRING(20), allowNull: false, field: 'tipo_servicio' },
     mesaNumero: { type: DataTypes.STRING(20), allowNull: true, field: 'mesa_numero' },
     nombreTurno: { type: DataTypes.STRING(80), allowNull: true, field: 'nombre_turno' },
+    costoEnvio: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0, field: 'costo_envio' },
+    direccionEntrega: { type: DataTypes.STRING(250), allowNull: true, field: 'direccion_entrega' },
+    referenciaEntrega: { type: DataTypes.STRING(250), allowNull: true, field: 'referencia_entrega' },
+    zonaEntregaNombre: { type: DataTypes.STRING(100), allowNull: true, field: 'zona_entrega_nombre' },
     estadoCocina: { type: DataTypes.STRING(20), allowNull: false, defaultValue: EstadoComanda.PENDIENTE, field: 'estado_cocina' },
 }, { sequelize, tableName: 'comandas', timestamps: true, createdAt: true, updatedAt: false });
 // ==================== AUDITORIA_LOG (APPEND-ONLY) ====================

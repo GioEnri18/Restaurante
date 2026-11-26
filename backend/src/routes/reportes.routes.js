@@ -3,6 +3,7 @@ const { z } = require('zod');
 const { ReportesController } = require('../controllers/reportes.controller');
 const { authenticate } = require('../middlewares/authenticate');
 const { requireAdmin, requirePermission, requireRole } = require('../middlewares/authorize');
+const { requireFeature } = require('../middlewares/featureFlag');
 const { ROL_ADMIN_CODIGO } = require('../config/constants');
 const { validate } = require('../middlewares/validate');
 const {
@@ -60,6 +61,7 @@ router.put('/gastos/:id', requireAdmin, requirePermission('reportes:balance'), v
 router.post('/gastos/:id/anular', requireAdmin, requirePermission('reportes:balance'), validate(idParamsSchema, 'params'), validate(anularGastoSchema), ReportesController.modificarGasto);
 router.get('/ventas-periodo', requirePermission('reportes:ver'), validate(ventasPeriodoSchema, 'query'), ReportesController.ventasPeriodo);
 router.get('/productos-mas-vendidos', requirePermission('reportes:ver'), validate(topProductosSchema, 'query'), ReportesController.productosMasVendidos);
+router.get('/domicilios', requireFeature('ENABLE_DELIVERY'), requirePermission('reportes:ver'), validate(rangoReporteSchema, 'query'), ReportesController.domicilios);
 router.get('/exportar/pdf', requirePermission('reportes:exportar'), validate(rangoReporteSchema, 'query'), ReportesController.exportarPdf);
 router.get('/exportar/excel', requirePermission('reportes:exportar'), validate(rangoReporteSchema, 'query'), ReportesController.exportarExcel);
 module.exports = router;
