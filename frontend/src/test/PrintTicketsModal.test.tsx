@@ -1,7 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TicketImprimibleModel } from '../models';
+import {
+  guardarConfigImpresoras,
+  printAgentService,
+} from '../services/printAgent.service';
 import { PrintTicketsModal } from '../ui/components/print/PrintTicketsModal';
 
 const TICKET_MOCK: TicketImprimibleModel = {
@@ -55,7 +59,13 @@ const TICKET_MOCK: TicketImprimibleModel = {
   },
 };
 
-describe('PrintTicketsModal (botones individuales por bloque Caja y Cocina)', () => {
+describe('PrintTicketsModal (botones individuales Caja/Cocina y agente local)', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    vi.spyOn(printAgentService, 'verificarEstado').mockResolvedValue(false);
+    vi.spyOn(printAgentService, 'listarImpresoras').mockResolvedValue([]);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -150,5 +160,61 @@ describe('PrintTicketsModal (botones individuales por bloque Caja y Cocina)', ()
     await user.click(screen.getByRole('button', { name: 'Imprimir Cocina' }));
     expect(capturasEnPrint[0]).toEqual(['comanda-cocina']);
     expect(document.body.querySelector('.print-only-root')?.textContent).toContain('REIMPRESIÓN');
+  });
+
+  it('cuando el agente local está conectado y cada botón tiene impresora asignada, imprime directo sin abrir window.print()', async () => {
+    const user = userEvent.setup();
+    guardarConfigImpresoras({
+      caja: { tipo: 'windows', nombre: 'POS-80 Caja USB' },
+      cocina: { tipo: 'tcp', host: '192.168.1.50', port: 9100 },
+      abrirGavetaSoloEfectivo: true,
+    });
+
+    vi.spyOn(printAgentService, 'verificarEstado').mockResolvedValue(true);
+    vi.spyOn(printAgentService, 'listarImpresoras').mockResolvedValue([
+      { nombre: 'POS-80 Caja USB', puerto: 'USB001', predeterminada: true, enRed: false },
+    ]);
+    const spyImprimir = vi.spyOn(printAgentService, 'imprimirTicket').mockResolvedValue();
+    const spyWindowPrint = vi.spyOn(window, 'print').mockImplementation(() => {});
+
+    render(
+      <PrintTicketsModal
+        ticket={TICKET_MOCK}
+        includeFactura
+        includeComanda
+        onClose={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Impresora directa: POS-80 Caja USB')).toBeInTheDocument();
+      expect(screen.getByText('Impresora directa: Red 192.168.1.50:9100')).toBeInTheDocument();
+    });
+
+    // Botón 1 (Caja): 2 copias + abre gaveta (EFECTIVO) -> no llama window.print()
+    await user.click(screen.getByRole('button', { name: 'Imprimir Factura (2 copias)' }));
+    expect(spyImprimir).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        destino: 'CAJA',
+        target: { tipo: 'windows', nombre: 'POS-80 Caja USB' },
+        opciones: expect.objectContaining({ copias: 2, abrirGaveta: true }),
+      }),
+    );
+
+    // Botón 2 (Cocina): ahora desbloqueado -> 1 comanda a IP de red sin abrir gaveta
+    const btnCocina = screen.getByRole('button', { name: 'Imprimir Cocina' });
+    expect(btnCocina).toBeEnabled();
+    await user.click(btnCocina);
+    expect(spyImprimir).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        destino: 'COCINA',
+        target: { tipo: 'tcp', host: '192.168.1.50', port: 9100 },
+        opciones: expect.objectContaining({ abrirGaveta: false }),
+      }),
+    );
+
+    expect(spyWindowPrint).not.toHaveBeenCalled();
   });
 });

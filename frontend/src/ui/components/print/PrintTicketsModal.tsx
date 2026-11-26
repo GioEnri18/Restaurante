@@ -1,9 +1,19 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import { Check, Lock, Printer, X } from 'lucide-react';
+import { Check, Lock, Printer, Settings2, X } from 'lucide-react';
 import { env } from '../../../config/env';
 import { TicketImprimibleModel } from '../../../models';
+import {
+  ConfigImpresorasLocal,
+  describirDestinoImpresora,
+  guardarConfigImpresoras,
+  ImpresoraWindowsInfo,
+  leerConfigImpresoras,
+  printAgentService,
+} from '../../../services/printAgent.service';
 import { formatCurrency, formatDateTime } from '../../../utils/formatters';
+import { Alert } from '../common/Alert';
+import { ConfigImpresorasPanel } from './ConfigImpresorasPanel';
 
 interface PrintTicketsModalProps {
   ticket: TicketImprimibleModel | null;
@@ -267,9 +277,9 @@ function renderEntregaContenido(ticket: TicketImprimibleModel) {
 
 /**
  * Modal de vista previa e impresión térmica 80mm con bloques independientes por impresora:
- * - Bloque Caja: imprime 2 copias de la Factura (1. Cliente + corte -> 2. Copia Caja + corte)
- * - Bloque Cocina (bloqueado hasta imprimir Caja): Comanda de cocina individual (corte)
- * - Bloque Entrega (solo domicilio): Ticket de entrega para repartidor
+ * - Bloque Caja: imprime 2 copias de la Factura (1. Cliente + corte -> 2. Copia Caja + corte) y abre gaveta
+ * - Bloque Cocina (bloqueado hasta imprimir Caja): Comanda de cocina individual (corte, sin gaveta)
+ * - Si print-agent local está activo y las impresoras fueron elegidas una vez, imprime directo sin diálogo del navegador
  */
 export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   ticket,
@@ -289,14 +299,52 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
 
   const [bloqueActivoImpresion, setBloqueActivoImpresion] = useState<BloqueImpresionId | null>(null);
   const [bloquesImpresos, setBloquesImpresos] = useState<Partial<Record<BloqueImpresionId, boolean>>>({});
+  const [imprimiendoBloque, setImprimiendoBloque] = useState<BloqueImpresionId | null>(null);
+  const [errorImpresion, setErrorImpresion] = useState<string | null>(null);
+
+  // Estado del agente local de impresoras (guardado automático en localStorage)
+  const [configImpresoras, setConfigImpresoras] = useState<ConfigImpresorasLocal>(() =>
+    leerConfigImpresoras(),
+  );
+  const [agenteConectado, setAgenteConectado] = useState(false);
+  const [cargandoAgente, setCargandoAgente] = useState(false);
+  const [impresorasWindows, setImpresorasWindows] = useState<ImpresoraWindowsInfo[]>([]);
+  const [mostrarConfigImpresoras, setMostrarConfigImpresoras] = useState(false);
 
   onCloseRef.current = onClose;
 
-  // Reiniciar estado de bloques impresos al cambiar de ticket
+  const detectarAgente = useCallback(async () => {
+    setCargandoAgente(true);
+    try {
+      const activo = await printAgentService.verificarEstado();
+      setAgenteConectado(activo);
+      if (activo) {
+        const lista = await printAgentService.listarImpresoras().catch(() => []);
+        setImpresorasWindows(lista);
+      } else {
+        setImpresorasWindows([]);
+      }
+    } finally {
+      setCargandoAgente(false);
+    }
+  }, []);
+
+  // Reiniciar estado de impresión y detectar agente local al abrir el modal
   useEffect(() => {
     setBloqueActivoImpresion(null);
     setBloquesImpresos({});
-  }, [ticket]);
+    setImprimiendoBloque(null);
+    setErrorImpresion(null);
+    if (ticket) {
+      setConfigImpresoras(leerConfigImpresoras());
+      void detectarAgente();
+    }
+  }, [ticket, detectarAgente]);
+
+  const actualizarConfigImpresoras = (next: ConfigImpresorasLocal) => {
+    setConfigImpresoras(next);
+    guardarConfigImpresoras(next);
+  };
 
   const mostrarComandaCocina = Boolean(ticket?.comanda && includeComanda);
   const mostrarEntrega = Boolean(ticket?.entrega && includeEntrega);
@@ -304,7 +352,6 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   const bloques: BloqueImpresion[] = [];
   if (ticket) {
     if (includeFactura) {
-      // En una venta normal (con comanda), el botón de Caja imprime 2 copias de la factura; en reimpresión solo 1
       const imprimirDosCopiasFactura = Boolean(includeComanda);
       const hojaCliente: TicketHoja = {
         key: 'factura-cliente',
@@ -370,7 +417,7 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
   const totalBloques = bloques.length;
   const unicoBloqueId = totalBloques === 1 ? bloques[0].id : null;
 
-  // Auto-impresión únicamente cuando hay un solo bloque (reimpresiones); con Caja + Cocina el cajero elige cada botón
+  // Auto-impresión únicamente cuando hay un solo bloque (reimpresiones); con Factura + Cocina el cajero elige cada botón
   useEffect(() => {
     if (ticket && autoPrint && env.AUTO_PRINT_ENABLED && unicoBloqueId) {
       const timer = setTimeout(() => {
@@ -433,11 +480,56 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
 
   const tieneBloqueCaja = bloques.some((b) => b.id === 'CAJA');
 
-  const imprimirBloque = (bloqueId: BloqueImpresionId) => {
+  const obtenerTargetParaBloque = (bloqueId: BloqueImpresionId) => {
+    if (bloqueId === 'COCINA') return configImpresoras.cocina;
+    return configImpresoras.caja;
+  };
+
+  const imprimirBloque = async (bloqueId: BloqueImpresionId) => {
     if (bloqueId === 'COCINA' && tieneBloqueCaja && !bloquesImpresos.CAJA) {
       return;
     }
-    // flushSync garantiza que el portal de impresión tenga exactamente las hojas del bloque antes de abrir window.print()
+    setErrorImpresion(null);
+
+    const targetDirecto = agenteConectado ? obtenerTargetParaBloque(bloqueId) : null;
+
+    if (targetDirecto) {
+      setImprimiendoBloque(bloqueId);
+      try {
+        const copiasFactura = bloqueId === 'CAJA' && includeComanda ? 2 : 1;
+        const debeAbrirGaveta =
+          bloqueId === 'CAJA' &&
+          (!configImpresoras.abrirGavetaSoloEfectivo || ticket.venta.metodoPago === 'EFECTIVO');
+
+        await printAgentService.imprimirTicket({
+          destino: bloqueId,
+          target: targetDirecto,
+          ticket,
+          opciones: {
+            copias: copiasFactura,
+            abrirGaveta: debeAbrirGaveta,
+            esReimpresion: bloqueId === 'COCINA' && !includeFactura,
+          },
+        });
+        setBloquesImpresos((prev) => ({ ...prev, [bloqueId]: true }));
+        if (bloqueId === 'CAJA') {
+          window.requestAnimationFrame(() => {
+            cocinaPrintBtnRef.current?.focus();
+          });
+        }
+      } catch (err) {
+        setErrorImpresion(
+          err instanceof Error
+            ? `${err.message} Verifica la conexión o abre "Impresoras" para ajustar.`
+            : 'No se pudo enviar a la impresora asignada.',
+        );
+      } finally {
+        setImprimiendoBloque(null);
+      }
+      return;
+    }
+
+    // Respaldo estándar del navegador cuando el agente local no está activo o el bloque no tiene impresora asignada
     flushSync(() => {
       setBloqueActivoImpresion(bloqueId);
     });
@@ -478,8 +570,8 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
           aria-labelledby={titleId}
           className={`flex max-h-[92vh] w-full ${modalWidthClass} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}
         >
-          {/* Barra superior limpia sin botón general: cada bloque tiene su botón individual */}
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          {/* Barra superior limpia sin botón general: acceso a configuración de impresoras + cerrar */}
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
             <div>
               <h3 id={titleId} className="text-lg font-bold text-slate-900">
                 {includeComanda
@@ -494,22 +586,62 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                   : 'Formato centrado para impresora térmica de 80 mm'}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Cerrar vista previa de impresión"
-              className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
-            >
-              <X className="h-5 w-5" aria-hidden="true" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMostrarConfigImpresoras((v) => !v)}
+                aria-expanded={mostrarConfigImpresoras}
+                className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition ${
+                  mostrarConfigImpresoras
+                    ? 'border-brand-300 bg-brand-50 text-brand-800'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${agenteConectado ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                  aria-hidden="true"
+                />
+                <Settings2 className="h-4 w-4" aria-hidden="true" />
+                Impresoras
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Cerrar vista previa de impresión"
+                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
           </div>
+
+          {mostrarConfigImpresoras && (
+            <ConfigImpresorasPanel
+              agenteConectado={agenteConectado}
+              cargandoAgente={cargandoAgente}
+              impresorasWindows={impresorasWindows}
+              config={configImpresoras}
+              onChangeConfig={actualizarConfigImpresoras}
+              onRecargarAgente={() => void detectarAgente()}
+            />
+          )}
 
           {/* Bloques independientes con botón de impresión propio arriba de cada uno */}
           <div className="overflow-y-auto bg-slate-100 p-5">
+            {errorImpresion && (
+              <div className="mb-4">
+                <Alert type="error" message={errorImpresion} />
+              </div>
+            )}
+
             <div className={`mx-auto grid grid-cols-1 gap-5 ${gridBloquesClass}`}>
               {bloques.map((bloque, idx) => {
                 const yaImpreso = Boolean(bloquesImpresos[bloque.id]);
                 const bloqueBloqueado = bloque.id === 'COCINA' && tieneBloqueCaja && !bloquesImpresos.CAJA;
+                const estaImprimiendo = imprimiendoBloque === bloque.id;
+                const destinoAsignado = obtenerTargetParaBloque(bloque.id);
+                const usandoDirecto = agenteConectado && Boolean(destinoAsignado);
+
                 return (
                   <div
                     key={bloque.id}
@@ -535,6 +667,11 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                           )}
                         </div>
                         <p className="text-xs text-slate-500">{bloque.subtitulo}</p>
+                        {usandoDirecto && (
+                          <p className="mt-0.5 text-[11px] font-bold text-emerald-700">
+                            Impresora directa: {describirDestinoImpresora(destinoAsignado)}
+                          </p>
+                        )}
                       </div>
 
                       <button
@@ -546,8 +683,8 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                               : undefined
                         }
                         type="button"
-                        disabled={bloqueBloqueado}
-                        onClick={() => imprimirBloque(bloque.id)}
+                        disabled={bloqueBloqueado || estaImprimiendo}
+                        onClick={() => void imprimirBloque(bloque.id)}
                         className={`inline-flex min-h-[42px] items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold shadow-sm transition ${
                           bloqueBloqueado
                             ? 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400 shadow-none'
@@ -561,7 +698,11 @@ export const PrintTicketsModal: React.FC<PrintTicketsModalProps> = ({
                         ) : (
                           <Printer className="h-4 w-4" aria-hidden="true" />
                         )}
-                        {yaImpreso ? `Volver a ${bloque.textoBoton.toLowerCase()}` : bloque.textoBoton}
+                        {estaImprimiendo
+                          ? 'Imprimiendo...'
+                          : yaImpreso
+                            ? `Volver a ${bloque.textoBoton.toLowerCase()}`
+                            : bloque.textoBoton}
                       </button>
                     </div>
 
