@@ -1,5 +1,6 @@
 const { TipoMovimientoInventario } = require('../models');
 const { InventarioService } = require('../services/inventario.service');
+const { MermasService } = require('../services/mermas.service');
 class InventarioController {
     static async listarIngredientes(req, res, next) {
         try {
@@ -112,6 +113,23 @@ class InventarioController {
                 fechaHasta: typeof req.query.fechaHasta === 'string' ? req.query.fechaHasta : undefined,
             });
             res.status(200).json({ ok: true, data: items, meta });
+        }
+        catch (error) {
+            next(error);
+        }
+    }
+    static async mermasPorIngrediente(req, res, next) {
+        try {
+            const { items, resumen, meta } = await MermasService.resumenPorIngrediente(req.user.sucursalId, {
+                page: req.query.page,
+                limit: req.query.limit,
+                search: typeof req.query.search === 'string' ? req.query.search : undefined,
+                motivo: typeof req.query.motivo === 'string' ? req.query.motivo : undefined,
+                fechaDesde: typeof req.query.fechaDesde === 'string' ? req.query.fechaDesde : undefined,
+                fechaHasta: typeof req.query.fechaHasta === 'string' ? req.query.fechaHasta : undefined,
+                ordenar: typeof req.query.ordenar === 'string' ? req.query.ordenar : undefined,
+            });
+            res.status(200).json({ ok: true, data: items, resumen, meta });
         }
         catch (error) {
             next(error);

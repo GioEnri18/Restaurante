@@ -21,6 +21,7 @@ const { AuditService } = require('../shared/services/audit.service');
 const { UnitConversionService } = require('../shared/services/unitConversion.service');
 const { mapearMotivoMermaACodigo } = require('../shared/utils/auditoriaSeveridad');
 const { endOfDayInTimezone, startOfDayInTimezone, toDateTimeInZone, toIsoDateInTimezone } = require('../shared/utils/dates');
+const { patronContiene } = require('../shared/utils/busqueda');
 const { buildPaginationMeta, parsePagination } = require('../shared/utils/pagination');
 const { round2, round4 } = require('../shared/utils/tax');
 
@@ -378,6 +379,106 @@ class MermasService {
         }
 
         return { cantidadMermas, costoTotalMermas };
+    }
+
+    /**
+     * Resumen compacto y auditable de mermas acumuladas por ingrediente en el período indicado.
+     * Se calcula en PostgreSQL (sin N+1) y devuelve paginación acotada (default 10 por página).
+     */
+    static async resumenPorIngrediente(sucursalId, query = {}) {
+        const { page, limit, skip } = parsePagination(query.page, query.limit, 10, 25);
+        const clauses = ['m."sucursal_id" = :sucursalId'];
+        const replacements = { sucursalId, limit, skip };
+
+        if (query.motivo) {
+            clauses.push('m."motivo" = :motivo');
+            replacements.motivo = query.motivo;
+        }
+        if (query.search?.trim()) {
+            clauses.push('(i."nombre" ILIKE :patron OR i."codigo" ILIKE :patron)');
+            replacements.patron = patronContiene(query.search.trim());
+        }
+        if (query.fechaDesde) {
+            clauses.push('m."fecha" >= ((:fechaDesde)::timestamptz AT TIME ZONE \'UTC\')');
+            replacements.fechaDesde = startOfDayInTimezone(query.fechaDesde);
+        }
+        if (query.fechaHasta) {
+            clauses.push('m."fecha" <= ((:fechaHasta)::timestamptz AT TIME ZONE \'UTC\')');
+            replacements.fechaHasta = endOfDayInTimezone(query.fechaHasta);
+        }
+
+        const whereSql = clauses.join(' AND ');
+        const ordenMap = {
+            costo: '"costoTotal" DESC, "totalOz" DESC, i."nombre" ASC',
+            cantidad: '"totalOz" DESC, "costoTotal" DESC, i."nombre" ASC',
+            registros: '"cantidadRegistros" DESC, "costoTotal" DESC, i."nombre" ASC',
+        };
+        const orderBySql = ordenMap[query.ordenar] || ordenMap.costo;
+
+        const [[totalesRow], filas] = await Promise.all([
+            sequelize.query(
+                `SELECT
+                   COUNT(DISTINCT m."ingrediente_id")::int AS "ingredientesConMerma",
+                   COUNT(m."id")::int AS "totalRegistros",
+                   COALESCE(SUM(m."cantidad_oz"), 0) AS "totalOzMermadas",
+                   COALESCE(SUM(m."costo_estimado"), 0) AS "costoTotalMermas"
+                 FROM "mermas" m
+                 JOIN "ingredientes" i ON i."id" = m."ingrediente_id"
+                 WHERE ${whereSql}`,
+                { replacements, type: QueryTypes.SELECT },
+            ),
+            sequelize.query(
+                `SELECT
+                   i."id" AS "ingredienteId",
+                   i."codigo",
+                   i."nombre",
+                   i."stock_actual_oz" AS "stockActualOz",
+                   COUNT(m."id")::int AS "cantidadRegistros",
+                   COALESCE(SUM(m."cantidad_oz"), 0) AS "totalOz",
+                   COALESCE(SUM(m."costo_estimado"), 0) AS "costoTotal",
+                   MODE() WITHIN GROUP (ORDER BY m."motivo") AS "motivoPrincipal",
+                   MAX(m."fecha") AS "ultimaMerma"
+                 FROM "mermas" m
+                 JOIN "ingredientes" i ON i."id" = m."ingrediente_id"
+                 WHERE ${whereSql}
+                 GROUP BY i."id", i."codigo", i."nombre", i."stock_actual_oz"
+                 ORDER BY ${orderBySql}
+                 LIMIT :limit OFFSET :skip`,
+                { replacements, type: QueryTypes.SELECT },
+            ),
+        ]);
+
+        const totalIngredientes = Number(totalesRow?.ingredientesConMerma ?? 0);
+        const totalOzMermadas = round4(Number(totalesRow?.totalOzMermadas ?? 0));
+        const costoTotalMermas = round2(Number(totalesRow?.costoTotalMermas ?? 0));
+
+        return {
+            items: filas.map((f) => {
+                const totalOz = round4(Number(f.totalOz ?? 0));
+                const costoTotal = round2(Number(f.costoTotal ?? 0));
+                return {
+                    ingredienteId: Number(f.ingredienteId),
+                    codigo: f.codigo,
+                    nombre: f.nombre,
+                    stockActualOz: round4(Number(f.stockActualOz ?? 0)),
+                    cantidadRegistros: Number(f.cantidadRegistros ?? 0),
+                    totalOz,
+                    totalLb: UnitConversionService.ozToLb(totalOz),
+                    costoTotal,
+                    porcentajeCosto: costoTotalMermas > 0 ? round2((costoTotal / costoTotalMermas) * 100) : 0,
+                    motivoPrincipal: f.motivoPrincipal ?? null,
+                    ultimaMerma: f.ultimaMerma ?? null,
+                };
+            }),
+            resumen: {
+                ingredientesConMerma: totalIngredientes,
+                totalRegistros: Number(totalesRow?.totalRegistros ?? 0),
+                totalOzMermadas,
+                totalLbMermadas: UnitConversionService.ozToLb(totalOzMermadas),
+                costoTotalMermas,
+            },
+            meta: buildPaginationMeta(totalIngredientes, page, limit),
+        };
     }
 }
 

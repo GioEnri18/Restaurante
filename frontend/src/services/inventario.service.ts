@@ -9,6 +9,28 @@ import {
 } from '../models';
 import { buildQueryString, httpClient } from './httpClient';
 
+export interface MermaPorIngredienteItem {
+  ingredienteId: number;
+  codigo: string;
+  nombre: string;
+  stockActualOz: number;
+  cantidadRegistros: number;
+  totalOz: number;
+  totalLb: number;
+  costoTotal: number;
+  porcentajeCosto: number;
+  motivoPrincipal: string | null;
+  ultimaMerma: string | null;
+}
+
+export interface MermaPorIngredienteResumen {
+  ingredientesConMerma: number;
+  totalRegistros: number;
+  totalOzMermadas: number;
+  totalLbMermadas: number;
+  costoTotalMermas: number;
+}
+
 export const inventarioService = {
   async listarIngredientes(search?: string, signal?: AbortSignal): Promise<IngredienteModel[]> {
     const qs = buildQueryString({ search });
@@ -112,6 +134,52 @@ export const inventarioService = {
     return {
       items: (res.data ?? []).map((m) => inventarioAdapter.fromMovimientoJson(m)),
       meta: res.meta ?? { page: 1, limit: 15, total: 0, totalPages: 1 },
+    };
+  },
+
+  async listarMermasPorIngrediente(
+    params: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      motivo?: string;
+      fechaDesde?: string;
+      fechaHasta?: string;
+      ordenar?: 'costo' | 'cantidad' | 'registros';
+    },
+    signal?: AbortSignal,
+  ): Promise<{
+    items: MermaPorIngredienteItem[];
+    resumen: MermaPorIngredienteResumen;
+    meta: PaginationMeta;
+  }> {
+    const qs = buildQueryString({
+      page: params.page ?? 1,
+      limit: params.limit ?? 10,
+      search: params.search?.trim() || undefined,
+      motivo: params.motivo || undefined,
+      fechaDesde: params.fechaDesde || undefined,
+      fechaHasta: params.fechaHasta || undefined,
+      ordenar: params.ordenar || 'costo',
+    });
+    const res = (await httpClient.get<MermaPorIngredienteItem[]>(
+      `/inventario/mermas-por-ingrediente${qs}`,
+      { signal },
+    )) as unknown as {
+      data?: MermaPorIngredienteItem[];
+      resumen?: MermaPorIngredienteResumen;
+      meta?: PaginationMeta;
+    };
+    return {
+      items: res.data ?? [],
+      resumen: res.resumen ?? {
+        ingredientesConMerma: 0,
+        totalRegistros: 0,
+        totalOzMermadas: 0,
+        totalLbMermadas: 0,
+        costoTotalMermas: 0,
+      },
+      meta: res.meta ?? { page: 1, limit: 10, total: 0, totalPages: 1 },
     };
   },
 };

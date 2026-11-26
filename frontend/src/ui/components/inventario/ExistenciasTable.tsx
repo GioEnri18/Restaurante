@@ -1,5 +1,5 @@
 import React from 'react';
-import { PackageOpen, PackagePlus, Search, SlidersHorizontal, X } from 'lucide-react';
+import { PackageOpen, PackagePlus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { IngredienteModel, PaginationMeta } from '../../../models';
 import { formatCurrency } from '../../../utils/formatters';
 import { Badge } from '../common/Badge';
@@ -20,6 +20,7 @@ interface ExistenciasTableProps {
   meta: PaginationMeta;
   onPageChange: (pagina: number) => void;
   onNuevoIngrediente?: () => void;
+  onVerMermas?: () => void;
   onComprar: (ingrediente: IngredienteModel) => void;
   onAjustar: (ingrediente: IngredienteModel) => void;
 }
@@ -36,6 +37,7 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
   meta,
   onPageChange,
   onNuevoIngrediente,
+  onVerMermas,
   onComprar,
   onAjustar,
 }) => {
@@ -85,6 +87,16 @@ export const ExistenciasTable: React.FC<ExistenciasTableProps> = ({
         >
           Solo por reponer
         </button>
+        {onVerMermas && (
+          <button
+            type="button"
+            onClick={onVerMermas}
+            className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 text-xs font-bold text-rose-800 transition hover:bg-rose-100"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Merma total por ingrediente
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto">

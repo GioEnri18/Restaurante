@@ -7,6 +7,7 @@ import {
   History,
   BookOpen,
   Scale,
+  Trash2,
 } from 'lucide-react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import {
@@ -50,8 +51,9 @@ import {
 } from '../components/inventario/NuevoProveedorModal';
 import { ProveedoresGrid } from '../components/inventario/ProveedoresGrid';
 import { RecetasPreciosGrid } from '../components/inventario/RecetasPreciosGrid';
+import { MermasPorIngredientePanel } from '../components/inventario/MermasPorIngredientePanel';
 
-type Tab = 'existencias' | 'compras' | 'proveedores' | 'kardex' | 'recetas';
+type Tab = 'existencias' | 'mermas' | 'compras' | 'proveedores' | 'kardex' | 'recetas';
 
 export const InventarioPage: React.FC = () => {
   const canManage = useAuthStore((s) => s.can('inventario:gestionar'));
@@ -62,7 +64,7 @@ export const InventarioPage: React.FC = () => {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab');
-  const validTabs: Tab[] = ['existencias', 'compras', 'proveedores', 'kardex', 'recetas'];
+  const validTabs: Tab[] = ['existencias', 'mermas', 'compras', 'proveedores', 'kardex', 'recetas'];
   const [tab, setTab] = useState<Tab>(
     initialTab && validTabs.includes(initialTab as Tab) ? (initialTab as Tab) : 'existencias',
   );
@@ -453,6 +455,7 @@ export const InventarioPage: React.FC = () => {
       <div className="flex flex-wrap gap-2">
         {[
           { id: 'existencias', label: 'Existencias', Icon: Scale },
+          { id: 'mermas', label: 'Mermas por ingrediente', Icon: Trash2 },
           { id: 'compras', label: 'Compras', Icon: ShoppingBag },
           { id: 'proveedores', label: 'Proveedores', Icon: Truck },
           { id: 'kardex', label: 'Historial de entradas y salidas', Icon: History },
@@ -491,11 +494,14 @@ export const InventarioPage: React.FC = () => {
                 setSoloPorReponer((actual) => !actual);
               }}
               onNuevoIngrediente={canManage ? () => setIngModal(true) : undefined}
+              onVerMermas={() => cambiarTab('mermas')}
               onComprar={abrirCompra} onAjustar={setAjusteTarget} />
           </div>
           {alertasStock}
         </div>
       )}
+
+      {tab === 'mermas' && <MermasPorIngredientePanel />}
 
       {tab === 'compras' && (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_17rem]">

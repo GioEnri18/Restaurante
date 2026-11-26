@@ -183,27 +183,8 @@ export const CatalogoPlatillos: React.FC<CatalogoPlatillosProps> = ({
           )}
         </div>
 
-        {/* Pestañas de categorías */}
+        {/* Pestañas de categorías (solo por categorías, sin Menú general) */}
         <div className="flex gap-2 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => onSelectCat(null)}
-            aria-pressed={selectedCat === null}
-            className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${selectedCat === null
-              ? 'bg-slate-900 text-white shadow-md'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-              }`}
-          >
-            <UtensilsCrossed className="h-4 w-4" aria-hidden="true" />
-            <span>Menú general</span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs ${selectedCat === null ? 'bg-white/20 text-white' : 'bg-white text-slate-600'
-                }`}
-            >
-              {menu?.platillos.length ?? 0}
-            </span>
-          </button>
-
           {menu?.menuEspecialActivo && menu.menuEspecialActivo.platillosIds.length > 0 && (
             <button
               type="button"

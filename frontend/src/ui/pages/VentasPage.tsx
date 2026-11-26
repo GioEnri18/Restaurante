@@ -105,10 +105,22 @@ export const VentasPage: React.FC = () => {
         useCartStore.getState().setTipoServicio('MOSTRADOR');
       }
       setSelectedCat((actual) => {
+        const primeraConPlatillos =
+          data.categorias.find((c) => data.platillos.some((p) => p.categoriaId === c.id))?.id ??
+          data.categorias[0]?.id ??
+          null;
+        const categoriaPorDefecto: number | 'ESPECIAL' | null =
+          data.menuEspecialActivo?.esMenuPrincipal && data.menuEspecialActivo.platillosIds.length > 0
+            ? 'ESPECIAL'
+            : primeraConPlatillos;
+
         if (actual === 'ESPECIAL') {
-          return data.menuEspecialActivo?.platillosIds.length ? actual : null;
+          return data.menuEspecialActivo?.platillosIds.length ? actual : categoriaPorDefecto;
         }
-        return data.categorias.some((categoria) => categoria.id === actual) ? actual : null;
+        if (actual !== null && data.categorias.some((categoria) => categoria.id === actual)) {
+          return actual;
+        }
+        return categoriaPorDefecto;
       });
     } catch (err) {
       if (!enSegundoPlano) setError(err instanceof Error ? err.message : 'Error cargando el menú');
@@ -155,8 +167,10 @@ export const VentasPage: React.FC = () => {
       if (onlyAvailable && (!p.disponible || p.precioVenta <= 0)) {
         return false;
       }
-      const matchCat =
-        selectedCat === 'ESPECIAL'
+      // Si el usuario escribe en el buscador, busca en todas las categorías; si no, filtra por la categoría activa
+      const matchCat = term
+        ? true
+        : selectedCat === 'ESPECIAL'
           ? p.esEspecialHoy
           : selectedCat !== null
             ? p.categoriaId === selectedCat
@@ -283,7 +297,17 @@ export const VentasPage: React.FC = () => {
         ultimoTicket={ultimoTicket}
         selectedCat={selectedCat}
         onReimprimirUltimo={setTicketImprimir}
-        onToggleEspecial={() => setSelectedCat(selectedCat === 'ESPECIAL' ? null : 'ESPECIAL')}
+        onToggleEspecial={() => {
+          if (selectedCat === 'ESPECIAL') {
+            const primera =
+              menu?.categorias.find((c) => (countByCategoria.get(c.id) ?? 0) > 0)?.id ??
+              menu?.categorias[0]?.id ??
+              null;
+            setSelectedCat(primera);
+          } else {
+            setSelectedCat('ESPECIAL');
+          }
+        }}
       />
 
       {error && <Alert type="error" message={error} />}
@@ -307,7 +331,6 @@ export const VentasPage: React.FC = () => {
           onToggleOnlyAvailable={() => setOnlyAvailable((prev) => !prev)}
           onLimpiarFiltros={() => {
             setSearch('');
-            setSelectedCat(null);
             setOnlyAvailable(false);
           }}
           onAddItem={addItem}

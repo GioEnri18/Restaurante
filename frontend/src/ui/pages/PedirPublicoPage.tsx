@@ -376,6 +376,11 @@ const MenuPublicoOrdenView: React.FC<{
       .obtenerMenu({ sucursal: codigoSucursal }, controller.signal)
       .then((data) => {
         setMenu(data);
+        if (data.categorias.length > 0) {
+          setCategoriaActiva((prev) =>
+            prev !== '' && data.categorias.some((c) => c.id === prev) ? prev : data.categorias[0].id,
+          );
+        }
         if (data.zonas.length > 0) {
           setZonaEntregaId((prev) => (prev === '' ? data.zonas[0].id : prev));
         }
@@ -395,7 +400,7 @@ const MenuPublicoOrdenView: React.FC<{
     if (!menu) return [];
     const q = busqueda.trim().toLowerCase();
     return menu.platillos.filter((p) => {
-      if (categoriaActiva !== '' && p.categoriaId !== categoriaActiva) return false;
+      if (!q && categoriaActiva !== '' && p.categoriaId !== categoriaActiva) return false;
       if (!q) return true;
       return (
         p.nombre.toLowerCase().includes(q) ||
@@ -656,16 +661,6 @@ const MenuPublicoOrdenView: React.FC<{
 
               {menu && menu.categorias.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCategoriaActiva('')}
-                    className={`min-h-[36px] rounded-full px-3.5 text-xs font-extrabold transition ${categoriaActiva === ''
-                        ? 'bg-brand-700 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                  >
-                    Todo el menú
-                  </button>
                   {menu.categorias.map((cat) => (
                     <button
                       key={cat.id}

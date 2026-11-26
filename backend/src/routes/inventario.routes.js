@@ -83,11 +83,21 @@ const listarMovimientosQuerySchema = z
     tipo: textoBusqueda(40).optional(),
 })
     .superRefine(refinarRangoFechas);
+const mermasPorIngredienteQuerySchema = z
+    .object({
+    ...paginacionQuery,
+    ...rangoFechasQuery,
+    search: textoBusqueda(80).optional(),
+    motivo: z.enum(['VENCIMIENTO', 'DANO', 'ERROR_PREPARACION', 'ACCIDENTE', 'OTRO']).optional(),
+    ordenar: z.enum(['costo', 'cantidad', 'registros']).optional(),
+})
+    .superRefine(refinarRangoFechas);
 const idParams = validate(idParamsSchema, 'params');
 const router = Router();
 router.use(authenticate);
 router.get('/ingredientes', requirePermission('inventario:ver', 'mermas:ver'), validate(busquedaQuerySchema, 'query'), InventarioController.listarIngredientes);
 router.get('/alertas', requirePermission('inventario:ver'), InventarioController.alertas);
+router.get('/mermas-por-ingrediente', requirePermission('inventario:ver', 'mermas:ver'), validate(mermasPorIngredienteQuerySchema, 'query'), InventarioController.mermasPorIngrediente);
 router.post('/ingredientes', requirePermission('inventario:gestionar'), validate(crearIngredienteSchema), InventarioController.crearIngrediente);
 router.put('/ingredientes/:id', requirePermission('inventario:gestionar'), idParams, validate(actualizarIngredienteSchema), InventarioController.actualizarIngrediente);
 router.post('/ingredientes/:id/ajustar', requirePermission('inventario:ajustar'), idParams, validate(ajustarStockSchema), InventarioController.ajustarStock);
